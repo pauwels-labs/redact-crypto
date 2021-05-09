@@ -41,6 +41,17 @@ impl TryFrom<Keys> for SymmetricKeys {
     }
 }
 
+impl TryFrom<Keys> for AsymmetricKeys {
+    type Error = CryptoError;
+
+    fn try_from(key: Keys) -> Result<Self, Self::Error> {
+        match key {
+            Keys::Asymmetric(ak) => Ok(ak),
+            _ => Err(CryptoError::NotAsymmetric),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum SymmetricKeys {
     SodiumOxide(SodiumOxideSymmetricKey),
