@@ -35,7 +35,7 @@ pub enum SymmetricKeys {
     SodiumOxide(SodiumOxideSymmetricKey),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxideSymmetricKey {
     pub source: KeySources,
     pub alg: String,
