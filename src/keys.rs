@@ -102,6 +102,32 @@ pub struct SodiumOxideSecretKey {
     pub name: String,
 }
 
+impl AsymmetricKeyEncryptor for SecretKeys {
+    fn try_encrypt(
+        &self,
+        public_ks: KeySources,
+        plaintext: Vec<u8>,
+    ) -> Result<Vec<u8>, CryptoError> {
+        match self {
+            SecretKeys::SodiumOxide(sosk) => sosk.try_encrypt(public_ks, plaintext),
+        }
+    }
+}
+
+impl SodiumOxideSecretKey {
+    fn new(name: String) -> Self {
+        let (pk, sk) = box_::gen_keypair();
+        SodiumOxideSecretKey {
+            source: KeySources::Value(ValueKeySource {
+                value: sk.as_ref().to_vec(),
+            }),
+            alg: "curve25519xsalsa20poly1305".to_owned(),
+            encrypted_by: None,
+            name,
+        }
+    }
+}
+
 impl AsymmetricKeyEncryptor for SodiumOxideSecretKey {
     fn try_encrypt(
         &self,

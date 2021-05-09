@@ -4,7 +4,7 @@ use std::convert::{TryFrom, TryInto};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ValueKeySource {
-    value: Vec<u8>,
+    pub value: Vec<u8>,
 }
 
 impl ValueKeySource {
@@ -15,7 +15,7 @@ impl ValueKeySource {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FsKeySource {
-    path: String,
+    pub path: String,
 }
 
 impl TryFrom<FsKeySource> for ValueKeySource {
