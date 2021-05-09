@@ -30,7 +30,7 @@ pub enum Keys {
     Asymmetric(AsymmetricKeys),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum SymmetricKeys {
     SodiumOxide(SodiumOxideSymmetricKey),
 }
