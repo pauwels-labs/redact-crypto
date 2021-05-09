@@ -24,11 +24,13 @@ pub trait AsymmetricKeyEncryptor {
     ) -> Result<Vec<u8>, CryptoError>;
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub enum Keys {
     Symmetric(SymmetricKeys),
     Asymmetric(AsymmetricKeys),
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub enum SymmetricKeys {
     SodiumOxide(SodiumOxideSymmetricKey),
 }
@@ -50,15 +52,18 @@ impl SymmetricKeyEncryptor for SodiumOxideSymmetricKey {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub enum AsymmetricKeys {
     Public(PublicKeys),
     Secret(SecretKeys),
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub enum PublicKeys {
     SodiumOxide(SodiumOxidePublicKey),
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub enum SecretKeys {
     SodiumOxide(SodiumOxideSecretKey),
 }
