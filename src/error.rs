@@ -12,6 +12,9 @@ pub enum CryptoError {
 
     /// Indicates the key loaded key isn't the right size for the selected executor
     SourceKeyBadSize,
+
+    /// Indicates the source key is not a symmetric key
+    NotSymmetric,
 }
 
 impl Error for CryptoError {
@@ -19,6 +22,7 @@ impl Error for CryptoError {
         match *self {
             CryptoError::FsIoError { ref source } => Some(source),
             CryptoError::SourceKeyBadSize => None,
+            CryptoError::NotSymmetric => None,
         }
     }
 }
@@ -34,6 +38,9 @@ impl Display for CryptoError {
                     f,
                     "Loaded key is not the correct size for the selected executor"
                 )
+            }
+            CryptoError::NotSymmetric => {
+                write!(f, "Key is not a symmetric key")
             }
         }
     }
