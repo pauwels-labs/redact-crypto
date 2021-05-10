@@ -138,7 +138,7 @@ impl AsymmetricKeyEncryptor for SecretKeys {
 
 impl SodiumOxideSecretKey {
     fn new(name: String) -> Self {
-        let (pk, sk) = box_::gen_keypair();
+        let (_, sk) = box_::gen_keypair();
         SodiumOxideSecretKey {
             source: KeySources::Value(ValueKeySource {
                 value: sk.as_ref().to_vec(),

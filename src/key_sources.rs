@@ -16,15 +16,22 @@ impl ValueKeySource {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FsKeySource {
     pub path: String,
+    pub vks: Option<ValueKeySource>,
 }
 
 impl TryFrom<FsKeySource> for ValueKeySource {
     type Error = CryptoError;
 
-    fn try_from(ks: FsKeySource) -> Result<Self, Self::Error> {
-        Ok(ValueKeySource {
-            value: std::fs::read(ks.path).map_err(|e| CryptoError::FsIoError { source: e })?,
-        })
+    fn try_from(mut ks: FsKeySource) -> Result<Self, Self::Error> {
+        if let Some(vks) = ks.vks {
+            Ok(vks)
+        } else {
+            let vks = ValueKeySource {
+                value: std::fs::read(ks.path).map_err(|e| CryptoError::FsIoError { source: e })?,
+            };
+            ks.vks = Some(vks.clone());
+            Ok(vks)
+        }
     }
 }
 
