@@ -112,6 +112,17 @@ pub struct SodiumOxidePublicKey {
     pub name: String,
 }
 
+impl TryFrom<AsymmetricKeys> for SecretKeys {
+    type Error = CryptoError;
+
+    fn try_from(ak: AsymmetricKeys) -> Result<Self, Self::Error> {
+        match ak {
+            AsymmetricKeys::Secret(sk) => Ok(sk),
+            _ => Err(CryptoError::NotSecret),
+        }
+    }
+}
+
 impl TryFrom<SecretKeys> for PublicKeys {
     type Error = CryptoError;
 
