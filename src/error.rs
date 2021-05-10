@@ -18,6 +18,9 @@ pub enum CryptoError {
 
     /// Indicates the source key is not an asymmetric key
     NotAsymmetric,
+
+    /// This error will never occur
+    Infallible,
 }
 
 impl Error for CryptoError {
@@ -27,6 +30,7 @@ impl Error for CryptoError {
             CryptoError::SourceKeyBadSize => None,
             CryptoError::NotSymmetric => None,
             CryptoError::NotAsymmetric => None,
+            CryptoError::Infallible => None,
         }
     }
 }
@@ -48,6 +52,9 @@ impl Display for CryptoError {
             }
             CryptoError::NotAsymmetric => {
                 write!(f, "Key is not an asymmetric key")
+            }
+            CryptoError::Infallible => {
+                write!(f, "This error should never occur")
             }
         }
     }
