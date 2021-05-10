@@ -24,7 +24,7 @@ pub trait AsymmetricKeyEncryptor {
     ) -> Result<Vec<u8>, CryptoError>;
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Keys {
     Symmetric(SymmetricKeys),
     Asymmetric(AsymmetricKeys),
@@ -74,23 +74,23 @@ impl SymmetricKeyEncryptor for SodiumOxideSymmetricKey {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum AsymmetricKeys {
     Public(PublicKeys),
     Secret(SecretKeys),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum PublicKeys {
     SodiumOxide(SodiumOxidePublicKey),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum SecretKeys {
     SodiumOxide(SodiumOxideSecretKey),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxidePublicKey {
     pub source: KeySources,
     pub alg: String,
@@ -116,7 +116,7 @@ impl TryFrom<SecretKeys> for PublicKeys {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxideSecretKey {
     pub source: KeySources,
     pub alg: String,
