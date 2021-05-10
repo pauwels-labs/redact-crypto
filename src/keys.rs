@@ -10,15 +10,15 @@ use sodiumoxide::crypto::{
     },
     secretbox::{self, xsalsa20poly1305::Key},
 };
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 
 pub trait SymmetricKeyEncryptor {
-    fn try_encrypt(&self, plaintext: Vec<u8>) -> Result<Vec<u8>, CryptoError>;
+    fn try_encrypt(&mut self, plaintext: Vec<u8>) -> Result<Vec<u8>, CryptoError>;
 }
 
 pub trait AsymmetricKeyEncryptor {
     fn try_encrypt(
-        &self,
+        &mut self,
         public_ks: KeySources,
         plaintext: Vec<u8>,
     ) -> Result<Vec<u8>, CryptoError>;
@@ -66,9 +66,23 @@ pub struct SodiumOxideSymmetricKey {
 }
 
 impl SymmetricKeyEncryptor for SodiumOxideSymmetricKey {
-    fn try_encrypt(&self, plaintext: Vec<u8>) -> Result<Vec<u8>, CryptoError> {
-        let vks: BytesKeySources = self.source.clone().try_into()?;
-        let key = Key::from_slice(&vks.try_bytes()?).ok_or(CryptoError::SourceKeyBadSize)?;
+    fn try_encrypt(&mut self, plaintext: Vec<u8>) -> Result<Vec<u8>, CryptoError> {
+        let bks: &mut BytesKeySources = match self.source {
+            KeySources::Bytes(ref mut bks) => Ok(bks),
+        }?;
+        let key_bytes_result = bks.get();
+        let key_bytes = match key_bytes_result {
+            Ok(bytes) => Ok(bytes),
+            Err(e) => match e {
+                CryptoError::NotFound => {
+                    let (_, sk) = box_::gen_keypair();
+                    bks.set(sk.as_ref())?;
+                    bks.get()
+                }
+                _ => Err(e),
+            },
+        }?;
+        let key = Key::from_slice(key_bytes).ok_or(CryptoError::SourceKeyBadSize)?;
         let nonce = secretbox::gen_nonce();
         Ok(secretbox::seal(&plaintext, &nonce, &key))
     }
@@ -123,7 +137,7 @@ pub struct SodiumOxideSecretKey {
 
 impl AsymmetricKeyEncryptor for SecretKeys {
     fn try_encrypt(
-        &self,
+        &mut self,
         public_ks: KeySources,
         plaintext: Vec<u8>,
     ) -> Result<Vec<u8>, CryptoError> {
@@ -149,16 +163,33 @@ impl SodiumOxideSecretKey {
 
 impl AsymmetricKeyEncryptor for SodiumOxideSecretKey {
     fn try_encrypt(
-        &self,
-        public_ks: KeySources,
+        &mut self,
+        mut public_ks: KeySources,
         plaintext: Vec<u8>,
     ) -> Result<Vec<u8>, CryptoError> {
-        let secret_vks: BytesKeySources = self.source.clone().try_into()?;
-        let public_vks: BytesKeySources = public_ks.try_into()?;
+        let secret_bks: &mut BytesKeySources = match self.source {
+            KeySources::Bytes(ref mut bks) => Ok(bks),
+        }?;
+        let public_bks: &mut BytesKeySources = match public_ks {
+            KeySources::Bytes(ref mut bks) => Ok(bks),
+        }?;
+        let secret_key_bytes_result = secret_bks.get();
+        let secret_key_bytes = match secret_key_bytes_result {
+            Ok(bytes) => Ok(bytes),
+            Err(e) => match e {
+                CryptoError::NotFound => {
+                    let (_, sk) = box_::gen_keypair();
+                    secret_bks.set(sk.as_ref())?;
+                    secret_bks.get()
+                }
+                _ => Err(e),
+            },
+        }?;
+        let public_key_bytes = public_bks.get()?;
         let secret_key =
-            SecretKey::from_slice(&secret_vks.try_bytes()?).ok_or(CryptoError::SourceKeyBadSize)?;
+            SecretKey::from_slice(secret_key_bytes).ok_or(CryptoError::SourceKeyBadSize)?;
         let public_key =
-            PublicKey::from_slice(&public_vks.try_bytes()?).ok_or(CryptoError::SourceKeyBadSize)?;
+            PublicKey::from_slice(public_key_bytes).ok_or(CryptoError::SourceKeyBadSize)?;
         let precomputed_key = box_::precompute(&public_key, &secret_key);
         let nonce = box_::gen_nonce();
         Ok(box_::seal_precomputed(&plaintext, &nonce, &precomputed_key))

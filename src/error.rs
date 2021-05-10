@@ -21,6 +21,12 @@ pub enum CryptoError {
 
     /// This error will never occur
     Infallible,
+
+    /// Indicates the key source could not source the key
+    NotFound,
+
+    /// Indicates the key sources is not a bytes key source but must be
+    NotBytesKeySource,
 }
 
 impl Error for CryptoError {
@@ -31,6 +37,8 @@ impl Error for CryptoError {
             CryptoError::NotSymmetric => None,
             CryptoError::NotAsymmetric => None,
             CryptoError::Infallible => None,
+            CryptoError::NotFound => None,
+            CryptoError::NotBytesKeySource => None,
         }
     }
 }
@@ -55,6 +63,12 @@ impl Display for CryptoError {
             }
             CryptoError::Infallible => {
                 write!(f, "This error should never occur")
+            }
+            CryptoError::NotFound => {
+                write!(f, "The key source was not found")
+            }
+            CryptoError::NotBytesKeySource => {
+                write!(f, "The key source was not a bytes key source but must be")
             }
         }
     }
