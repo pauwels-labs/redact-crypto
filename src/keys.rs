@@ -1,6 +1,6 @@
 use crate::{
     error::CryptoError,
-    key_sources::{BytesKeySources, KeySources, VectorBytesKeySource},
+    key_sources::{BytesKeySources, KeySources},
 };
 use serde::{Deserialize, Serialize};
 use sodiumoxide::crypto::{
@@ -183,20 +183,6 @@ impl AsymmetricKeyEncryptor for SecretKeys {
     ) -> Result<Vec<u8>, CryptoError> {
         match self {
             SecretKeys::SodiumOxide(sosk) => sosk.try_encrypt(public_ks, plaintext),
-        }
-    }
-}
-
-impl SodiumOxideSecretKey {
-    fn new(name: String) -> Self {
-        let (_, sk) = box_::gen_keypair();
-        SodiumOxideSecretKey {
-            source: KeySources::Bytes(BytesKeySources::Vector(VectorBytesKeySource {
-                value: sk.as_ref().to_vec(),
-            })),
-            alg: "curve25519xsalsa20poly1305".to_owned(),
-            encrypted_by: None,
-            name,
         }
     }
 }
