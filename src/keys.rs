@@ -19,7 +19,7 @@ pub trait SymmetricKeyEncryptor {
 pub trait AsymmetricKeyEncryptor {
     fn try_encrypt(
         &mut self,
-        public_ks: KeySources,
+        public_ks: &mut KeySources,
         plaintext: Vec<u8>,
     ) -> Result<Vec<u8>, CryptoError>;
 }
@@ -217,7 +217,7 @@ pub struct SodiumOxideSecretKey {
 impl AsymmetricKeyEncryptor for SecretKeys {
     fn try_encrypt(
         &mut self,
-        public_ks: KeySources,
+        public_ks: &mut KeySources,
         plaintext: Vec<u8>,
     ) -> Result<Vec<u8>, CryptoError> {
         match self {
@@ -273,7 +273,7 @@ impl SodiumOxideSecretKey {
 impl AsymmetricKeyEncryptor for SodiumOxideSecretKey {
     fn try_encrypt(
         &mut self,
-        mut public_ks: KeySources,
+        public_ks: &mut KeySources,
         plaintext: Vec<u8>,
     ) -> Result<Vec<u8>, CryptoError> {
         let secret_bks: &mut BytesKeySources = match self.source {
