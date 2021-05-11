@@ -1,6 +1,6 @@
 use crate::{
     error::CryptoError,
-    key_sources::{BytesKeySources, KeySources},
+    key_sources::{BytesKeySources, KeySources, VectorBytesKeySource},
 };
 use serde::{Deserialize, Serialize};
 use sodiumoxide::crypto::{
@@ -83,6 +83,18 @@ pub struct SodiumOxideSymmetricKey {
     pub name: String,
 }
 
+impl SodiumOxideSymmetricKey {
+    pub fn refresh(&mut self) -> Result<(), CryptoError> {
+        let bks: &mut BytesKeySources = match self.source {
+            KeySources::Bytes(ref mut bks) => Ok(bks),
+        }?;
+
+        let key = secretbox::gen_key();
+        bks.set(key.as_ref())?;
+        Ok(())
+    }
+}
+
 impl SymmetricKeyEncryptor for SodiumOxideSymmetricKey {
     fn try_encrypt(&mut self, plaintext: Vec<u8>) -> Result<Vec<u8>, CryptoError> {
         let bks: &mut BytesKeySources = match self.source {
@@ -157,12 +169,23 @@ impl TryFrom<SecretKeys> for PublicKeys {
 
     fn try_from(sk: SecretKeys) -> Result<Self, Self::Error> {
         match sk {
-            SecretKeys::SodiumOxide(sosk) => Ok(PublicKeys::SodiumOxide(SodiumOxidePublicKey {
-                source: sosk.source,
-                alg: "".to_owned(),
-                encrypted_by: None,
-                name: sosk.name,
-            })),
+            SecretKeys::SodiumOxide(sosk) => {
+                let secret_key = SecretKey::from_slice(
+                    TryInto::<BytesKeySources>::try_into(sosk.source)?.get()?,
+                )
+                .ok_or(CryptoError::SourceKeyBadSize)?;
+                let public_key = secret_key.public_key();
+                let vbks = VectorBytesKeySource {
+                    value: Some(public_key.as_ref().to_vec()),
+                };
+
+                Ok(PublicKeys::SodiumOxide(SodiumOxidePublicKey {
+                    source: KeySources::Bytes(BytesKeySources::Vector(vbks)),
+                    alg: "".to_owned(),
+                    encrypted_by: None,
+                    name: sosk.name,
+                }))
+            }
         }
     }
 }
@@ -184,6 +207,18 @@ impl AsymmetricKeyEncryptor for SecretKeys {
         match self {
             SecretKeys::SodiumOxide(sosk) => sosk.try_encrypt(public_ks, plaintext),
         }
+    }
+}
+
+impl SodiumOxideSecretKey {
+    pub fn refresh(&mut self) -> Result<(), CryptoError> {
+        let bks: &mut BytesKeySources = match self.source {
+            KeySources::Bytes(ref mut bks) => Ok(bks),
+        }?;
+
+        let (_, sk) = box_::gen_keypair();
+        bks.set(sk.as_ref())?;
+        Ok(())
     }
 }
 
