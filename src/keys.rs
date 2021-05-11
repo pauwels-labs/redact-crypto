@@ -113,8 +113,8 @@ impl SymmetricKeyEncryptor for SodiumOxideSymmetricKey {
             Ok(bytes) => Ok(bytes),
             Err(e) => match e {
                 CryptoError::NotFound => {
-                    let (_, sk) = box_::gen_keypair();
-                    bks.set(sk.as_ref())?;
+                    let key = secretbox::gen_key();
+                    bks.set(key.as_ref())?;
                     bks.get()
                 }
                 _ => Err(e),
@@ -227,6 +227,38 @@ impl AsymmetricKeyEncryptor for SecretKeys {
 }
 
 impl SodiumOxideSecretKey {
+    pub fn public_key(&mut self) -> Result<SodiumOxidePublicKey, CryptoError> {
+        let bks: &mut BytesKeySources = match self.source {
+            KeySources::Bytes(ref mut bks) => Ok(bks),
+        }?;
+        let secret_key_bytes_result = bks.get();
+        let secret_key_bytes = match secret_key_bytes_result {
+            Ok(bytes) => Ok(bytes),
+            Err(e) => match e {
+                CryptoError::NotFound => {
+                    self.refresh()?;
+                    let bytes = match self.source {
+                        KeySources::Bytes(ref mut bks) => bks.get(),
+                    }?;
+                    Ok(bytes)
+                }
+                _ => Err(e),
+            },
+        }?;
+
+        let secret_key =
+            SecretKey::from_slice(secret_key_bytes).ok_or(CryptoError::SourceKeyBadSize)?;
+        let public_key = secret_key.public_key();
+        Ok(SodiumOxidePublicKey {
+            source: KeySources::Bytes(BytesKeySources::Vector(VectorBytesKeySource {
+                value: Some(public_key.as_ref().to_vec()),
+            })),
+            alg: "curve25519xsalsa20poly1305".to_owned(),
+            encrypted_by: None,
+            name: self.name.clone(),
+        })
+    }
+
     pub fn refresh(&mut self) -> Result<(), CryptoError> {
         let bks: &mut BytesKeySources = match self.source {
             KeySources::Bytes(ref mut bks) => Ok(bks),
