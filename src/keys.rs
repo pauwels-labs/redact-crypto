@@ -75,6 +75,14 @@ pub enum SymmetricKeys {
     SodiumOxide(SodiumOxideSymmetricKey),
 }
 
+impl SymmetricKeys {
+    pub fn refresh(&mut self) -> Result<(), CryptoError> {
+        match self {
+            SymmetricKeys::SodiumOxide(sosk) => sosk.refresh(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxideSymmetricKey {
     pub source: KeySources,
@@ -132,6 +140,14 @@ pub enum PublicKeys {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum SecretKeys {
     SodiumOxide(SodiumOxideSecretKey),
+}
+
+impl SecretKeys {
+    pub fn refresh(&mut self) -> Result<(), CryptoError> {
+        match self {
+            SecretKeys::SodiumOxide(sosk) => sosk.refresh(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
