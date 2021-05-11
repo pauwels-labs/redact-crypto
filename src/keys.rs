@@ -10,7 +10,7 @@ use sodiumoxide::crypto::{
     },
     secretbox::{self, xsalsa20poly1305::Key},
 };
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 
 pub trait SymmetricKeyEncryptor {
     fn try_encrypt(&mut self, plaintext: Vec<u8>) -> Result<Vec<u8>, CryptoError>;
@@ -49,6 +49,24 @@ impl TryFrom<Keys> for AsymmetricKeys {
             Keys::Asymmetric(ak) => Ok(ak),
             _ => Err(CryptoError::NotAsymmetric),
         }
+    }
+}
+
+impl TryFrom<Keys> for SecretKeys {
+    type Error = CryptoError;
+
+    fn try_from(key: Keys) -> Result<Self, Self::Error> {
+        let asym_key: AsymmetricKeys = key.try_into()?;
+        asym_key.try_into()
+    }
+}
+
+impl TryFrom<Keys> for PublicKeys {
+    type Error = CryptoError;
+
+    fn try_from(key: Keys) -> Result<Self, Self::Error> {
+        let asym_key: AsymmetricKeys = key.try_into()?;
+        asym_key.try_into()
     }
 }
 
@@ -119,6 +137,17 @@ impl TryFrom<AsymmetricKeys> for SecretKeys {
         match ak {
             AsymmetricKeys::Secret(sk) => Ok(sk),
             _ => Err(CryptoError::NotSecret),
+        }
+    }
+}
+
+impl TryFrom<AsymmetricKeys> for PublicKeys {
+    type Error = CryptoError;
+
+    fn try_from(ak: AsymmetricKeys) -> Result<Self, Self::Error> {
+        match ak {
+            AsymmetricKeys::Secret(sk) => sk.try_into(),
+            AsymmetricKeys::Public(pk) => Ok(pk),
         }
     }
 }
