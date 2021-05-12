@@ -34,7 +34,7 @@ pub enum Keys {
     Asymmetric(AsymmetricKeys),
 }
 
-pub struct KeysCollections {
+pub struct KeysCollection {
     pub results: Vec<Keys>,
 }
 
