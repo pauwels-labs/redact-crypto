@@ -173,6 +173,7 @@ impl TryFrom<SecretKeys> for PublicKeys {
 }
 
 #[derive(Serialize, Debug, Clone)]
+#[serde(tag = "type")]
 pub struct SodiumOxideSecretKey {
     pub source: KeySources,
     pub alg: String,
