@@ -366,7 +366,9 @@ impl<'de> DeserializeTrait<'de> for SodiumOxideSecretKey {
                             if encrypted_by.is_some() {
                                 return Err(de::Error::duplicate_field("encrypted_by"));
                             }
-                            encrypted_by = Some(map.next_value()?);
+                            let next_result = map.next_value();
+                            println!("deser: {:?}", next_result);
+                            encrypted_by = Some(next_result?);
                         }
                         Field::Name => {
                             if name.is_some() {
