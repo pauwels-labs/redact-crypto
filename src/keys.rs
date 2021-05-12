@@ -159,7 +159,7 @@ impl TryFrom<SecretKeys> for PublicKeys {
                 )
                 .ok_or(CryptoError::SourceKeyBadSize)?;
                 let public_key = secret_key.public_key();
-                let vbks = VectorBytesKeySource::new(public_key.as_ref());
+                let vbks = VectorBytesKeySource::new(Some(public_key.as_ref()));
 
                 Ok(PublicKeys::SodiumOxide(SodiumOxidePublicKey {
                     source: KeySources::Bytes(BytesKeySources::Vector(vbks)),
@@ -203,9 +203,9 @@ impl TryFrom<SodiumOxideSecretKey> for SodiumOxidePublicKey {
             SecretKey::from_slice(secret_key_bytes).ok_or(CryptoError::SourceKeyBadSize)?;
         let public_key = secret_key.public_key();
         Ok(SodiumOxidePublicKey {
-            source: KeySources::Bytes(BytesKeySources::Vector(VectorBytesKeySource::new(
+            source: KeySources::Bytes(BytesKeySources::Vector(VectorBytesKeySource::new(Some(
                 public_key.as_ref(),
-            ))),
+            )))),
             alg: "curve25519xsalsa20poly1305".to_owned(),
             encrypted_by: None,
             name: sosk.name,

@@ -178,6 +178,12 @@ impl FsBytesKeySource {
 }
 
 impl VectorBytesKeySource {
+    pub fn new(bytes: Option<&[u8]>) -> Self {
+        VectorBytesKeySource {
+            value: bytes.map(|bytes| bytes.to_vec()),
+        }
+    }
+
     pub fn set(&mut self, key: &[u8]) -> Result<(), CryptoError> {
         self.value = Some(key.to_vec());
         Ok(())
@@ -194,14 +200,6 @@ impl VectorBytesKeySource {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VectorBytesKeySource {
     value: Option<Vec<u8>>,
-}
-
-impl VectorBytesKeySource {
-    pub fn new(bytes: &[u8]) -> Self {
-        VectorBytesKeySource {
-            value: Some(bytes.to_vec()),
-        }
-    }
 }
 
 impl TryFrom<KeySources> for BytesKeySources {
