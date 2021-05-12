@@ -30,10 +30,24 @@ impl BytesKeySources {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+struct FsUncachedBytesKeySource {
+    path: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(try_from = "FsUncachedBytesKeySource")]
 pub struct FsBytesKeySource {
     path: String,
     #[serde(skip)]
     cached: Option<VectorBytesKeySource>,
+}
+
+impl TryFrom<FsUncachedBytesKeySource> for FsBytesKeySource {
+    type Error = CryptoError;
+
+    fn try_from(fsubks: FsUncachedBytesKeySource) -> Result<Self, Self::Error> {
+        FsBytesKeySource::new(&fsubks.path)
+    }
 }
 
 impl FsBytesKeySource {
