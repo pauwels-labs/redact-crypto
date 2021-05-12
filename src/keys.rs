@@ -29,6 +29,7 @@ pub trait AsymmetricKeyEncryptor {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "type")]
 pub enum Keys {
     Symmetric(SymmetricKeys),
     Asymmetric(AsymmetricKeys),
@@ -173,7 +174,6 @@ impl TryFrom<SecretKeys> for PublicKeys {
 }
 
 #[derive(Serialize, Debug, Clone)]
-#[serde(tag = "type")]
 pub struct SodiumOxideSecretKey {
     pub source: KeySources,
     pub alg: String,
