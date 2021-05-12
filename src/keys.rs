@@ -34,6 +34,10 @@ pub enum Keys {
     Asymmetric(AsymmetricKeys),
 }
 
+pub struct KeysCollections {
+    pub results: Vec<Keys>,
+}
+
 impl TryFrom<Keys> for SymmetricKeys {
     type Error = CryptoError;
 
