@@ -100,7 +100,7 @@ impl<'de> DeserializeTrait<'de> for FsBytesKeySource {
             where
                 V: MapAccess<'de>,
             {
-                let mut path = None;
+                let mut path: Option<String> = None;
                 while let Some(key) = map.next_key()? {
                     match key {
                         Field::Path => {
@@ -112,7 +112,7 @@ impl<'de> DeserializeTrait<'de> for FsBytesKeySource {
                     }
                 }
                 let path = path.ok_or_else(|| de::Error::missing_field("path"))?;
-                FsBytesKeySource::new(path).map_err(de::Error::custom)
+                FsBytesKeySource::new(&path).map_err(de::Error::custom)
             }
         }
 
