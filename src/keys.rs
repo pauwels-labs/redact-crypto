@@ -2,7 +2,10 @@ use crate::{
     error::CryptoError,
     key_sources::{BytesKeySources, KeySources, VectorBytesKeySource},
 };
-use serde::{Deserialize, Serialize};
+use serde::{
+    de::{self, Deserialize as DeserializeTrait, Deserializer, MapAccess, SeqAccess, Visitor},
+    Deserialize, Serialize,
+};
 use sodiumoxide::crypto::{
     box_::{
         self,
@@ -11,6 +14,7 @@ use sodiumoxide::crypto::{
     secretbox::{self, xsalsa20poly1305::Key},
 };
 use std::convert::{TryFrom, TryInto};
+use std::fmt;
 
 pub trait SymmetricKeyEncryptor {
     fn try_encrypt(&self, plaintext: Vec<u8>) -> Result<Vec<u8>, CryptoError>;
@@ -163,7 +167,7 @@ impl TryFrom<SecretKeys> for PublicKeys {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub struct SodiumOxideSecretKey {
     pub source: KeySources,
     pub alg: String,
@@ -204,6 +208,38 @@ impl TryFrom<SodiumOxideSecretKey> for SodiumOxidePublicKey {
     }
 }
 
+impl SodiumOxideSecretKey {
+    pub fn new(
+        name: &str,
+        source: KeySources,
+        alg: &str,
+        encrypted_by: Option<String>,
+    ) -> Result<Self, CryptoError> {
+        let mut bks: BytesKeySources = source.try_into()?;
+        match bks.get() {
+            Ok(_) => Ok(SodiumOxideSecretKey {
+                name: name.to_owned(),
+                source: KeySources::Bytes(bks),
+                alg: alg.to_owned(),
+                encrypted_by,
+            }),
+            Err(e) => match e {
+                CryptoError::NotFound => {
+                    let (_, sk) = box_::gen_keypair();
+                    bks.set(sk.as_ref())?;
+                    Ok(SodiumOxideSecretKey {
+                        name: name.to_owned(),
+                        source: KeySources::Bytes(bks),
+                        alg: alg.to_owned(),
+                        encrypted_by,
+                    })
+                }
+                _ => Err(e),
+            },
+        }
+    }
+}
+
 impl AsymmetricKeyEncryptor for SodiumOxideSecretKey {
     fn try_encrypt(
         &self,
@@ -221,5 +257,131 @@ impl AsymmetricKeyEncryptor for SodiumOxideSecretKey {
         let precomputed_key = box_::precompute(&public_key, &secret_key);
         let nonce = box_::gen_nonce();
         Ok(box_::seal_precomputed(&plaintext, &nonce, &precomputed_key))
+    }
+}
+
+impl<'de> DeserializeTrait<'de> for SodiumOxideSecretKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        enum Field {
+            Source,
+            Alg,
+            EncryptedBy,
+            Name,
+        }
+
+        impl<'de> Deserialize<'de> for Field {
+            fn deserialize<D>(deserializer: D) -> Result<Field, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                struct FieldVisitor;
+
+                impl<'de> Visitor<'de> for FieldVisitor {
+                    type Value = Field;
+
+                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                        formatter.write_str("`source` or `alg` or `encrypted_by` or `name`")
+                    }
+
+                    fn visit_str<E>(self, value: &str) -> Result<Field, E>
+                    where
+                        E: de::Error,
+                    {
+                        match value {
+                            "source" => Ok(Field::Source),
+                            "alg" => Ok(Field::Alg),
+                            "encrypted_by" => Ok(Field::EncryptedBy),
+                            "name" => Ok(Field::Name),
+                            _ => Err(de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+
+                deserializer.deserialize_identifier(FieldVisitor)
+            }
+        }
+
+        struct SodiumOxideSecretKeyVisitor;
+
+        impl<'de> Visitor<'de> for SodiumOxideSecretKeyVisitor {
+            type Value = SodiumOxideSecretKey;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct SodiumOxideSecretKey")
+            }
+
+            fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
+            where
+                V: SeqAccess<'de>,
+            {
+                let source: KeySources = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let alg = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let encrypted_by = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let name = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+
+                SodiumOxideSecretKey::new(name, source, alg, encrypted_by)
+                    .map_err(de::Error::custom)
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut source = None;
+                let mut name = None;
+                let mut alg = None;
+                let mut encrypted_by = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::Source => {
+                            if source.is_some() {
+                                return Err(de::Error::duplicate_field("source"));
+                            }
+                            source = Some(map.next_value()?);
+                        }
+                        Field::Alg => {
+                            if alg.is_some() {
+                                return Err(de::Error::duplicate_field("alg"));
+                            }
+                            alg = Some(map.next_value()?);
+                        }
+                        Field::EncryptedBy => {
+                            if encrypted_by.is_some() {
+                                return Err(de::Error::duplicate_field("encrypted_by"));
+                            }
+                            encrypted_by = Some(map.next_value()?);
+                        }
+                        Field::Name => {
+                            if name.is_some() {
+                                return Err(de::Error::duplicate_field("name"));
+                            }
+                            name = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let source = source.ok_or_else(|| de::Error::missing_field("source"))?;
+                let alg = alg.ok_or_else(|| de::Error::missing_field("alg"))?;
+                let encrypted_by =
+                    encrypted_by.ok_or_else(|| de::Error::missing_field("encrypted_by"))?;
+                let name = name.ok_or_else(|| de::Error::missing_field("name"))?;
+                SodiumOxideSecretKey::new(name, source, alg, encrypted_by)
+                    .map_err(de::Error::custom)
+            }
+        }
+
+        const FIELDS: &'static [&'static str] = &["source", "alg", "encrypted_by", "name"];
+        deserializer.deserialize_struct("SodiumOxideSecretKey", FIELDS, SodiumOxideSecretKeyVisitor)
     }
 }

@@ -1,6 +1,9 @@
 use crate::error::CryptoError;
-use serde::{Deserialize, Serialize};
-use std::{convert::TryFrom, io::ErrorKind};
+use serde::{
+    de::{self, Deserialize as DeserializeTrait, Deserializer, MapAccess, SeqAccess, Visitor},
+    Deserialize, Serialize,
+};
+use std::{convert::TryFrom, fmt, io::ErrorKind};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum KeySources {
@@ -29,44 +32,111 @@ impl BytesKeySources {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct FsUncachedBytesKeySource {
-    path: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(try_from = "FsUncachedBytesKeySource")]
-#[serde(into = "FsUncachedBytesKeySource")]
+#[derive(Serialize, Debug, Clone)]
 pub struct FsBytesKeySource {
     path: String,
     #[serde(skip)]
     cached: Option<VectorBytesKeySource>,
 }
 
-impl TryFrom<FsUncachedBytesKeySource> for FsBytesKeySource {
-    type Error = CryptoError;
-
-    fn try_from(fsubks: FsUncachedBytesKeySource) -> Result<Self, Self::Error> {
-        FsBytesKeySource::new(&fsubks.path)
-    }
-}
-
-impl From<FsBytesKeySource> for FsUncachedBytesKeySource {
-    fn from(fsbks: FsBytesKeySource) -> Self {
-        FsUncachedBytesKeySource {
-            path: fsbks.get_path().to_owned(),
+impl<'de> DeserializeTrait<'de> for FsBytesKeySource {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        enum Field {
+            Path,
         }
+
+        impl<'de> Deserialize<'de> for Field {
+            fn deserialize<D>(deserializer: D) -> Result<Field, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                struct FieldVisitor;
+
+                impl<'de> Visitor<'de> for FieldVisitor {
+                    type Value = Field;
+
+                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                        formatter.write_str("`path`")
+                    }
+
+                    fn visit_str<E>(self, value: &str) -> Result<Field, E>
+                    where
+                        E: de::Error,
+                    {
+                        match value {
+                            "path" => Ok(Field::Path),
+                            _ => Err(de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+
+                deserializer.deserialize_identifier(FieldVisitor)
+            }
+        }
+
+        struct FsBytesKeySourceVisitor;
+
+        impl<'de> Visitor<'de> for FsBytesKeySourceVisitor {
+            type Value = FsBytesKeySource;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct FsBytesKeySource")
+            }
+
+            fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
+            where
+                V: SeqAccess<'de>,
+            {
+                let path = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                FsBytesKeySource::new(path).map_err(de::Error::custom)
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut path = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::Path => {
+                            if path.is_some() {
+                                return Err(de::Error::duplicate_field("path"));
+                            }
+                            path = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let path = path.ok_or_else(|| de::Error::missing_field("path"))?;
+                FsBytesKeySource::new(path).map_err(de::Error::custom)
+            }
+        }
+
+        const FIELDS: &'static [&'static str] = &["secs", "nanos"];
+        deserializer.deserialize_struct("Duration", FIELDS, FsBytesKeySourceVisitor)
     }
 }
 
 impl FsBytesKeySource {
     // Associated methods
     pub fn new(path: &str) -> Result<Self, CryptoError> {
-        let vbks = Self::read_from_path(path)?;
-        Ok(Self {
-            path: path.to_owned(),
-            cached: Some(vbks),
-        })
+        match Self::read_from_path(path) {
+            Ok(vbks) => Ok(Self {
+                path: path.to_owned(),
+                cached: Some(vbks),
+            }),
+            Err(e) => match e {
+                CryptoError::NotFound => Ok(Self {
+                    path: path.to_owned(),
+                    cached: None,
+                }),
+                _ => Err(e),
+            },
+        }
     }
 
     fn read_from_path(path: &str) -> Result<VectorBytesKeySource, CryptoError> {
