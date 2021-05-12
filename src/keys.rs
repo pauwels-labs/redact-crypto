@@ -148,6 +148,12 @@ impl SecretKeys {
             SecretKeys::SodiumOxide(sosk) => sosk.refresh(),
         }
     }
+
+    pub fn public_key(&mut self) -> Result<SodiumOxidePublicKey, CryptoError> {
+        match self {
+            SecretKeys::SodiumOxide(sosk) => sosk.public_key(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
