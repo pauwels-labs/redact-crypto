@@ -1,6 +1,6 @@
 use crate::error::CryptoError;
 use serde::{Deserialize, Serialize};
-use std::convert::TryFrom;
+use std::{convert::TryFrom, io::ErrorKind};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum KeySources {
@@ -54,8 +54,10 @@ impl FsBytesKeySource {
         match self.cached {
             Some(ref mut vbks) => vbks.get(),
             None => {
-                let read_bytes =
-                    std::fs::read(&self.path).map_err(|e| CryptoError::FsIoError { source: e })?;
+                let read_bytes = std::fs::read(&self.path).map_err(|e| match e.kind() {
+                    ErrorKind::NotFound => CryptoError::NotFound,
+                    _ => CryptoError::FsIoError { source: e },
+                })?;
                 let vbks = VectorBytesKeySource {
                     value: Some(read_bytes),
                 };
