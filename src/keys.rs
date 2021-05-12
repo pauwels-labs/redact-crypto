@@ -339,8 +339,8 @@ impl<'de> DeserializeTrait<'de> for SodiumOxideSecretKey {
                 V: MapAccess<'de>,
             {
                 let mut source = None;
-                let mut name = None;
-                let mut alg = None;
+                let mut name: Option<String> = None;
+                let mut alg: Option<String> = None;
                 let mut encrypted_by = None;
 
                 while let Some(key) = map.next_key()? {
@@ -376,7 +376,7 @@ impl<'de> DeserializeTrait<'de> for SodiumOxideSecretKey {
                 let encrypted_by =
                     encrypted_by.ok_or_else(|| de::Error::missing_field("encrypted_by"))?;
                 let name = name.ok_or_else(|| de::Error::missing_field("name"))?;
-                SodiumOxideSecretKey::new(name, source, alg, encrypted_by)
+                SodiumOxideSecretKey::new(&name, source, &alg, encrypted_by)
                     .map_err(de::Error::custom)
             }
         }
