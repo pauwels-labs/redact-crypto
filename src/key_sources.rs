@@ -36,6 +36,7 @@ struct FsUncachedBytesKeySource {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(try_from = "FsUncachedBytesKeySource")]
+#[serde(into = "FsUncachedBytesKeySource")]
 pub struct FsBytesKeySource {
     path: String,
     #[serde(skip)]
@@ -50,22 +51,22 @@ impl TryFrom<FsUncachedBytesKeySource> for FsBytesKeySource {
     }
 }
 
+impl From<FsBytesKeySource> for FsUncachedBytesKeySource {
+    fn from(fsbks: FsBytesKeySource) -> Self {
+        FsUncachedBytesKeySource {
+            path: fsbks.get_path().to_owned(),
+        }
+    }
+}
+
 impl FsBytesKeySource {
     // Associated methods
     pub fn new(path: &str) -> Result<Self, CryptoError> {
-        match Self::read_from_path(path) {
-            Ok(vbks) => Ok(Self {
-                path: path.to_owned(),
-                cached: Some(vbks),
-            }),
-            Err(source) => match source {
-                CryptoError::NotFound => Ok(Self {
-                    path: path.to_owned(),
-                    cached: None,
-                }),
-                _ => Err(source),
-            },
-        }
+        let vbks = Self::read_from_path(path)?;
+        Ok(Self {
+            path: path.to_owned(),
+            cached: Some(vbks),
+        })
     }
 
     fn read_from_path(path: &str) -> Result<VectorBytesKeySource, CryptoError> {
