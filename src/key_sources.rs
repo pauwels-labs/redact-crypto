@@ -21,7 +21,7 @@ impl BytesKeySources {
         }
     }
 
-    pub fn get(&mut self) -> Result<&[u8], CryptoError> {
+    pub fn get(&self) -> Result<&[u8], CryptoError> {
         match self {
             BytesKeySources::Fs(fsbks) => fsbks.get(),
             BytesKeySources::Vector(vbks) => vbks.get(),
@@ -37,34 +37,58 @@ pub struct FsBytesKeySource {
 }
 
 impl FsBytesKeySource {
+    // Associated methods
+    pub fn new(path: &str) -> Result<Self, CryptoError> {
+        match Self::read_from_path(path) {
+            Ok(vbks) => Ok(Self {
+                path: path.to_owned(),
+                cached: Some(vbks),
+            }),
+            Err(source) => match source {
+                CryptoError::NotFound => Ok(Self {
+                    path: path.to_owned(),
+                    cached: None,
+                }),
+                _ => Err(source),
+            },
+        }
+    }
+
+    fn read_from_path(path: &str) -> Result<VectorBytesKeySource, CryptoError> {
+        // Mock this
+        let read_bytes = std::fs::read(path).map_err(|e| match e.kind() {
+            ErrorKind::NotFound => CryptoError::NotFound,
+            _ => CryptoError::FsIoError { source: e },
+        })?;
+        Ok(VectorBytesKeySource {
+            value: Some(read_bytes),
+        })
+    }
+
+    // Self methods
+    pub fn reload(&mut self) -> Result<(), CryptoError> {
+        self.cached = Some(Self::read_from_path(&self.path)?);
+        Ok(())
+    }
+
     pub fn set(&mut self, key: &[u8]) -> Result<(), CryptoError> {
         std::fs::write(&self.path, key)
-            .map(|_| {
-                self.cached = Some(VectorBytesKeySource {
-                    value: Some(key.to_vec()),
-                });
-            })
+            .map(|_| self.reload())
             .map_err(|source| match source.kind() {
                 std::io::ErrorKind::NotFound => CryptoError::NotFound,
                 _ => CryptoError::FsIoError { source },
-            })
+            })?
     }
 
-    pub fn get(&mut self) -> Result<&[u8], CryptoError> {
+    pub fn get(&self) -> Result<&[u8], CryptoError> {
         match self.cached {
-            Some(ref mut vbks) => vbks.get(),
-            None => {
-                let read_bytes = std::fs::read(&self.path).map_err(|e| match e.kind() {
-                    ErrorKind::NotFound => CryptoError::NotFound,
-                    _ => CryptoError::FsIoError { source: e },
-                })?;
-                let vbks = VectorBytesKeySource {
-                    value: Some(read_bytes),
-                };
-                self.cached = Some(vbks);
-                self.get()
-            }
+            Some(ref vbks) => vbks.get(),
+            None => Err(CryptoError::NotFound),
         }
+    }
+
+    pub fn get_path(&self) -> &str {
+        &self.path
     }
 }
 
@@ -74,7 +98,7 @@ impl VectorBytesKeySource {
         Ok(())
     }
 
-    pub fn get(&mut self) -> Result<&[u8], CryptoError> {
+    pub fn get(&self) -> Result<&[u8], CryptoError> {
         match self.value {
             Some(ref v) => Ok(&v),
             None => Err(CryptoError::NotFound),
@@ -84,7 +108,15 @@ impl VectorBytesKeySource {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VectorBytesKeySource {
-    pub value: Option<Vec<u8>>,
+    value: Option<Vec<u8>>,
+}
+
+impl VectorBytesKeySource {
+    pub fn new(bytes: &[u8]) -> Self {
+        VectorBytesKeySource {
+            value: Some(bytes.to_vec()),
+        }
+    }
 }
 
 impl TryFrom<KeySources> for BytesKeySources {
@@ -93,6 +125,19 @@ impl TryFrom<KeySources> for BytesKeySources {
     fn try_from(ks: KeySources) -> Result<Self, Self::Error> {
         match ks {
             KeySources::Bytes(bks) => Ok(bks),
+        }
+    }
+}
+
+impl TryFrom<&KeySources> for BytesKeySources {
+    type Error = CryptoError;
+
+    fn try_from(ks: &KeySources) -> Result<Self, Self::Error> {
+        match ks {
+            KeySources::Bytes(bks) => match bks {
+                BytesKeySources::Fs(fsbks) => Ok(BytesKeySources::Fs(fsbks.clone())),
+                BytesKeySources::Vector(vbks) => Ok(BytesKeySources::Vector(vbks.clone())),
+            },
         }
     }
 }
