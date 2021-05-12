@@ -373,8 +373,6 @@ impl<'de> DeserializeTrait<'de> for SodiumOxideSecretKey {
                 }
                 let source = source.ok_or_else(|| de::Error::missing_field("source"))?;
                 let alg = alg.ok_or_else(|| de::Error::missing_field("alg"))?;
-                let encrypted_by =
-                    encrypted_by.ok_or_else(|| de::Error::missing_field("encrypted_by"))?;
                 let name = name.ok_or_else(|| de::Error::missing_field("name"))?;
                 SodiumOxideSecretKey::new(&name, source, &alg, encrypted_by)
                     .map_err(de::Error::custom)
