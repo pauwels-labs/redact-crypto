@@ -34,14 +34,11 @@ pub trait AsymmetricKeyEncryptor {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct KeysCollection {
-    pub results: Vec<KeyExecutors>,
-}
-
 pub struct KeyCollection {
     pub results: Vec<Key>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Key {
     pub name: String,
     pub executor: KeyExecutors,
