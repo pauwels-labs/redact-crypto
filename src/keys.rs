@@ -29,14 +29,44 @@ pub trait AsymmetricKeyEncryptor {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KeysCollection {
+    pub results: Vec<Keys>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Keys {
     Symmetric(SymmetricKeys),
     Asymmetric(AsymmetricKeys),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct KeysCollection {
-    pub results: Vec<Keys>,
+impl Keys {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Symmetric(sk) => &sk.name(),
+            Self::Asymmetric(ak) => &ak.name(),
+        }
+    }
+
+    pub fn source(&self) -> &KeySources {
+        match self {
+            Self::Symmetric(sk) => &sk.source(),
+            Self::Asymmetric(ak) => &ak.source(),
+        }
+    }
+
+    pub fn encrypted_by(&self) -> &Option<String> {
+        match self {
+            Self::Symmetric(sk) => &sk.encrypted_by(),
+            Self::Asymmetric(ak) => &ak.encrypted_by(),
+        }
+    }
+
+    pub fn alg(&self) -> &str {
+        match self {
+            Self::Symmetric(sk) => &sk.alg(),
+            Self::Asymmetric(ak) => &ak.alg(),
+        }
+    }
 }
 
 impl TryFrom<Keys> for SymmetricKeys {
@@ -84,12 +114,56 @@ pub enum SymmetricKeys {
     SodiumOxide(SodiumOxideSymmetricKey),
 }
 
+impl SymmetricKeys {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::SodiumOxide(sosk) => &sosk.name(),
+        }
+    }
+
+    pub fn source(&self) -> &KeySources {
+        match self {
+            Self::SodiumOxide(sosk) => &sosk.source(),
+        }
+    }
+
+    pub fn encrypted_by(&self) -> &Option<String> {
+        match self {
+            Self::SodiumOxide(sosk) => &sosk.encrypted_by(),
+        }
+    }
+
+    pub fn alg(&self) -> &str {
+        match self {
+            Self::SodiumOxide(sosk) => &sosk.alg(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxideSymmetricKey {
-    pub source: KeySources,
-    pub alg: String,
-    pub encrypted_by: Option<String>,
-    pub name: String,
+    source: KeySources,
+    alg: String,
+    encrypted_by: Option<String>,
+    name: String,
+}
+
+impl SodiumOxideSymmetricKey {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn source(&self) -> &KeySources {
+        &self.source
+    }
+
+    pub fn encrypted_by(&self) -> &Option<String> {
+        &self.encrypted_by
+    }
+
+    pub fn alg(&self) -> &str {
+        &self.alg
+    }
 }
 
 impl SymmetricKeyEncryptor for SodiumOxideSymmetricKey {
@@ -108,9 +182,65 @@ pub enum AsymmetricKeys {
     Secret(SecretKeys),
 }
 
+impl AsymmetricKeys {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Public(pk) => &pk.name(),
+            Self::Secret(sk) => &sk.name(),
+        }
+    }
+
+    pub fn source(&self) -> &KeySources {
+        match self {
+            Self::Public(pk) => &pk.source(),
+            Self::Secret(sk) => &sk.source(),
+        }
+    }
+
+    pub fn encrypted_by(&self) -> &Option<String> {
+        match self {
+            Self::Public(pk) => &pk.encrypted_by(),
+            Self::Secret(sk) => &sk.encrypted_by(),
+        }
+    }
+
+    pub fn alg(&self) -> &str {
+        match self {
+            Self::Public(pk) => &pk.alg(),
+            Self::Secret(sk) => &sk.alg(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum PublicKeys {
     SodiumOxide(SodiumOxidePublicKey),
+}
+
+impl PublicKeys {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::SodiumOxide(sopk) => &sopk.name(),
+        }
+    }
+
+    pub fn source(&self) -> &KeySources {
+        match self {
+            Self::SodiumOxide(sopk) => &sopk.source(),
+        }
+    }
+
+    pub fn encrypted_by(&self) -> &Option<String> {
+        match self {
+            Self::SodiumOxide(sopk) => &sopk.encrypted_by(),
+        }
+    }
+
+    pub fn alg(&self) -> &str {
+        match self {
+            Self::SodiumOxide(sopk) => &sopk.alg(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -118,12 +248,56 @@ pub enum SecretKeys {
     SodiumOxide(SodiumOxideSecretKey),
 }
 
+impl SecretKeys {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::SodiumOxide(sosk) => &sosk.name(),
+        }
+    }
+
+    pub fn source(&self) -> &KeySources {
+        match self {
+            Self::SodiumOxide(sosk) => &sosk.source(),
+        }
+    }
+
+    pub fn encrypted_by(&self) -> &Option<String> {
+        match self {
+            Self::SodiumOxide(sosk) => &sosk.encrypted_by(),
+        }
+    }
+
+    pub fn alg(&self) -> &str {
+        match self {
+            Self::SodiumOxide(sosk) => &sosk.alg(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxidePublicKey {
-    pub source: KeySources,
-    pub alg: String,
-    pub encrypted_by: Option<String>,
-    pub name: String,
+    source: KeySources,
+    alg: String,
+    encrypted_by: Option<String>,
+    name: String,
+}
+
+impl SodiumOxidePublicKey {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn source(&self) -> &KeySources {
+        &self.source
+    }
+
+    pub fn encrypted_by(&self) -> &Option<String> {
+        &self.encrypted_by
+    }
+
+    pub fn alg(&self) -> &str {
+        &self.alg
+    }
 }
 
 impl TryFrom<AsymmetricKeys> for SecretKeys {
@@ -174,10 +348,10 @@ impl TryFrom<SecretKeys> for PublicKeys {
 
 #[derive(Serialize, Debug, Clone)]
 pub struct SodiumOxideSecretKey {
-    pub source: KeySources,
-    pub alg: String,
-    pub encrypted_by: Option<String>,
-    pub name: String,
+    source: KeySources,
+    alg: String,
+    encrypted_by: Option<String>,
+    name: String,
 }
 
 impl AsymmetricKeyEncryptor for SecretKeys {
@@ -214,6 +388,22 @@ impl TryFrom<SodiumOxideSecretKey> for SodiumOxidePublicKey {
 }
 
 impl SodiumOxideSecretKey {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn source(&self) -> &KeySources {
+        &self.source
+    }
+
+    pub fn encrypted_by(&self) -> &Option<String> {
+        &self.encrypted_by
+    }
+
+    pub fn alg(&self) -> &str {
+        &self.alg
+    }
+
     pub fn new(
         name: &str,
         source: KeySources,
