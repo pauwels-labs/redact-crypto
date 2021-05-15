@@ -1,11 +1,8 @@
 use crate::{
     error::CryptoError,
-    key_sources::{BytesKeySources, KeySources, VectorBytesKeySource},
+    key_sources::{BytesKeySources, KeySources},
 };
-use serde::{
-    de::{self, Deserialize as DeserializeTrait, Deserializer, MapAccess, SeqAccess, Visitor},
-    Deserialize, Serialize,
-};
+use serde::{Deserialize, Serialize};
 use sodiumoxide::crypto::{
     box_::{
         self,
@@ -13,8 +10,7 @@ use sodiumoxide::crypto::{
     },
     secretbox::{self, xsalsa20poly1305::Key as SoKey},
 };
-use std::convert::{TryFrom, TryInto};
-use std::fmt;
+use std::convert::TryInto;
 
 pub trait SymmetricKeyEncryptor {
     fn try_encrypt(

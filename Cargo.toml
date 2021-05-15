@@ -7,5 +7,8 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+async-trait = "0.1.42"
 serde = { version = "1.0.125", features = ["derive"] }
 sodiumoxide = "0.2.6"
+futures = "0.3.8"
+mongodb = "1.2.1"
