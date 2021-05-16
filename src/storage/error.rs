@@ -7,7 +7,7 @@ use std::fmt::Display;
 pub enum StorageError {
     /// Represents an error which occurred while loading a session from
     /// the backing session store.
-    DbError {
+    InternalError {
         source: Box<dyn Error + Send + Sync>,
     },
 
@@ -18,7 +18,7 @@ pub enum StorageError {
 impl Error for StorageError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match *self {
-            StorageError::DbError { ref source } => Some(source.as_ref()),
+            StorageError::InternalError { ref source } => Some(source.as_ref()),
             StorageError::NotFound => None,
         }
     }
@@ -27,11 +27,11 @@ impl Error for StorageError {
 impl Display for StorageError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
-            StorageError::DbError { .. } => {
-                write!(f, "Db error")
+            StorageError::InternalError { .. } => {
+                write!(f, "Internal error occurred")
             }
             StorageError::NotFound { .. } => {
-                write!(f, "Requested data was not found")
+                write!(f, "Key not found")
             }
         }
     }

@@ -45,7 +45,7 @@ impl KeyStorer for MongoKeyStorer {
         {
             Ok(Some(data)) => Ok(data),
             Ok(None) => Err(StorageError::NotFound),
-            Err(e) => Err(StorageError::DbError {
+            Err(e) => Err(StorageError::InternalError {
                 source: Box::new(e),
             }),
         }
@@ -65,7 +65,7 @@ impl KeyStorer for MongoKeyStorer {
                 }
                 Ok(KeyCollection { results })
             }
-            Err(e) => Err(StorageError::DbError {
+            Err(e) => Err(StorageError::InternalError {
                 source: Box::new(e),
             }),
         }
@@ -84,7 +84,7 @@ impl KeyStorer for MongoKeyStorer {
             .await
         {
             Ok(_) => Ok(true),
-            Err(e) => Err(StorageError::DbError {
+            Err(e) => Err(StorageError::InternalError {
                 source: Box::new(e),
             }),
         }

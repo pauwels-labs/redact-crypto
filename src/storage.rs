@@ -1,5 +1,6 @@
 pub mod error;
 pub mod mongodb;
+pub mod redact;
 
 pub use self::mongodb::MongoKeyStorer;
 use crate::keys::{Key, KeyCollection};
