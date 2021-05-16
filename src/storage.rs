@@ -2,10 +2,9 @@ pub mod error;
 pub mod mongodb;
 pub mod redact;
 
-pub use self::mongodb::MongoKeyStorer;
+pub use self::{error::StorageError, mongodb::MongoKeyStorer, redact::RedactKeyStorer};
 use crate::keys::{Key, KeyCollection};
 use async_trait::async_trait;
-pub use error::StorageError;
 
 #[async_trait]
 pub trait KeyStorer: Clone + Send + Sync {

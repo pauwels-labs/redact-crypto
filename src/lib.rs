@@ -4,4 +4,4 @@ pub mod keys;
 pub mod storage;
 
 pub use keys::{Key, KeyCollection};
-pub use storage::{KeyStorer, MongoKeyStorer, StorageError};
+pub use storage::{KeyStorer, MongoKeyStorer, RedactKeyStorer, StorageError};
