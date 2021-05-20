@@ -5,11 +5,18 @@ use serde::{
 };
 use std::{convert::TryFrom, fmt, io::ErrorKind};
 
+/// Enumerates all the different types of key sources.
+/// Currently supported:
+/// - Bytes: key sources that can be deserialized to a byte array
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum KeySources {
     Bytes(BytesKeySources),
 }
 
+/// Enumerates all the different types of byte-type key sources.
+/// Currently supported:
+/// - Fs: keys represented as files on the filesystem
+/// - Vector: keys represented as a vector of bytes
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum BytesKeySources {
     Fs(FsBytesKeySource),
@@ -17,6 +24,7 @@ pub enum BytesKeySources {
 }
 
 impl BytesKeySources {
+    /// Sets the bytes of the key to the given value
     pub fn set(&mut self, key: &[u8]) -> Result<(), CryptoError> {
         match self {
             BytesKeySources::Fs(fsbks) => fsbks.set(key),
@@ -24,6 +32,7 @@ impl BytesKeySources {
         }
     }
 
+    /// Gets the byte array of the key
     pub fn get(&self) -> Result<&[u8], CryptoError> {
         match self {
             BytesKeySources::Fs(fsbks) => fsbks.get(),
@@ -32,6 +41,7 @@ impl BytesKeySources {
     }
 }
 
+/// A key source where the key is a path to a file on the filesystem
 #[derive(Serialize, Debug, Clone)]
 pub struct FsBytesKeySource {
     path: String,
@@ -122,7 +132,7 @@ impl<'de> DeserializeTrait<'de> for FsBytesKeySource {
 }
 
 impl FsBytesKeySource {
-    // Associated methods
+    /// Creates an `FsBytesKeySources` from a path on the filesystem
     pub fn new(path: &str) -> Result<Self, CryptoError> {
         match Self::read_from_path(path) {
             Ok(vbks) => Ok(Self {
@@ -139,6 +149,7 @@ impl FsBytesKeySource {
         }
     }
 
+    /// Reads a `VectorBytesKeySources` from a pathh on the filesystem
     fn read_from_path(path: &str) -> Result<VectorBytesKeySource, CryptoError> {
         // Mock this
         let read_bytes = std::fs::read(path).map_err(|e| match e.kind() {
@@ -150,12 +161,13 @@ impl FsBytesKeySource {
         })
     }
 
-    // Self methods
+    /// Re-reads the file and stores its bytes in memory
     pub fn reload(&mut self) -> Result<(), CryptoError> {
         self.cached = Some(Self::read_from_path(&self.path)?);
         Ok(())
     }
 
+    /// Re-writes the key to be the given bytes
     pub fn set(&mut self, key: &[u8]) -> Result<(), CryptoError> {
         std::fs::write(&self.path, key)
             .map(|_| self.reload())
@@ -165,6 +177,7 @@ impl FsBytesKeySource {
             })?
     }
 
+    /// Returns the key as a byte array
     pub fn get(&self) -> Result<&[u8], CryptoError> {
         match self.cached {
             Some(ref vbks) => vbks.get(),
@@ -172,34 +185,39 @@ impl FsBytesKeySource {
         }
     }
 
+    /// Returns the path where the key is stored
     pub fn get_path(&self) -> &str {
         &self.path
     }
 }
 
+/// A key source where the key is an array of bytes in memory
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct VectorBytesKeySource {
+    value: Option<Vec<u8>>,
+}
+
 impl VectorBytesKeySource {
+    /// Creates a new `VectorBytesKeySources` from the given byte array
     pub fn new(bytes: Option<&[u8]>) -> Self {
         VectorBytesKeySource {
             value: bytes.map(|bytes| bytes.to_vec()),
         }
     }
 
+    /// Re-writes the key to be the given bytes
     pub fn set(&mut self, key: &[u8]) -> Result<(), CryptoError> {
         self.value = Some(key.to_vec());
         Ok(())
     }
 
+    /// Returns the key as an array of bytes
     pub fn get(&self) -> Result<&[u8], CryptoError> {
         match self.value {
             Some(ref v) => Ok(&v),
             None => Err(CryptoError::NotFound),
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct VectorBytesKeySource {
-    value: Option<Vec<u8>>,
 }
 
 impl TryFrom<KeySources> for BytesKeySources {

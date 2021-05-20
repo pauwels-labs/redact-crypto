@@ -12,6 +12,7 @@ use sodiumoxide::crypto::{
 };
 use std::convert::TryInto;
 
+/// An encryptor that encrypts plaintexts with symmetric keys
 pub trait SymmetricKeyEncryptor {
     fn try_encrypt(
         &self,
@@ -20,6 +21,7 @@ pub trait SymmetricKeyEncryptor {
     ) -> Result<Vec<u8>, CryptoError>;
 }
 
+/// An encryptor that encrypts plaintexts with asymmetric keys
 pub trait AsymmetricKeyEncryptor {
     fn try_encrypt(
         &self,
@@ -29,11 +31,20 @@ pub trait AsymmetricKeyEncryptor {
     ) -> Result<Vec<u8>, CryptoError>;
 }
 
+/// Returned when requesting more than one `Key`. The collection
+/// is represented as a vector of `Key` structs.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KeyCollection {
     pub results: Vec<Key>,
 }
 
+/// The highest-level `Key` struct. This type can be serialized/deserialized
+/// using serde for sharing across apps in a data storer. More importantly, future non-Byte
+/// keys will be stored as mere references and can be loaded immediately and used when the
+/// host laptop is connected to the matching hardware device.
+///
+/// The struct contains `KeyExecutors` and `KeySources` enums. These are the foundational
+/// components. View their respective doumentation for further information.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Key {
     pub name: String,
@@ -81,6 +92,8 @@ impl Key {
     }
 }
 
+/// The `KeyExecutors` enum breaks down different types of executors based on whether the
+/// executor operates on symmetric or asymmetric keys.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum KeyExecutors {
     Symmetric(SymmetricKeyExecutors),
@@ -157,6 +170,9 @@ pub enum KeyExecutors {
 //     }
 // }
 
+/// This enum further breaks down symmetric keys into specifically implemented types.
+/// Currently, the supported symmetric key executor types are:
+/// SodiumOxide: symmetric key execution backed by libsodium's algorithms
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum SymmetricKeyExecutors {
     SodiumOxide(SodiumOxideSymmetricKeyExecutor),
@@ -188,6 +204,7 @@ pub enum SymmetricKeyExecutors {
 //     }
 // }
 
+/// Implements symmetric key execution using libsodium's symmetric key algorithms
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxideSymmetricKeyExecutor {}
 
@@ -210,6 +227,8 @@ pub struct SodiumOxideSymmetricKeyExecutor {}
 // }
 
 impl SymmetricKeyEncryptor for SodiumOxideSymmetricKeyExecutor {
+    /// Encrypts the given plaintext using the given `KeySources`. If the source can not beo
+    /// deserialized into a `BytesKeySources`, the function will return an `Err`.
     fn try_encrypt(
         &self,
         key_source: &KeySources,
@@ -223,6 +242,8 @@ impl SymmetricKeyEncryptor for SodiumOxideSymmetricKeyExecutor {
     }
 }
 
+/// This enum breaks down asymmetric key executors into public key operations
+/// and secret key operations
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum AsymmetricKeyExecutors {
     Public(PublicKeyExecutors),
@@ -259,6 +280,9 @@ pub enum AsymmetricKeyExecutors {
 //     }
 // }
 
+/// This enum breaks down public key executors into specific implementations.
+/// Current supported implementations are:
+/// - SodiumOxide: public key logic backed by liboxide's public key algorithms
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum PublicKeyExecutors {
     SodiumOxide(SodiumOxidePublicKeyExecutor),
@@ -290,6 +314,9 @@ pub enum PublicKeyExecutors {
 //     }
 // }
 
+/// This enum breaks down secret key executors into specific implementations.
+/// Current supported implementations are:
+/// - SodiumOxide: secret key logic backed by liboxide's secret key algorithms
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum SecretKeyExecutors {
     SodiumOxide(SodiumOxideSecretKeyExecutor),
@@ -321,6 +348,7 @@ pub enum SecretKeyExecutors {
 //     }
 // }
 
+/// Implements public key execution logic using libsodium's algorithms
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxidePublicKeyExecutor {}
 
@@ -390,10 +418,12 @@ pub struct SodiumOxidePublicKeyExecutor {}
 //     }
 // }
 
+/// Implements secret key execution logic using libsodium's algorithms
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxideSecretKeyExecutor {}
 
 impl AsymmetricKeyEncryptor for SecretKeyExecutors {
+    /// Passes through the call to the underlying encryptor variant
     fn try_encrypt(
         &self,
         key_source: &KeySources,
@@ -478,6 +508,8 @@ impl SodiumOxideSecretKeyExecutor {
 }
 
 impl AsymmetricKeyEncryptor for SodiumOxideSecretKeyExecutor {
+    /// Encrypts the given plaintext using the given `KeySources`. If the source can not be
+    /// deserialized into a `BytesKeySources`, the function will return an `Err`.
     fn try_encrypt(
         &self,
         key_source: &KeySources,

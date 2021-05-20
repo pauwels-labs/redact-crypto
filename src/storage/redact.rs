@@ -7,6 +7,8 @@ pub struct RedactKeyStorer {
     url: String,
 }
 
+/// Stores an instance of a redact-backed key storer.
+/// The redact-store server is an example implementation of a redact storage backing.
 impl RedactKeyStorer {
     pub fn new(url: &str) -> Self {
         Self {
