@@ -3,8 +3,19 @@ name = "redact-crypto"
 version = "0.1.0"
 authors = ["Alexandre Pauwels <8890201+ajpauwels@users.noreply.github.com>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license-file = "LICENSE"
+description = "Crypto abstractions for the Redact framework"
+documentation = "https://docs.rs/redact-crypto"
+repository = "https://github.com/pauwels-labs/redact-crypto.git"
+readme = "README.md"
+exclude = [
+        ".dockerignore",
+        ".gitignore",
+        ".lighthouse",
+        "Dockerfile.test",
+        "OWNERS",
+        "OWNERS_ALIASES"
+]
 
 [dependencies]
 async-trait = "0.1.42"
