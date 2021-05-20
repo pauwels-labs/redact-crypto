@@ -30,7 +30,9 @@
 mod error;
 mod key_sources;
 mod keys;
-mod storage;
+pub mod storage;
 
 pub use keys::{Key, KeyCollection};
-pub use storage::{KeyStorer, MongoKeyStorer, RedactKeyStorer, StorageError};
+pub use storage::{
+    error::StorageError, mongodb::MongoKeyStorer, redact::RedactKeyStorer, KeyStorer,
+};
