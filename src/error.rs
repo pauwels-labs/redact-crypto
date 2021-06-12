@@ -1,3 +1,4 @@
+use crate::StorageError;
 use std::{
     error::Error,
     fmt::{self, Display, Formatter},
@@ -28,8 +29,60 @@ pub enum CryptoError {
     /// Indicates the key source could not source the key
     NotFound,
 
-    /// Indicates the key sources is not a bytes key source but must be
-    NotBytesKeySource,
+    /// Indicates a ciphertext failed verification before decryption
+    CiphertextFailedVerification,
+
+    /// Indicates the provided nonce is not the correct length
+    InvalidNonceLength { expected: usize, actual: usize },
+
+    /// Indicates the provided nonce is not the correct length
+    InvalidKeyLength { expected: usize, actual: usize },
+
+    /// Indicates the wrong type of key was provided as a parameter
+    IncorrectKeyType { expected: String, actual: String },
+
+    /// Wraps a StorageError
+    StorageError { source: StorageError },
+
+    /// Indicates a public key was given when a secret key was expected
+    ExpectedSecretKey,
+
+    /// Indicates a secret key was given when a public key was expected
+    ExpectedPublicKey,
+
+    /// Indicates the wrong type of source was provided during a seal or unseal operation
+    IncorrectSourceType {
+        expected: String,
+        actual: String,
+        key: String,
+    },
+
+    /// Indicates the wrong type of nonce was provided during a seal or unseal operation
+    IncorrectNonceType {
+        expected: String,
+        actual: String,
+        key: String,
+    },
+
+    /// Indicates the wrong type of nonce was provided during a seal or unseal operation
+    IncorrectSecretKeyType {
+        expected: String,
+        actual: String,
+        key: String,
+    },
+
+    /// Indicates the wrong type of nonce was provided during a seal or unseal operation
+    IncorrectPublicKeyType {
+        expected: String,
+        actual: String,
+        key: String,
+    },
+
+    /// Indicates tried to seal a sealed type
+    AlreadySealed,
+
+    /// Indicates the given value was not of the right type to be downcasted to the requested type
+    NotDowncastable,
 }
 
 impl Error for CryptoError {
@@ -42,7 +95,19 @@ impl Error for CryptoError {
             CryptoError::NotSecret => None,
             CryptoError::Infallible => None,
             CryptoError::NotFound => None,
-            CryptoError::NotBytesKeySource => None,
+            CryptoError::CiphertextFailedVerification => None,
+            CryptoError::InvalidNonceLength { .. } => None,
+            CryptoError::InvalidKeyLength { .. } => None,
+            CryptoError::IncorrectKeyType { .. } => None,
+            CryptoError::StorageError { ref source } => Some(source),
+            CryptoError::ExpectedSecretKey => None,
+            CryptoError::ExpectedPublicKey => None,
+            CryptoError::IncorrectSourceType { .. } => None,
+            CryptoError::IncorrectNonceType { .. } => None,
+            CryptoError::IncorrectSecretKeyType { .. } => None,
+            CryptoError::IncorrectPublicKeyType { .. } => None,
+            CryptoError::AlreadySealed => None,
+            CryptoError::NotDowncastable => None,
         }
     }
 }
@@ -74,8 +139,77 @@ impl Display for CryptoError {
             CryptoError::NotFound => {
                 write!(f, "The key source was not found")
             }
-            CryptoError::NotBytesKeySource => {
-                write!(f, "The key source was not a bytes key source but must be")
+            CryptoError::CiphertextFailedVerification => {
+                write!(
+                    f,
+                    "The ciphertext failed verification before attempting to decrypt"
+                )
+            }
+            CryptoError::InvalidNonceLength {
+                ref expected,
+                ref actual,
+            } => {
+                write!(
+                    f,
+                    "The provided nonce was not the correct length, expected: {}, actual: {}",
+                    expected, actual,
+                )
+            }
+            CryptoError::InvalidKeyLength {
+                ref expected,
+                ref actual,
+            } => {
+                write!(
+                    f,
+                    "The provided key was not the correct length, expected: {}, actual: {}",
+                    expected, actual,
+                )
+            }
+            CryptoError::IncorrectKeyType {
+                ref expected,
+                ref actual,
+            } => {
+                write!(
+                    f,
+                    "The key provided was of an incorrect type, expected: {}, actual: {}",
+                    expected, actual,
+                )
+            }
+            CryptoError::StorageError { .. } => {
+                write!(f, "Error occured while interacting with key storage")
+            }
+            CryptoError::ExpectedSecretKey => {
+                write!(f, "A public key was given when a secret key was expected")
+            }
+            CryptoError::ExpectedPublicKey => {
+                write!(f, "A secret key was given when a public key was expected")
+            }
+            CryptoError::IncorrectSourceType { .. } => {
+                write!(f, "The source provided for the given key was invalid")
+            }
+            CryptoError::IncorrectNonceType { .. } => {
+                write!(f, "The nonce provided for the given key was invalid")
+            }
+            CryptoError::IncorrectPublicKeyType { .. } => {
+                write!(
+                    f,
+                    "The public key provided for the given secret key was invalid"
+                )
+            }
+            CryptoError::IncorrectSecretKeyType { .. } => {
+                write!(
+                    f,
+                    "The secret key provided for the given public key was invalid"
+                )
+            }
+            CryptoError::AlreadySealed => {
+                write!(f, "The type is already sealed, cannot seal again")
+            }
+            CryptoError::NotDowncastable => {
+                write!(
+                    f,
+                    "Could not downcast the Types-value into the requested variant"
+                )
             }
         }
     }

@@ -1419,6 +1419,7 @@ dependencies = [
  "mongodb",
  "reqwest 0.11.3",
  "serde",
+ "serde_json",
  "sodiumoxide",
 ]
 

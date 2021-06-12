@@ -1,15 +1,16 @@
-use crate::keys::{Key, KeyCollection};
-use crate::storage::{KeyStorer, StorageError};
+use crate::{Entry, KeyName, Stateful, StorageError, Storer, TypeStates, Types};
 use async_trait::async_trait;
+use serde::Serialize;
+use std::convert::TryFrom;
 
 #[derive(Clone)]
-pub struct RedactKeyStorer {
+pub struct RedactStorer {
     url: String,
 }
 
 /// Stores an instance of a redact-backed key storer.
 /// The redact-store server is an example implementation of a redact storage backing.
-impl RedactKeyStorer {
+impl RedactStorer {
     pub fn new(url: &str) -> Self {
         Self {
             url: url.to_owned(),
@@ -18,39 +19,81 @@ impl RedactKeyStorer {
 }
 
 #[async_trait]
-impl KeyStorer for RedactKeyStorer {
-    async fn get(&self, name: &str) -> Result<Key, StorageError> {
+impl Storer for RedactStorer {
+    async fn get<T>(&self, name: &str) -> Result<TypeStates<T>, StorageError>
+    where
+        T: Stateful,
+    {
         match reqwest::get(&format!("{}/keys/{}", self.url, name)).await {
-            Ok(r) => Ok(r
-                .json::<Key>()
-                .await
-                .map_err(|source| StorageError::InternalError {
-                    source: Box::new(source),
-                })?),
-            Err(source) => Err(StorageError::InternalError {
-                source: Box::new(source),
-            }),
-        }
-    }
-
-    async fn list(&self) -> Result<KeyCollection, StorageError> {
-        match reqwest::get(&format!("{}/keys", self.url)).await {
-            Ok(r) => Ok(r.json::<KeyCollection>().await.map_err(|source| {
-                StorageError::InternalError {
-                    source: Box::new(source),
+            Ok(r) => {
+                let entry = r.json::<Entry<Types>>().await.map_err(|source| {
+                    StorageError::InternalError {
+                        source: Box::new(source),
+                    }
+                })?;
+                let ts = entry.value;
+                match ts {
+                    TypeStates::Reference(rt) => Ok(TypeStates::Reference(
+                        T::ReferenceType::try_from(rt).map_err(|_| StorageError::NotFound)?,
+                    )),
+                    TypeStates::Sealed(st) => Ok(TypeStates::Sealed(
+                        T::SealedType::try_from(st).map_err(|_| StorageError::NotFound)?,
+                    )),
+                    TypeStates::Unsealed(t) => Ok(TypeStates::Unsealed(
+                        T::UnsealedType::try_from(t).map_err(|_| StorageError::NotFound)?,
+                    )),
                 }
-            })?),
+            }
             Err(source) => Err(StorageError::InternalError {
                 source: Box::new(source),
             }),
         }
     }
 
-    async fn create(&self, value: Key) -> Result<bool, StorageError> {
+    async fn list<T>(&self) -> Result<Vec<TypeStates<T>>, StorageError>
+    where
+        T: Stateful,
+    {
+        match reqwest::get(&format!("{}/keys", self.url)).await {
+            Ok(r) => {
+                let entry_collection = r.json::<Vec<Entry<Types>>>().await.map_err(|source| {
+                    StorageError::InternalError {
+                        source: Box::new(source),
+                    }
+                })?;
+                Ok(entry_collection
+                    .iter()
+                    .filter_map(|entry| {
+                        let ts = entry.value.clone();
+                        match ts {
+                            TypeStates::Reference(rt) => T::ReferenceType::try_from(rt)
+                                .map_or_else(|_| None, |value| Some(TypeStates::Reference(value))),
+                            TypeStates::Sealed(st) => T::SealedType::try_from(st)
+                                .map_or_else(|_| None, |value| Some(TypeStates::Sealed(value))),
+                            TypeStates::Unsealed(t) => T::UnsealedType::try_from(t)
+                                .map_or_else(|_| None, |value| Some(TypeStates::Unsealed(value))),
+                        }
+                    })
+                    .collect())
+            }
+            Err(source) => Err(StorageError::InternalError {
+                source: Box::new(source),
+            }),
+        }
+    }
+
+    async fn create<T>(&self, name: KeyName, key: T) -> Result<bool, StorageError>
+    where
+        T: Into<TypeStates<Types>> + Send + Sync + Serialize,
+    {
+        let entry = Entry {
+            name,
+            value: key.into(),
+        };
         let client = reqwest::Client::new();
         match client
             .post(&format!("{}/keys", self.url))
-            .json(&value)
+            .json(&entry)
             .send()
             .await
         {
@@ -60,4 +103,37 @@ impl KeyStorer for RedactKeyStorer {
             }),
         }
     }
+
+    // fn with_type<T, U>(&self) -> U
+    // where
+    //     U: StorerWithType<T>,
+    // {
+    //     RedactStorerWithType {
+    //         storer: self.clone(),
+    //     }
+    // }
 }
+
+// #[async_trait]
+// impl<T> StorerWithType<T> for RedactStorerWithType {
+//     async fn get(&self, name: &str) -> Result<T, StorageError>
+//     where
+//         T: TryFrom<Types, Error = CryptoError>,
+//     {
+//         self.storer.get(name).await
+//     }
+
+//     async fn list(&self) -> Result<Vec<T>, StorageError>
+//     where
+//         T: TryFrom<Types, Error = CryptoError> + Send,
+//     {
+//         self.storer.list().await
+//     }
+
+//     async fn create(&self, name: KeyName, value: T) -> Result<bool, StorageError>
+//     where
+//         T: Into<Types> + Send + Sync + Serialize,
+//     {
+//         self.create(name, value).await
+//     }
+// }

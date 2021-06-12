@@ -17,7 +17,7 @@
 //! It also contains implementations of the storage interface for storing and
 //! retrieving redact keys with a variety of sources.
 //!
-//! File directory:
+//! File directory: [ OUTDATED ]
 //! - lib.rs: exports root-level public types from otherwise private submodules
 //! - keys.rs: all the structs and traits for representing symmetric and asymmetric keys
 //! - error.rs: custom errors that can arise from various key and key field operations
@@ -28,11 +28,34 @@
 //! - storage/redact.rs: storage implementation for a redact-store server
 
 mod error;
-mod key_sources;
-mod keys;
-pub mod storage;
+// pub mod keyrefs;
+pub mod keys;
+pub mod nonces;
+pub mod sealedtypes;
+mod sources;
+mod storage;
+pub mod typereferences;
+mod types;
 
-pub use keys::{Key, KeyCollection};
+pub use error::CryptoError;
+pub use keys::{
+    AsymmetricKeys, KeyName, Keys, PublicAsymmetricKeys, SecretAsymmetricKeys, SymmetricKeys,
+};
+pub use nonces::{AsymmetricNonces, Nonces, SymmetricNonces};
+pub use sealedtypes::{
+    SealedAsymmetricKeyTypes, SealedKeyTypes, SealedPublicAsymmetricKeyTypes,
+    SealedSecretAsymmetricKeyTypes, SealedSymmetricKeyTypes, SealedTypes,
+};
+pub use sources::{BytesSources, FsBytesSource, Sources, VectorBytesSource};
 pub use storage::{
-    error::StorageError, mongodb::MongoKeyStorer, redact::RedactKeyStorer, KeyStorer,
+    error::StorageError, mongodb::MongoStorer, redact::RedactStorer, Storer, StorerWithType,
+};
+pub use typereferences::{
+    AsymmetricKeyTypeReferences, KeyTypeReferences, PublicAsymmetricKeyTypeReferences,
+    SecretAsymmetricKeyTypeReferences, SymmetricKeyTypeReferences, TypeReferences,
+};
+pub use types::{
+    AsymmetricKeyTypes, Entry, Fetchable, KeyTypes, PublicAsymmetricKeyTypes, Sealable, Sealer,
+    SecretAsymmetricKeyTypes, Stateful, SymmetricKeyTypes, TypeCollection, TypeStates, Types,
+    Unsealable, Unsealer,
 };
