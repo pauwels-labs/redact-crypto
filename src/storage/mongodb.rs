@@ -1,23 +1,32 @@
-use crate::{Entry, KeyName, Stateful, StorageError, Storer, TypeStates, Types};
+use crate::{Buildable, Builder, Entry, Name, States, StorageError, Storer, Unsealer};
 use async_trait::async_trait;
 use futures::StreamExt;
 use mongodb::{bson, options::ClientOptions, options::FindOneOptions, Client, Database};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
 /// Stores an instance of a mongodb-backed key storer
 #[derive(Clone)]
 pub struct MongoStorer {
-    url: String,
-    db_name: String,
+    db_info: MongoDbInfo,
     client: Client,
     db: Database,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct MongoDbInfo {
+    url: String,
+    db_name: String,
 }
 
 impl MongoStorer {
     /// Instantiates a mongo-backed key storer using a URL to the mongo cluster and the
     /// name of the DB to connect to.
     pub async fn new(url: &str, db_name: &str) -> Self {
+        let db_info = MongoDbInfo {
+            url: url.to_owned(),
+            db_name: db_name.to_owned(),
+        };
         let db_client_options = ClientOptions::parse_with_resolver_config(
             url,
             mongodb::options::ResolverConfig::cloudflare(),
@@ -27,8 +36,7 @@ impl MongoStorer {
         let client = Client::with_options(db_client_options).unwrap();
         let db = client.database(db_name);
         MongoStorer {
-            url: url.to_owned(),
-            db_name: db_name.to_owned(),
+            db_info,
             client,
             db,
         }
@@ -37,33 +45,42 @@ impl MongoStorer {
 
 #[async_trait]
 impl Storer for MongoStorer {
-    async fn get<T: Stateful>(&self, name: &str) -> Result<TypeStates<T>, StorageError>
-    where
-        T: Stateful,
-    {
-        let filter_options = FindOneOptions::builder().build();
+    async fn get<T: Buildable>(&self, name: &str) -> Result<T, StorageError> {
         let filter = bson::doc! { "name": name };
+        let filter_options = FindOneOptions::builder().build();
 
         match self
             .db
-            .collection_with_type::<Entry<Types>>("keys")
+            .collection_with_type::<Entry>("data")
             .find_one(filter, filter_options)
             .await
         {
-            Ok(Some(data)) => {
-                let ts = data.value;
-                match ts {
-                    TypeStates::Reference(rt) => Ok(TypeStates::Reference(
-                        T::ReferenceType::try_from(rt).map_err(|_| StorageError::NotFound)?,
-                    )),
-                    TypeStates::Sealed(st) => Ok(TypeStates::Sealed(
-                        T::SealedType::try_from(st).map_err(|_| StorageError::NotFound)?,
-                    )),
-                    TypeStates::Unsealed(t) => Ok(TypeStates::Unsealed(
-                        T::UnsealedType::try_from(t).map_err(|_| StorageError::NotFound)?,
-                    )),
+            Ok(Some(entry)) => match entry.value {
+                States::Referenced { name } => Ok(self.get::<T>(&name).await?),
+                States::Sealed {
+                    builder,
+                    unsealable,
+                } => {
+                    let bytes = unsealable
+                        .unseal(self.clone())
+                        .await
+                        .map_err(|_| StorageError::NotFound)?;
+                    let builder = <T as Buildable>::Builder::try_from(builder)
+                        .map_err(|_| StorageError::NotFound)?;
+                    let output = builder
+                        .build(bytes.as_ref())
+                        .map_err(|_| StorageError::NotFound)?;
+                    Ok(output)
                 }
-            }
+                States::Unsealed { builder, bytes } => {
+                    let builder = <T as Buildable>::Builder::try_from(builder)
+                        .map_err(|_| StorageError::NotFound)?;
+                    let output = builder
+                        .build(bytes.as_ref())
+                        .map_err(|_| StorageError::NotFound)?;
+                    Ok(output)
+                }
+            },
             Ok(None) => Err(StorageError::NotFound),
             Err(e) => Err(StorageError::InternalError {
                 source: Box::new(e),
@@ -71,67 +88,71 @@ impl Storer for MongoStorer {
         }
     }
 
-    async fn list<T>(&self) -> Result<Vec<TypeStates<T>>, StorageError>
-    where
-        T: Stateful,
-    {
+    async fn list<T: Buildable + Send>(&self) -> Result<Vec<T>, StorageError> {
         match self
             .db
-            .collection_with_type::<Entry<Types>>("keys")
+            .collection_with_type::<Entry>("data")
             .find(None, None)
             .await
         {
-            Ok(cursor) => {
-                let results = cursor
-                    .filter_map(|entry| async move {
-                        match entry {
-                            Ok(e) => {
-                                let ts = e.value;
-                                match ts {
-                                    TypeStates::Reference(rt) => T::ReferenceType::try_from(rt)
-                                        .map_or_else(
-                                            |_| None,
-                                            |value| Some(TypeStates::Reference(value)),
-                                        ),
-                                    TypeStates::Sealed(st) => T::SealedType::try_from(st)
-                                        .map_or_else(
-                                            |_| None,
-                                            |value| Some(TypeStates::Sealed(value)),
-                                        ),
-                                    TypeStates::Unsealed(t) => T::UnsealedType::try_from(t)
-                                        .map_or_else(
-                                            |_| None,
-                                            |value| Some(TypeStates::Unsealed(value)),
-                                        ),
+            Ok(cursor) => Ok(cursor
+                .filter_map(|result| async move {
+                    match result {
+                        Ok(entry) => match entry.value {
+                            States::Referenced { name } => match self.get::<T>(&name).await {
+                                Ok(output) => Some(output),
+                                Err(_) => None,
+                            },
+                            States::Sealed {
+                                builder,
+                                unsealable,
+                            } => {
+                                let bytes = match unsealable.unseal(self.clone()).await {
+                                    Ok(v) => v,
+                                    Err(_) => return None,
+                                };
+                                let builder = match <T as Buildable>::Builder::try_from(builder) {
+                                    Ok(b) => b,
+                                    Err(_) => return None,
+                                };
+                                match builder.build(bytes.as_ref()) {
+                                    Ok(output) => Some(output),
+                                    Err(_) => None,
                                 }
                             }
-                            Err(_) => None,
-                        }
-                    })
-                    .collect::<Vec<TypeStates<T>>>()
-                    .await;
-                Ok(results)
-            }
+                            States::Unsealed { builder, bytes } => {
+                                let builder = match <T as Buildable>::Builder::try_from(builder) {
+                                    Ok(b) => b,
+                                    Err(_) => return None,
+                                };
+                                match builder.build(bytes.as_ref()) {
+                                    Ok(output) => Some(output),
+                                    Err(_) => None,
+                                }
+                            }
+                        },
+                        Err(_) => None,
+                    }
+                })
+                .collect::<Vec<T>>()
+                .await),
             Err(e) => Err(StorageError::InternalError {
                 source: Box::new(e),
             }),
         }
     }
 
-    async fn create<T>(&self, name: KeyName, value: T) -> Result<bool, StorageError>
-    where
-        T: Into<TypeStates<Types>> + Send + Sync + Serialize,
-    {
+    async fn create(&self, name: Name, value: States) -> Result<bool, StorageError> {
+        let filter = bson::doc! { "name": &name };
+        let entry = Entry { name, value };
         let filter_options = mongodb::options::ReplaceOptions::builder()
             .upsert(true)
             .build();
-        let filter = bson::doc! { "name": &name };
-        let value = value.into();
 
         match self
             .db
-            .collection_with_type::<Entry<Types>>("keys")
-            .replace_one(filter, Entry { name, value }, filter_options)
+            .collection_with_type::<Entry>("data")
+            .replace_one(filter, entry, filter_options)
             .await
         {
             Ok(_) => Ok(true),
@@ -140,37 +161,4 @@ impl Storer for MongoStorer {
             }),
         }
     }
-
-    // fn with_type<T, U>(&self) -> U
-    // where
-    //     U: StorerWithType<T>,
-    // {
-    //     MongoStorerWithType {
-    //         storer: self.clone(),
-    //     }
-    // }
 }
-
-// #[async_trait]
-// impl<T> StorerWithType<T> for MongoStorerWithType {
-//     async fn get(&self, name: &str) -> Result<T, StorageError>
-//     where
-//         T: TryFrom<Types, Error = CryptoError>,
-//     {
-//         self.storer.get(name).await
-//     }
-
-//     async fn list(&self) -> Result<Vec<T>, StorageError>
-//     where
-//         T: TryFrom<Types, Error = CryptoError> + Send,
-//     {
-//         self.storer.list().await
-//     }
-
-//     async fn create(&self, name: KeyName, value: T) -> Result<bool, StorageError>
-//     where
-//         T: Into<Types> + Send + Sync + Serialize,
-//     {
-//         self.create(name, value).await
-//     }
-// }

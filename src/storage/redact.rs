@@ -1,6 +1,5 @@
-use crate::{Entry, KeyName, Stateful, StorageError, Storer, TypeStates, Types};
+use crate::{Buildable, Builder, Name, States, StorageError, Storer, Unsealer};
 use async_trait::async_trait;
-use serde::Serialize;
 use std::convert::TryFrom;
 
 #[derive(Clone)]
@@ -20,28 +19,40 @@ impl RedactStorer {
 
 #[async_trait]
 impl Storer for RedactStorer {
-    async fn get<T>(&self, name: &str) -> Result<TypeStates<T>, StorageError>
-    where
-        T: Stateful,
-    {
-        match reqwest::get(&format!("{}/keys/{}", self.url, name)).await {
+    async fn get<T: Buildable>(&self, name: &str) -> Result<T, StorageError> {
+        match reqwest::get(&format!("{}/keys/{}", &self.url, name)).await {
             Ok(r) => {
-                let entry = r.json::<Entry<Types>>().await.map_err(|source| {
-                    StorageError::InternalError {
-                        source: Box::new(source),
+                let value =
+                    r.json::<States>()
+                        .await
+                        .map_err(|source| StorageError::InternalError {
+                            source: Box::new(source),
+                        })?;
+                match value {
+                    States::Referenced { name } => Ok(self.get::<T>(&name).await?),
+                    States::Sealed {
+                        builder,
+                        unsealable,
+                    } => {
+                        let bytes = unsealable
+                            .unseal(self.clone())
+                            .await
+                            .map_err(|_| StorageError::NotFound)?;
+                        let builder = <T as Buildable>::Builder::try_from(builder)
+                            .map_err(|_| StorageError::NotFound)?;
+                        let output = builder
+                            .build(bytes.as_ref())
+                            .map_err(|_| StorageError::NotFound)?;
+                        Ok(output)
                     }
-                })?;
-                let ts = entry.value;
-                match ts {
-                    TypeStates::Reference(rt) => Ok(TypeStates::Reference(
-                        T::ReferenceType::try_from(rt).map_err(|_| StorageError::NotFound)?,
-                    )),
-                    TypeStates::Sealed(st) => Ok(TypeStates::Sealed(
-                        T::SealedType::try_from(st).map_err(|_| StorageError::NotFound)?,
-                    )),
-                    TypeStates::Unsealed(t) => Ok(TypeStates::Unsealed(
-                        T::UnsealedType::try_from(t).map_err(|_| StorageError::NotFound)?,
-                    )),
+                    States::Unsealed { builder, bytes } => {
+                        let builder = <T as Buildable>::Builder::try_from(builder)
+                            .map_err(|_| StorageError::NotFound)?;
+                        let output = builder
+                            .build(bytes.as_ref())
+                            .map_err(|_| StorageError::NotFound)?;
+                        Ok(output)
+                    }
                 }
             }
             Err(source) => Err(StorageError::InternalError {
@@ -50,58 +61,54 @@ impl Storer for RedactStorer {
         }
     }
 
-    async fn list<T>(&self) -> Result<Vec<TypeStates<T>>, StorageError>
-    where
-        T: Stateful,
-    {
-        match reqwest::get(&format!("{}/keys", self.url)).await {
-            Ok(r) => {
-                let entry_collection = r.json::<Vec<Entry<Types>>>().await.map_err(|source| {
-                    StorageError::InternalError {
-                        source: Box::new(source),
-                    }
-                })?;
-                Ok(entry_collection
-                    .iter()
-                    .filter_map(|entry| {
-                        let ts = entry.value.clone();
-                        match ts {
-                            TypeStates::Reference(rt) => T::ReferenceType::try_from(rt)
-                                .map_or_else(|_| None, |value| Some(TypeStates::Reference(value))),
-                            TypeStates::Sealed(st) => T::SealedType::try_from(st)
-                                .map_or_else(|_| None, |value| Some(TypeStates::Sealed(value))),
-                            TypeStates::Unsealed(t) => T::UnsealedType::try_from(t)
-                                .map_or_else(|_| None, |value| Some(TypeStates::Unsealed(value))),
-                        }
-                    })
-                    .collect())
-            }
-            Err(source) => Err(StorageError::InternalError {
-                source: Box::new(source),
-            }),
-        }
+    async fn list<T: Buildable + Send>(&self) -> Result<Vec<T>, StorageError> {
+        Ok(vec![])
+        // match reqwest::get(&format!("{}/keys", self.url)).await {
+        //     Ok(r) => {
+        //         let entry_collection = r.json::<Vec<Entry<Types>>>().await.map_err(|source| {
+        //             StorageError::InternalError {
+        //                 source: Box::new(source),
+        //             }
+        //         })?;
+        //         Ok(entry_collection
+        //             .iter()
+        //             .filter_map(|entry| {
+        //                 let ts = entry.value.clone();
+        //                 match ts {
+        //                     TypeStates::Reference(rt) => T::ReferenceType::try_from(rt)
+        //                         .map_or_else(|_| None, |value| Some(TypeStates::Reference(value))),
+        //                     TypeStates::Sealed(st) => T::SealedType::try_from(st)
+        //                         .map_or_else(|_| None, |value| Some(TypeStates::Sealed(value))),
+        //                     TypeStates::Unsealed(t) => T::UnsealedType::try_from(t)
+        //                         .map_or_else(|_| None, |value| Some(TypeStates::Unsealed(value))),
+        //                 }
+        //             })
+        //             .collect())
+        //     }
+        //     Err(source) => Err(StorageError::InternalError {
+        //         source: Box::new(source),
+        //     }),
+        // }
     }
 
-    async fn create<T>(&self, name: KeyName, key: T) -> Result<bool, StorageError>
-    where
-        T: Into<TypeStates<Types>> + Send + Sync + Serialize,
-    {
-        let entry = Entry {
-            name,
-            value: key.into(),
-        };
-        let client = reqwest::Client::new();
-        match client
-            .post(&format!("{}/keys", self.url))
-            .json(&entry)
-            .send()
-            .await
-        {
-            Ok(_) => Ok(true),
-            Err(source) => Err(StorageError::InternalError {
-                source: Box::new(source),
-            }),
-        }
+    async fn create(&self, name: Name, key: States) -> Result<bool, StorageError> {
+        Ok(true)
+        // let entry = Entry {
+        //     name,
+        //     value: key.into(),
+        // };
+        // let client = reqwest::Client::new();
+        // match client
+        //     .post(&format!("{}/keys", self.url))
+        //     .json(&entry)
+        //     .send()
+        //     .await
+        // {
+        //     Ok(_) => Ok(true),
+        //     Err(source) => Err(StorageError::InternalError {
+        //         source: Box::new(source),
+        //     }),
+        // }
     }
 
     // fn with_type<T, U>(&self) -> U

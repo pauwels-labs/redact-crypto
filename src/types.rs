@@ -1,114 +1,80 @@
 use crate::{
     keys::sodiumoxide::{
         SodiumOxidePublicAsymmetricKey, SodiumOxideSecretAsymmetricKey, SodiumOxideSymmetricKey,
+        SodiumOxideSymmetricKeyBuilder, SodiumOxideSymmetricKeyUnsealable,
     },
-    AsymmetricKeyTypeReferences, BytesSources, CryptoError, KeyName, KeyTypeReferences,
-    PublicAsymmetricKeyTypeReferences, SealedAsymmetricKeyTypes, SealedKeyTypes,
-    SealedPublicAsymmetricKeyTypes, SealedSecretAsymmetricKeyTypes, SealedSymmetricKeyTypes,
-    SealedTypes, SecretAsymmetricKeyTypeReferences, StorerWithType, SymmetricKeyTypeReferences,
-    TypeReferences,
+    CryptoError, Storer,
 };
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt::Debug};
 
-pub trait Sealer {
-    fn try_seal(&self, source: BytesSources) -> Result<BytesSources, CryptoError>;
-    fn get_key(&self) -> KeyTypes;
+pub trait Buildable {
+    type Builder: Builder<Output = Self>;
+
+    fn builder() -> Self::Builder;
 }
 
-pub trait Sealable {
-    type SealedType: Unsealable;
+pub trait Builder: TryFrom<Builders, Error = CryptoError> {
+    type Output;
 
-    fn try_seal(&self, sealer: Box<dyn Sealer>) -> Result<Self::SealedType, CryptoError>;
+    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError>;
 }
 
+#[async_trait]
 pub trait Unsealer {
-    fn try_unseal(&self, source: BytesSources) -> Result<BytesSources, CryptoError>;
-    fn get_key(&self) -> KeyTypes;
-}
-
-pub trait Unsealable {
-    type UnsealedType: Sealable;
-
-    fn try_unseal(&self, unsealer: Box<dyn Unsealer>) -> Result<Self::UnsealedType, CryptoError>;
-    fn get_type(&self) -> Types;
-}
-
-pub trait Fetchable {
-    type FetchedType;
-
-    fn try_fetch(
-        &self,
-        store: Box<dyn StorerWithType<Self::FetchedType>>,
-    ) -> Result<Self::FetchedType, CryptoError>;
-    fn get_type(&self) -> Types;
+    async fn unseal<T: Storer>(&self, storer: T) -> Result<Vec<u8>, CryptoError>;
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Entry<U: Stateful> {
-    pub name: KeyName,
-    pub value: TypeStates<U>,
+pub enum Builders {
+    SodiumOxideSymmetricKey(SodiumOxideSymmetricKeyBuilder),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum TypeStates<U: Stateful> {
-    Reference(U::ReferenceType),
-    Sealed(U::SealedType),
-    Unsealed(U::UnsealedType),
+pub enum Unsealers {
+    SodiumOxideSymmetricKey(SodiumOxideSymmetricKeyUnsealable),
 }
 
-pub trait Stateful {
-    type ReferenceType: TryFrom<TypeReferences>
-        + Send
-        + Serialize
-        + DeserializeOwned
-        + Debug
-        + Clone;
-    type SealedType: TryFrom<SealedTypes> + Send + Serialize + DeserializeOwned + Debug + Clone;
-    type UnsealedType: TryFrom<Types> + Send + Serialize + DeserializeOwned + Debug + Clone;
+#[async_trait]
+impl Unsealer for Unsealers {
+    async fn unseal<T: Storer>(&self, storer: T) -> Result<Vec<u8>, CryptoError> {
+        match self {
+            Self::SodiumOxideSymmetricKey(sosku) => sosku.unseal(storer).await,
+        }
+    }
 }
 
-// pub enum TypeStates<U> {
-//     Reference(Box<dyn Fetchable<FetchedType = TypeStates<U>>>),
-//     Sealed(Box<dyn Unsealable<UnsealedType = U>>),
-//     Unsealed(U),
-// }
-
-// pub enum TypeStates<R, S, U> {
-//     Reference(R),
-//     Sealed(S),
-//     Unsealed(U),
-// }
-
-// #[derive(Serialize, Deserialize, Debug, Clone)]
-// pub enum TypeStates<S, U, R>
-// where
-//     S: Unsealable<UnsealedType = U>,
-//     R: Fetchable<FetchedType = TypeStates<S, U, R>>,
-// {
-//     Sealed(S),
-//     Unsealed(U),
-//     Reference(R),
-// }
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Entry {
+    pub name: Name,
+    pub value: States,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TypeCollection<T>(Vec<T>);
+pub enum States {
+    Referenced {
+        name: Name,
+    },
+    Sealed {
+        builder: Builders,
+        unsealable: Unsealers,
+    },
+    Unsealed {
+        builder: Builders,
+        bytes: Vec<u8>,
+    },
+}
+
+pub type Name = String;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "type")]
 pub enum Types {
     Keys(KeyTypes),
     Data(DataTypes),
 }
 
-impl Stateful for Types {
-    type ReferenceType = TypeReferences;
-    type SealedType = SealedTypes;
-    type UnsealedType = Self;
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "key_type")]
 pub enum KeyTypes {
     Symmetric(SymmetricKeyTypes),
     Asymmetric(AsymmetricKeyTypes),
@@ -125,14 +91,7 @@ impl TryFrom<Types> for KeyTypes {
     }
 }
 
-impl Stateful for KeyTypes {
-    type ReferenceType = KeyTypeReferences;
-    type SealedType = SealedKeyTypes;
-    type UnsealedType = Self;
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "symmetric_key_type")]
 pub enum SymmetricKeyTypes {
     SodiumOxide(SodiumOxideSymmetricKey),
 }
@@ -149,14 +108,7 @@ impl TryFrom<Types> for SymmetricKeyTypes {
     }
 }
 
-impl Stateful for SymmetricKeyTypes {
-    type ReferenceType = SymmetricKeyTypeReferences;
-    type SealedType = SealedSymmetricKeyTypes;
-    type UnsealedType = Self;
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "asymmetric_key_type")]
 pub enum AsymmetricKeyTypes {
     Public(PublicAsymmetricKeyTypes),
     Secret(SecretAsymmetricKeyTypes),
@@ -174,14 +126,7 @@ impl TryFrom<Types> for AsymmetricKeyTypes {
     }
 }
 
-impl Stateful for AsymmetricKeyTypes {
-    type ReferenceType = AsymmetricKeyTypeReferences;
-    type SealedType = SealedAsymmetricKeyTypes;
-    type UnsealedType = Self;
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "public_asymmetric_key_type")]
 pub enum PublicAsymmetricKeyTypes {
     SodiumOxide(SodiumOxidePublicAsymmetricKey),
 }
@@ -198,14 +143,7 @@ impl TryFrom<Types> for PublicAsymmetricKeyTypes {
     }
 }
 
-impl Stateful for PublicAsymmetricKeyTypes {
-    type ReferenceType = PublicAsymmetricKeyTypeReferences;
-    type SealedType = SealedPublicAsymmetricKeyTypes;
-    type UnsealedType = Self;
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "secret_asymmetric_key_type")]
 pub enum SecretAsymmetricKeyTypes {
     SodiumOxide(SodiumOxideSecretAsymmetricKey),
 }
@@ -220,12 +158,6 @@ impl TryFrom<Types> for SecretAsymmetricKeyTypes {
             AsymmetricKeyTypes::Public(_) => Err(CryptoError::NotDowncastable),
         }
     }
-}
-
-impl Stateful for SecretAsymmetricKeyTypes {
-    type ReferenceType = SecretAsymmetricKeyTypeReferences;
-    type SealedType = SealedSecretAsymmetricKeyTypes;
-    type UnsealedType = Self;
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

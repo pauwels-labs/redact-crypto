@@ -2,51 +2,40 @@ pub mod error;
 pub mod mongodb;
 pub mod redact;
 
-use crate::{CryptoError, KeyName, Stateful, TypeStates, Types};
+use crate::{Buildable, Name, States};
 use async_trait::async_trait;
 use error::StorageError;
-use serde::Serialize;
-use std::{
-    convert::{Into, TryFrom},
-    ops::Deref,
-    sync::Arc,
-};
+use std::{ops::Deref, sync::Arc};
 
-#[async_trait]
-pub trait StorerWithType<T>: Send + Sync {
-    /// Fetches the instance of the `Key` with the given name.
-    async fn get(&self, name: &str) -> Result<T, StorageError>
-    where
-        T: TryFrom<TypeStates<Types>, Error = CryptoError> + Stateful;
+// #[async_trait]
+// pub trait StorerWithType<T>: Send + Sync {
+//     /// Fetches the instance of the `Key` with the given name.
+//     async fn get(&self, name: &str) -> Result<TypeStates<T>, StorageError>
+//     where
+//         T: Stateful;
 
-    /// Fetches a list of all the stored keys.
-    async fn list(&self) -> Result<Vec<T>, StorageError>
-    where
-        T: TryFrom<TypeStates<Types>, Error = CryptoError> + Stateful;
+//     /// Fetches a list of all the stored keys.
+//     async fn list(&self) -> Result<Vec<TypeStates<T>>, StorageError>
+//     where
+//         T: Stateful;
 
-    /// Adds the given `Key` struct to the backing store.
-    async fn create(&self, name: KeyName, value: T) -> Result<bool, StorageError>
-    where
-        T: Into<Types> + Send + Sync + Serialize;
-}
+//     /// Adds the given `Key` struct to the backing store.
+//     async fn create(&self, name: Name, value: T) -> Result<bool, StorageError>
+//     where
+//         T: Into<TypeStates<Types>> + Send + Sync + Serialize;
+// }
 
 /// The operations a storer of `Key` structs must be able to fulfill.
 #[async_trait]
 pub trait Storer: Clone + Send + Sync {
     /// Fetches the instance of the `Key` with the given name.
-    async fn get<T>(&self, name: &str) -> Result<TypeStates<T>, StorageError>
-    where
-        T: Stateful;
+    async fn get<T: Buildable>(&self, name: &str) -> Result<T, StorageError>;
 
     /// Fetches a list of all the stored keys.
-    async fn list<T>(&self) -> Result<Vec<TypeStates<T>>, StorageError>
-    where
-        T: Stateful;
+    async fn list<T: Buildable + Send>(&self) -> Result<Vec<T>, StorageError>;
 
     /// Adds the given `Key` struct to the backing store.
-    async fn create<T>(&self, name: KeyName, value: T) -> Result<bool, StorageError>
-    where
-        T: Into<TypeStates<Types>> + Send + Sync + Serialize;
+    async fn create(&self, name: Name, value: States) -> Result<bool, StorageError>;
 
     // fn with_type<T, U>(&self) -> U
     // where
@@ -66,24 +55,15 @@ impl<U> Storer for Arc<U>
 where
     U: Storer,
 {
-    async fn get<T>(&self, name: &str) -> Result<TypeStates<T>, StorageError>
-    where
-        T: Stateful,
-    {
-        self.deref().get(name).await
+    async fn get<T: Buildable>(&self, name: &str) -> Result<T, StorageError> {
+        self.deref().get::<T>(name).await
     }
 
-    async fn list<T>(&self) -> Result<Vec<TypeStates<T>>, StorageError>
-    where
-        T: Stateful,
-    {
-        self.deref().list().await
+    async fn list<T: Buildable + Send>(&self) -> Result<Vec<T>, StorageError> {
+        self.deref().list::<T>().await
     }
 
-    async fn create<T>(&self, name: KeyName, key: T) -> Result<bool, StorageError>
-    where
-        T: Into<TypeStates<Types>> + Send + Sync + Serialize,
-    {
+    async fn create(&self, name: Name, key: States) -> Result<bool, StorageError> {
         self.deref().create(name, key).await
     }
 

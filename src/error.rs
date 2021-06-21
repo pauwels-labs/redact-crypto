@@ -83,6 +83,12 @@ pub enum CryptoError {
 
     /// Indicates the given value was not of the right type to be downcasted to the requested type
     NotDowncastable,
+
+    /// Indicates the file path given has an invalid file name with no stem
+    FilePathHasNoFileStem,
+
+    /// Indicates the file path was invalid UTF-8
+    FilePathIsInvalidUTF8,
 }
 
 impl Error for CryptoError {
@@ -108,6 +114,8 @@ impl Error for CryptoError {
             CryptoError::IncorrectPublicKeyType { .. } => None,
             CryptoError::AlreadySealed => None,
             CryptoError::NotDowncastable => None,
+            CryptoError::FilePathHasNoFileStem => None,
+            CryptoError::FilePathIsInvalidUTF8 => None,
         }
     }
 }
@@ -210,6 +218,15 @@ impl Display for CryptoError {
                     f,
                     "Could not downcast the Types-value into the requested variant"
                 )
+            }
+            CryptoError::FilePathHasNoFileStem => {
+                write!(
+                    f,
+                    "The given file path was invalid as the file name has no stem"
+                )
+            }
+            CryptoError::FilePathIsInvalidUTF8 => {
+                write!(f, "The given file path was not valid UTF-8")
             }
         }
     }

@@ -28,34 +28,17 @@
 //! - storage/redact.rs: storage implementation for a redact-store server
 
 mod error;
-// pub mod keyrefs;
 pub mod keys;
 pub mod nonces;
-pub mod sealedtypes;
 mod sources;
 mod storage;
-pub mod typereferences;
 mod types;
 
 pub use error::CryptoError;
-pub use keys::{
-    AsymmetricKeys, KeyName, Keys, PublicAsymmetricKeys, SecretAsymmetricKeys, SymmetricKeys,
-};
 pub use nonces::{AsymmetricNonces, Nonces, SymmetricNonces};
-pub use sealedtypes::{
-    SealedAsymmetricKeyTypes, SealedKeyTypes, SealedPublicAsymmetricKeyTypes,
-    SealedSecretAsymmetricKeyTypes, SealedSymmetricKeyTypes, SealedTypes,
-};
 pub use sources::{BytesSources, FsBytesSource, Sources, VectorBytesSource};
-pub use storage::{
-    error::StorageError, mongodb::MongoStorer, redact::RedactStorer, Storer, StorerWithType,
-};
-pub use typereferences::{
-    AsymmetricKeyTypeReferences, KeyTypeReferences, PublicAsymmetricKeyTypeReferences,
-    SecretAsymmetricKeyTypeReferences, SymmetricKeyTypeReferences, TypeReferences,
-};
+pub use storage::{error::StorageError, mongodb::MongoStorer, redact::RedactStorer, Storer};
 pub use types::{
-    AsymmetricKeyTypes, Entry, Fetchable, KeyTypes, PublicAsymmetricKeyTypes, Sealable, Sealer,
-    SecretAsymmetricKeyTypes, Stateful, SymmetricKeyTypes, TypeCollection, TypeStates, Types,
-    Unsealable, Unsealer,
+    AsymmetricKeyTypes, Buildable, Builder, Builders, Entry, KeyTypes, Name,
+    PublicAsymmetricKeyTypes, SecretAsymmetricKeyTypes, States, SymmetricKeyTypes, Types, Unsealer,
 };
