@@ -65,7 +65,7 @@ pub enum States {
     },
     Unsealed {
         builder: TypeBuilder,
-        bytes: Vec<u8>,
+        bytes: String,
     },
 }
 
