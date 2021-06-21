@@ -32,7 +32,7 @@ impl Storer for RedactStorer {
                     States::Referenced { name } => Ok(self.get::<T>(&name).await?),
                     States::Sealed {
                         builder,
-                        unsealable,
+                        unsealer: unsealable,
                     } => {
                         let bytes = unsealable
                             .unseal(self.clone())

@@ -59,7 +59,7 @@ impl Storer for MongoStorer {
                 States::Referenced { name } => Ok(self.get::<T>(&name).await?),
                 States::Sealed {
                     builder,
-                    unsealable,
+                    unsealer: unsealable,
                 } => {
                     let bytes = unsealable
                         .unseal(self.clone())
@@ -105,7 +105,7 @@ impl Storer for MongoStorer {
                             },
                             States::Sealed {
                                 builder,
-                                unsealable,
+                                unsealer: unsealable,
                             } => {
                                 let bytes = match unsealable.unseal(self.clone()).await {
                                     Ok(v) => v,

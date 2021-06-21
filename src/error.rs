@@ -44,43 +44,6 @@ pub enum CryptoError {
     /// Wraps a StorageError
     StorageError { source: StorageError },
 
-    /// Indicates a public key was given when a secret key was expected
-    ExpectedSecretKey,
-
-    /// Indicates a secret key was given when a public key was expected
-    ExpectedPublicKey,
-
-    /// Indicates the wrong type of source was provided during a seal or unseal operation
-    IncorrectSourceType {
-        expected: String,
-        actual: String,
-        key: String,
-    },
-
-    /// Indicates the wrong type of nonce was provided during a seal or unseal operation
-    IncorrectNonceType {
-        expected: String,
-        actual: String,
-        key: String,
-    },
-
-    /// Indicates the wrong type of nonce was provided during a seal or unseal operation
-    IncorrectSecretKeyType {
-        expected: String,
-        actual: String,
-        key: String,
-    },
-
-    /// Indicates the wrong type of nonce was provided during a seal or unseal operation
-    IncorrectPublicKeyType {
-        expected: String,
-        actual: String,
-        key: String,
-    },
-
-    /// Indicates tried to seal a sealed type
-    AlreadySealed,
-
     /// Indicates the given value was not of the right type to be downcasted to the requested type
     NotDowncastable,
 
@@ -89,6 +52,9 @@ pub enum CryptoError {
 
     /// Indicates the file path was invalid UTF-8
     FilePathIsInvalidUTF8,
+
+    /// Indicates the given bytes could not be serialized to a base data type
+    NotDeserializableToBaseDataType,
 }
 
 impl Error for CryptoError {
@@ -106,16 +72,10 @@ impl Error for CryptoError {
             CryptoError::InvalidKeyLength { .. } => None,
             CryptoError::IncorrectKeyType { .. } => None,
             CryptoError::StorageError { ref source } => Some(source),
-            CryptoError::ExpectedSecretKey => None,
-            CryptoError::ExpectedPublicKey => None,
-            CryptoError::IncorrectSourceType { .. } => None,
-            CryptoError::IncorrectNonceType { .. } => None,
-            CryptoError::IncorrectSecretKeyType { .. } => None,
-            CryptoError::IncorrectPublicKeyType { .. } => None,
-            CryptoError::AlreadySealed => None,
             CryptoError::NotDowncastable => None,
             CryptoError::FilePathHasNoFileStem => None,
             CryptoError::FilePathIsInvalidUTF8 => None,
+            CryptoError::NotDeserializableToBaseDataType => None,
         }
     }
 }
@@ -186,33 +146,6 @@ impl Display for CryptoError {
             CryptoError::StorageError { .. } => {
                 write!(f, "Error occured while interacting with key storage")
             }
-            CryptoError::ExpectedSecretKey => {
-                write!(f, "A public key was given when a secret key was expected")
-            }
-            CryptoError::ExpectedPublicKey => {
-                write!(f, "A secret key was given when a public key was expected")
-            }
-            CryptoError::IncorrectSourceType { .. } => {
-                write!(f, "The source provided for the given key was invalid")
-            }
-            CryptoError::IncorrectNonceType { .. } => {
-                write!(f, "The nonce provided for the given key was invalid")
-            }
-            CryptoError::IncorrectPublicKeyType { .. } => {
-                write!(
-                    f,
-                    "The public key provided for the given secret key was invalid"
-                )
-            }
-            CryptoError::IncorrectSecretKeyType { .. } => {
-                write!(
-                    f,
-                    "The secret key provided for the given public key was invalid"
-                )
-            }
-            CryptoError::AlreadySealed => {
-                write!(f, "The type is already sealed, cannot seal again")
-            }
             CryptoError::NotDowncastable => {
                 write!(
                     f,
@@ -227,6 +160,9 @@ impl Display for CryptoError {
             }
             CryptoError::FilePathIsInvalidUTF8 => {
                 write!(f, "The given file path was not valid UTF-8")
+            }
+            CryptoError::NotDeserializableToBaseDataType => {
+                write!(f, "The given bytes could not be deserialized to one of: bool, u64, i64, f64, or string")
             }
         }
     }

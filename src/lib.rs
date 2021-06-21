@@ -39,6 +39,6 @@ pub use nonces::{AsymmetricNonces, Nonces, SymmetricNonces};
 pub use sources::{BytesSources, FsBytesSource, Sources, VectorBytesSource};
 pub use storage::{error::StorageError, mongodb::MongoStorer, redact::RedactStorer, Storer};
 pub use types::{
-    AsymmetricKeyTypes, Buildable, Builder, Builders, Entry, KeyTypes, Name,
-    PublicAsymmetricKeyTypes, SecretAsymmetricKeyTypes, States, SymmetricKeyTypes, Types, Unsealer,
+    AsymmetricKey, Buildable, Builder, ByteUnsealer, Entry, Key, Name, PublicAsymmetricKey,
+    SecretAsymmetricKey, States, SymmetricKey, Type, TypeBuilder, Unsealer,
 };
