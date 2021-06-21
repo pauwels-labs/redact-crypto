@@ -112,9 +112,8 @@ pub struct SodiumOxideSymmetricKey {
 }
 
 impl IntoIndex for SodiumOxideSymmetricKey {
-    fn into_index() -> Document {
-        bson::doc! {
-            "value": {
+    fn into_index() -> Option<Document> {
+        Some(bson::doc! {
         "c": {
             "builder": {
         "t": "Key",
@@ -126,8 +125,7 @@ impl IntoIndex for SodiumOxideSymmetricKey {
         }
             }
         }
-            }
-        }
+            })
     }
 }
 
@@ -195,9 +193,8 @@ pub struct SodiumOxideSecretAsymmetricKey {
 }
 
 impl IntoIndex for SodiumOxideSecretAsymmetricKey {
-    fn into_index() -> Document {
-        bson::doc! {
-            "value": {
+    fn into_index() -> Option<Document> {
+        Some(bson::doc! {
         "c": {
             "builder": {
         "t": "Key",
@@ -212,8 +209,7 @@ impl IntoIndex for SodiumOxideSecretAsymmetricKey {
         }
             }
         }
-            }
-        }
+            })
     }
 }
 
@@ -289,9 +285,8 @@ pub struct SodiumOxidePublicAsymmetricKey {
 }
 
 impl IntoIndex for SodiumOxidePublicAsymmetricKey {
-    fn into_index() -> Document {
-        bson::doc! {
-            "value": {
+    fn into_index() -> Option<Document> {
+        Some(bson::doc! {
         "c": {
             "builder": {
         "t": "Key",
@@ -306,8 +301,7 @@ impl IntoIndex for SodiumOxidePublicAsymmetricKey {
         }
             }
         }
-            }
-        }
+            })
     }
 }
 

@@ -52,9 +52,13 @@ impl Storer for MongoStorer {
     async fn get_indexed<T: Buildable>(
         &self,
         path: &str,
-        index: &Document,
+        index: &Option<Document>,
     ) -> Result<Entry, StorageError> {
-        let filter = bson::doc! { "path": path, "value": index };
+        let mut filter = bson::doc! { "path": path };
+        if let Some(i) = index {
+            filter.insert("value", i);
+        }
+
         let filter_options = FindOneOptions::builder().build();
 
         match self
@@ -76,9 +80,12 @@ impl Storer for MongoStorer {
         path: &str,
         skip: i64,
         page_size: i64,
-        index: &Document,
+        index: &Option<Document>,
     ) -> Result<Vec<Entry>, StorageError> {
-        let filter = bson::doc! { "path": path, "value": index };
+        let mut filter = bson::doc! { "path": path };
+        if let Some(i) = index {
+            filter.insert("value", i);
+        }
         let filter_options = FindOptions::builder().skip(skip).limit(page_size).build();
 
         match self
@@ -109,8 +116,6 @@ impl Storer for MongoStorer {
             .upsert(true)
             .build();
 
-        println!("test");
-        println!("{:?}", &entry);
         match self
             .db
             .collection_with_type::<Entry>("entries")

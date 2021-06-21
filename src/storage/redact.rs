@@ -22,9 +22,13 @@ impl Storer for RedactStorer {
     async fn get_indexed<T: Buildable>(
         &self,
         path: &str,
-        index: &Document,
+        index: &Option<Document>,
     ) -> Result<Entry, StorageError> {
-        match reqwest::get(&format!("{}/{}?index={}", &self.url, path, index)).await {
+        let mut req_url = format!("{}/{}?", &self.url, path);
+        if let Some(i) = index {
+            req_url.push_str(format!("index={}", i).as_ref());
+        }
+        match reqwest::get(&req_url).await {
             Ok(r) => Ok(r
                 .json::<Entry>()
                 .await
@@ -42,14 +46,16 @@ impl Storer for RedactStorer {
         path: &str,
         skip: i64,
         page_size: i64,
-        index: &Document,
+        index: &Option<Document>,
     ) -> Result<Vec<Entry>, StorageError> {
-        match reqwest::get(&format!(
-            "{}/{}?index={}&skip={}&skip={}",
-            &self.url, path, index, skip, page_size
-        ))
-        .await
-        {
+        let mut req_url = format!(
+            "{}/{}?skip={}&page_size={}",
+            &self.url, path, skip, page_size
+        );
+        if let Some(i) = index {
+            req_url.push_str(format!("&index={}", i).as_ref());
+        }
+        match reqwest::get(&req_url).await {
             Ok(r) => {
                 Ok(r.json::<Vec<Entry>>()
                     .await

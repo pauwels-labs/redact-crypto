@@ -23,7 +23,7 @@ pub trait Storer: Clone + Send + Sync {
     async fn get_indexed<T: Buildable>(
         &self,
         path: &str,
-        index: &Document,
+        index: &Option<Document>,
     ) -> Result<Entry, StorageError>;
 
     /// Fetches a list of all the stored keys.
@@ -43,7 +43,7 @@ pub trait Storer: Clone + Send + Sync {
         path: &str,
         skip: i64,
         page_size: i64,
-        index: &Document,
+        index: &Option<Document>,
     ) -> Result<Vec<Entry>, StorageError>;
 
     /// Adds the given `Key` struct to the backing store.
@@ -58,7 +58,7 @@ pub trait Storer: Clone + Send + Sync {
     async fn resolve_indexed<T: Buildable>(
         &self,
         entry: &Entry,
-        index: &Document,
+        index: &Option<Document>,
     ) -> Result<T, CryptoError> {
         match &entry.value {
             States::Referenced { builder: _, path } => {
@@ -110,7 +110,7 @@ where
     async fn get_indexed<T: Buildable>(
         &self,
         name: &str,
-        index: &Document,
+        index: &Option<Document>,
     ) -> Result<Entry, StorageError> {
         self.deref().get_indexed::<T>(name, index).await
     }
@@ -120,7 +120,7 @@ where
         name: &str,
         skip: i64,
         page_size: i64,
-        index: &Document,
+        index: &Option<Document>,
     ) -> Result<Vec<Entry>, StorageError> {
         self.deref()
             .list_indexed::<T>(name, skip, page_size, index)

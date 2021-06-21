@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt::Debug};
 
 pub trait IntoIndex {
-    fn into_index() -> Document;
+    fn into_index() -> Option<Document>;
 }
 
 pub trait Buildable {
@@ -79,8 +79,8 @@ pub enum Type {
 }
 
 impl IntoIndex for Type {
-    fn into_index() -> Document {
-        bson::doc! {}
+    fn into_index() -> Option<Document> {
+        None
     }
 }
 
@@ -103,16 +103,14 @@ pub enum Key {
 }
 
 impl IntoIndex for Key {
-    fn into_index() -> Document {
-        bson::doc! {
-            "value": {
+    fn into_index() -> Option<Document> {
+        Some(bson::doc! {
         "c": {
             "builder": {
         "t": "Key"
             }
         }
-            }
-        }
+            })
     }
 }
 
@@ -145,9 +143,8 @@ pub enum SymmetricKey {
 }
 
 impl IntoIndex for SymmetricKey {
-    fn into_index() -> Document {
-        bson::doc! {
-            "value": {
+    fn into_index() -> Option<Document> {
+        Some(bson::doc! {
         "c": {
             "builder": {
         "t": "Key",
@@ -156,8 +153,7 @@ impl IntoIndex for SymmetricKey {
         }
             }
         }
-            }
-        }
+            })
     }
 }
 
@@ -191,9 +187,8 @@ pub enum AsymmetricKey {
 }
 
 impl IntoIndex for AsymmetricKey {
-    fn into_index() -> Document {
-        bson::doc! {
-            "value": {
+    fn into_index() -> Option<Document> {
+        Some(bson::doc! {
         "c": {
             "builder": {
         "t": "Key",
@@ -202,8 +197,7 @@ impl IntoIndex for AsymmetricKey {
         }
             }
         }
-            }
-        }
+            })
     }
 }
 
@@ -237,9 +231,8 @@ pub enum PublicAsymmetricKey {
 }
 
 impl IntoIndex for PublicAsymmetricKey {
-    fn into_index() -> Document {
-        bson::doc! {
-            "value": {
+    fn into_index() -> Option<Document> {
+        Some(bson::doc! {
         "c": {
             "builder": {
         "t": "Key",
@@ -251,8 +244,7 @@ impl IntoIndex for PublicAsymmetricKey {
         }
             }
         }
-            }
-        }
+            })
     }
 }
 
@@ -285,9 +277,8 @@ pub enum SecretAsymmetricKey {
 }
 
 impl IntoIndex for SecretAsymmetricKey {
-    fn into_index() -> Document {
-        bson::doc! {
-            "value": {
+    fn into_index() -> Option<Document> {
+        Some(bson::doc! {
         "c": {
             "builder": {
         "t": "Key",
@@ -299,8 +290,7 @@ impl IntoIndex for SecretAsymmetricKey {
         }
             }
         }
-            }
-        }
+            })
     }
 }
 
@@ -343,16 +333,14 @@ pub enum Data {
 }
 
 impl IntoIndex for Data {
-    fn into_index() -> Document {
-        bson::doc! {
-            "value": {
+    fn into_index() -> Option<Document> {
+        Some(bson::doc! {
         "c": {
                     "builder": {
             "t": "Data",
             }
         }
-            }
-        }
+            })
     }
 }
 
