@@ -1,4 +1,4 @@
-use crate::{CryptoError, Name};
+use crate::CryptoError;
 use serde::{Deserialize, Serialize};
 use std::{convert::Into, io::ErrorKind, path::PathBuf as StdPathBuf, str::FromStr};
 
@@ -18,15 +18,6 @@ pub enum Sources {
 pub enum BytesSources {
     Fs(FsBytesSource),
     Vector(VectorBytesSource),
-}
-
-impl BytesSources {
-    pub fn name(&self) -> Name {
-        match self {
-            Self::Fs(fsbs) => fsbs.name(),
-            Self::Vector(vbs) => vbs.name(),
-        }
-    }
 }
 
 impl BytesSources {
@@ -112,7 +103,6 @@ impl FsBytesSource {
             _ => CryptoError::FsIoError { source: e },
         })?;
         Ok(VectorBytesSource {
-            name: path.file_stem().into(),
             value: Some(read_bytes),
         })
     }
@@ -146,24 +136,18 @@ impl FsBytesSource {
     pub fn get_path(&self) -> &Path {
         &self.path
     }
-
-    pub fn name(&self) -> Name {
-        self.path.file_stem().to_owned()
-    }
 }
 
 /// A source that is an array of bytes in memory
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VectorBytesSource {
-    name: Name,
     value: Option<Vec<u8>>,
 }
 
 impl VectorBytesSource {
     /// Creates a new `VectorBytesSource` from the given byte array
-    pub fn new(name: Name, bytes: Option<&[u8]>) -> Self {
+    pub fn new(bytes: Option<&[u8]>) -> Self {
         VectorBytesSource {
-            name,
             value: bytes.map(|bytes| bytes.to_vec()),
         }
     }
@@ -180,9 +164,5 @@ impl VectorBytesSource {
             Some(ref v) => Ok(&v),
             None => Err(CryptoError::NotFound),
         }
-    }
-
-    pub fn name(&self) -> Name {
-        self.name.clone()
     }
 }

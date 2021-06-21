@@ -1,4 +1,4 @@
-use crate::{Buildable, Builder, Entry, Name, States, StorageError, Storer, Unsealer};
+use crate::{Buildable, Builder, Entry, EntryPath, States, StorageError, Storer, Unsealer};
 use async_trait::async_trait;
 use futures::StreamExt;
 use mongodb::{
@@ -61,7 +61,7 @@ impl Storer for MongoStorer {
             .await
         {
             Ok(Some(entry)) => match entry.value {
-                States::Referenced { name } => Ok(self.get::<T>(&name).await?),
+                States::Referenced { path: name } => Ok(self.get::<T>(&name).await?),
                 States::Sealed {
                     builder,
                     unsealer: unsealable,
@@ -95,7 +95,7 @@ impl Storer for MongoStorer {
 
     async fn list<T: Buildable + Send>(
         &self,
-        name: &Name,
+        name: &EntryPath,
         skip: i64,
         page_size: i64,
     ) -> Result<Vec<T>, StorageError> {
@@ -105,14 +105,14 @@ impl Storer for MongoStorer {
         match self
             .db
             .collection_with_type::<Entry>("data")
-            .find(None, None)
+            .find(filter, filter_options)
             .await
         {
             Ok(cursor) => Ok(cursor
                 .filter_map(|result| async move {
                     match result {
                         Ok(entry) => match entry.value {
-                            States::Referenced { name } => match self.get::<T>(&name).await {
+                            States::Referenced { path: name } => match self.get::<T>(&name).await {
                                 Ok(output) => Some(output),
                                 Err(_) => None,
                             },
@@ -155,9 +155,9 @@ impl Storer for MongoStorer {
         }
     }
 
-    async fn create(&self, name: Name, value: States) -> Result<bool, StorageError> {
+    async fn create(&self, name: EntryPath, value: States) -> Result<bool, StorageError> {
         let filter = bson::doc! { "name": &name };
-        let entry = Entry { name, value };
+        let entry = Entry { path: name, value };
         let filter_options = mongodb::options::ReplaceOptions::builder()
             .upsert(true)
             .build();

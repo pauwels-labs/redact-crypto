@@ -9,6 +9,20 @@ use crate::{
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt::Debug};
+//use uuid::Uuid;
+
+// pub type ID = String;
+
+// pub trait Identifiable {
+//     fn id(&self) -> &ID;
+//     fn set_id(&mut self, new_id: ID);
+//     fn gen_id() -> ID {
+//         Uuid::new_v4()
+//             .to_hyphenated()
+//             .encode_lower(&mut Uuid::encode_buffer())
+//             .to_owned()
+//     }
+// }
 
 pub trait Buildable {
     type Builder: Builder<Output = Self>;
@@ -43,14 +57,14 @@ pub enum ByteUnsealer {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Entry {
-    pub name: Name,
+    pub path: EntryPath,
     pub value: States,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum States {
     Referenced {
-        name: Name,
+        path: EntryPath,
     },
     Sealed {
         builder: TypeBuilder,
@@ -62,7 +76,7 @@ pub enum States {
     },
 }
 
-pub type Name = String;
+pub type EntryPath = String;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Type {
@@ -208,6 +222,12 @@ impl Buildable for SecretAsymmetricKey {
 //     }
 // }
 
+// #[derive(Serialize, Deserialize, Debug, Clone)]
+// pub struct Data {
+//     id: ID,
+//     value: DataValue,
+// }
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Data {
     Bool(bool),
@@ -224,6 +244,16 @@ impl Buildable for Data {
         DataBuilder {}
     }
 }
+
+// impl Identifiable for Data {
+//     fn id(&self) -> &ID {
+//         &self.id
+//     }
+
+//     fn set_id(&mut self, new_id: ID) {
+//         self.id = new_id;
+//     }
+// }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct DataBuilder {}

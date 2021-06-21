@@ -1,4 +1,4 @@
-use crate::{Buildable, Builder, Name, States, StorageError, Storer, Unsealer};
+use crate::{Buildable, Builder, EntryPath, States, StorageError, Storer, Unsealer};
 use async_trait::async_trait;
 use std::convert::TryFrom;
 
@@ -29,7 +29,7 @@ impl Storer for RedactStorer {
                             source: Box::new(source),
                         })?;
                 match value {
-                    States::Referenced { name } => Ok(self.get::<T>(&name).await?),
+                    States::Referenced { path: name } => Ok(self.get::<T>(&name).await?),
                     States::Sealed {
                         builder,
                         unsealer: unsealable,
@@ -63,7 +63,7 @@ impl Storer for RedactStorer {
 
     async fn list<T: Buildable + Send>(
         &self,
-        name: &Name,
+        name: &EntryPath,
         skip: i64,
         page_size: i64,
     ) -> Result<Vec<T>, StorageError> {
@@ -96,7 +96,7 @@ impl Storer for RedactStorer {
         // }
     }
 
-    async fn create(&self, name: Name, key: States) -> Result<bool, StorageError> {
+    async fn create(&self, name: EntryPath, key: States) -> Result<bool, StorageError> {
         Ok(true)
         // let entry = Entry {
         //     name,
@@ -115,37 +115,4 @@ impl Storer for RedactStorer {
         //     }),
         // }
     }
-
-    // fn with_type<T, U>(&self) -> U
-    // where
-    //     U: StorerWithType<T>,
-    // {
-    //     RedactStorerWithType {
-    //         storer: self.clone(),
-    //     }
-    // }
 }
-
-// #[async_trait]
-// impl<T> StorerWithType<T> for RedactStorerWithType {
-//     async fn get(&self, name: &str) -> Result<T, StorageError>
-//     where
-//         T: TryFrom<Types, Error = CryptoError>,
-//     {
-//         self.storer.get(name).await
-//     }
-
-//     async fn list(&self) -> Result<Vec<T>, StorageError>
-//     where
-//         T: TryFrom<Types, Error = CryptoError> + Send,
-//     {
-//         self.storer.list().await
-//     }
-
-//     async fn create(&self, name: KeyName, value: T) -> Result<bool, StorageError>
-//     where
-//         T: Into<Types> + Send + Sync + Serialize,
-//     {
-//         self.create(name, value).await
-//     }
-// }

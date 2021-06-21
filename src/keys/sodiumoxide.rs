@@ -1,5 +1,5 @@
 use crate::{
-    AsymmetricKeyBuilder, Buildable, Builder, BytesSources, CryptoError, KeyBuilder, Name,
+    AsymmetricKeyBuilder, Buildable, Builder, BytesSources, CryptoError, KeyBuilder,
     PublicAsymmetricKeyBuilder, SecretAsymmetricKeyBuilder, States, Storer, SymmetricKeyBuilder,
     TypeBuilder, Unsealer,
 };
@@ -38,9 +38,9 @@ pub struct SodiumOxideSymmetricKeyUnsealer {
 impl Unsealer for SodiumOxideSymmetricKeyUnsealer {
     async fn unseal<T: Storer>(&self, storer: T) -> Result<Vec<u8>, CryptoError> {
         let key = match *self.key {
-            States::Referenced { ref name } => {
+            States::Referenced { ref path } => {
                 storer
-                    .get::<SodiumOxideSymmetricKey>(&name)
+                    .get::<SodiumOxideSymmetricKey>(&path)
                     .await
                     .map_err(|e| CryptoError::StorageError { source: e })?
             }
