@@ -44,6 +44,6 @@ pub use typebuilders::{
     SymmetricKeyBuilder, TypeBuilder,
 };
 pub use types::{
-    AsymmetricKey, Buildable, Builder, ByteUnsealer, DataBuilder, Entry, Key, Name,
+    AsymmetricKey, Buildable, Builder, ByteUnsealer, Data, DataBuilder, Entry, Key, Name,
     PublicAsymmetricKey, SecretAsymmetricKey, States, SymmetricKey, Type, Unsealer,
 };
