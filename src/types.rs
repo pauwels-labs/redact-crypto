@@ -3,26 +3,17 @@ use crate::{
         SodiumOxidePublicAsymmetricKey, SodiumOxideSecretAsymmetricKey, SodiumOxideSymmetricKey,
         SodiumOxideSymmetricKeyUnsealer,
     },
-    AsymmetricKeyBuilder, CryptoError, KeyBuilder, PublicAsymmetricKeyBuilder,
+    AsymmetricKeyBuilder, CryptoError, DataBuilder, KeyBuilder, PublicAsymmetricKeyBuilder,
     SecretAsymmetricKeyBuilder, Storer, SymmetricKeyBuilder, TypeBuilder,
 };
 use async_trait::async_trait;
+use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt::Debug};
-//use uuid::Uuid;
 
-// pub type ID = String;
-
-// pub trait Identifiable {
-//     fn id(&self) -> &ID;
-//     fn set_id(&mut self, new_id: ID);
-//     fn gen_id() -> ID {
-//         Uuid::new_v4()
-//             .to_hyphenated()
-//             .encode_lower(&mut Uuid::encode_buffer())
-//             .to_owned()
-//     }
-// }
+pub trait IntoIndex {
+    fn into_index() -> Document;
+}
 
 pub trait Buildable {
     type Builder: Builder<Output = Self>;
@@ -62,6 +53,7 @@ pub struct Entry {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum States {
     Referenced {
         path: EntryPath,
@@ -79,15 +71,37 @@ pub enum States {
 pub type EntryPath = String;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum Type {
     Key(Key),
     Data(Data),
 }
 
+impl IntoIndex for Type {
+    fn into_index() -> Document {
+        bson::doc! {}
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum Key {
     Symmetric(SymmetricKey),
     Asymmetric(AsymmetricKey),
+}
+
+impl IntoIndex for Key {
+    fn into_index() -> Document {
+        bson::doc! {
+            "value": {
+        "c": {
+            "builder": {
+        "t": "Key"
+            }
+        }
+            }
+        }
+    }
 }
 
 impl Buildable for Key {
@@ -113,8 +127,26 @@ impl Buildable for Key {
 // }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum SymmetricKey {
     SodiumOxide(SodiumOxideSymmetricKey),
+}
+
+impl IntoIndex for SymmetricKey {
+    fn into_index() -> Document {
+        bson::doc! {
+            "value": {
+        "c": {
+            "builder": {
+        "t": "Key",
+        "c": {
+            "t": "Symmetric"
+        }
+            }
+        }
+            }
+        }
+    }
 }
 
 impl Buildable for SymmetricKey {
@@ -140,9 +172,27 @@ impl Buildable for SymmetricKey {
 // }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum AsymmetricKey {
     Public(PublicAsymmetricKey),
     Secret(SecretAsymmetricKey),
+}
+
+impl IntoIndex for AsymmetricKey {
+    fn into_index() -> Document {
+        bson::doc! {
+            "value": {
+        "c": {
+            "builder": {
+        "t": "Key",
+        "c": {
+            "t": "Asymmetric",
+        }
+            }
+        }
+            }
+        }
+    }
 }
 
 impl Buildable for AsymmetricKey {
@@ -169,8 +219,29 @@ impl Buildable for AsymmetricKey {
 // }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum PublicAsymmetricKey {
     SodiumOxide(SodiumOxidePublicAsymmetricKey),
+}
+
+impl IntoIndex for PublicAsymmetricKey {
+    fn into_index() -> Document {
+        bson::doc! {
+            "value": {
+        "c": {
+            "builder": {
+        "t": "Key",
+        "c": {
+            "t": "Asymmetric",
+        "c": {
+        "t": "Public"
+        }
+        }
+            }
+        }
+            }
+        }
+    }
 }
 
 impl Buildable for PublicAsymmetricKey {
@@ -196,8 +267,29 @@ impl Buildable for PublicAsymmetricKey {
 // }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum SecretAsymmetricKey {
     SodiumOxide(SodiumOxideSecretAsymmetricKey),
+}
+
+impl IntoIndex for SecretAsymmetricKey {
+    fn into_index() -> Document {
+        bson::doc! {
+            "value": {
+        "c": {
+            "builder": {
+        "t": "Key",
+        "c": {
+            "t": "Asymmetric",
+        "c": {
+        "t": "Secret"
+        }
+        }
+            }
+        }
+            }
+        }
+    }
 }
 
 impl Buildable for SecretAsymmetricKey {
@@ -229,6 +321,7 @@ impl Buildable for SecretAsymmetricKey {
 // }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum Data {
     Bool(bool),
     U64(u64),
@@ -237,54 +330,24 @@ pub enum Data {
     String(String),
 }
 
+impl IntoIndex for Data {
+    fn into_index() -> Document {
+        bson::doc! {
+            "value": {
+        "c": {
+                    "builder": {
+            "t": "Data",
+            }
+        }
+            }
+        }
+    }
+}
+
 impl Buildable for Data {
     type Builder = DataBuilder;
 
     fn builder(&self) -> Self::Builder {
         DataBuilder {}
-    }
-}
-
-// impl Identifiable for Data {
-//     fn id(&self) -> &ID {
-//         &self.id
-//     }
-
-//     fn set_id(&mut self, new_id: ID) {
-//         self.id = new_id;
-//     }
-// }
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub struct DataBuilder {}
-
-impl TryFrom<TypeBuilder> for DataBuilder {
-    type Error = CryptoError;
-
-    fn try_from(builder: TypeBuilder) -> Result<Self, Self::Error> {
-        match builder {
-            TypeBuilder::Data(db) => Ok(db),
-            _ => Err(CryptoError::NotDowncastable),
-        }
-    }
-}
-
-impl Builder for DataBuilder {
-    type Output = Data;
-
-    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
-        if let Ok(b) = serde_json::from_slice::<bool>(bytes) {
-            Ok(Data::Bool(b))
-        } else if let Ok(u) = serde_json::from_slice::<u64>(bytes) {
-            Ok(Data::U64(u))
-        } else if let Ok(i) = serde_json::from_slice::<i64>(bytes) {
-            Ok(Data::I64(i))
-        } else if let Ok(f) = serde_json::from_slice::<f64>(bytes) {
-            Ok(Data::F64(f))
-        } else if let Ok(s) = serde_json::from_slice::<String>(bytes) {
-            Ok(Data::String(s))
-        } else {
-            Err(CryptoError::NotDeserializableToBaseDataType)
-        }
     }
 }

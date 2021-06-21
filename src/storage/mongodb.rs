@@ -1,4 +1,4 @@
-use crate::{Buildable, Builder, Entry, EntryPath, States, StorageError, Storer, Unsealer};
+use crate::{Buildable, Entry, EntryPath, IntoIndex, States, StorageError, Storer};
 use async_trait::async_trait;
 use futures::StreamExt;
 use mongodb::{
@@ -8,7 +8,6 @@ use mongodb::{
     Client, Database,
 };
 use serde::{Deserialize, Serialize};
-use std::convert::TryFrom;
 
 /// Stores an instance of a mongodb-backed key storer
 #[derive(Clone)]
@@ -50,42 +49,18 @@ impl MongoStorer {
 
 #[async_trait]
 impl Storer for MongoStorer {
-    async fn get<T: Buildable>(&self, name: &str) -> Result<T, StorageError> {
-        let filter = bson::doc! { "name": name };
+    async fn get<T: IntoIndex + Buildable>(&self, path: &str) -> Result<Entry, StorageError> {
+        let index = T::into_index();
+        let filter = bson::doc! { "path": path, "value": index };
         let filter_options = FindOneOptions::builder().build();
 
         match self
             .db
-            .collection_with_type::<Entry>("data")
+            .collection_with_type::<Entry>("entries")
             .find_one(filter, filter_options)
             .await
         {
-            Ok(Some(entry)) => match entry.value {
-                States::Referenced { path: name } => Ok(self.get::<T>(&name).await?),
-                States::Sealed {
-                    builder,
-                    unsealer: unsealable,
-                } => {
-                    let bytes = unsealable
-                        .unseal(self.clone())
-                        .await
-                        .map_err(|_| StorageError::NotFound)?;
-                    let builder = <T as Buildable>::Builder::try_from(builder)
-                        .map_err(|_| StorageError::NotFound)?;
-                    let output = builder
-                        .build(bytes.as_ref())
-                        .map_err(|_| StorageError::NotFound)?;
-                    Ok(output)
-                }
-                States::Unsealed { builder, bytes } => {
-                    let builder = <T as Buildable>::Builder::try_from(builder)
-                        .map_err(|_| StorageError::NotFound)?;
-                    let output = builder
-                        .build(bytes.as_ref())
-                        .map_err(|_| StorageError::NotFound)?;
-                    Ok(output)
-                }
-            },
+            Ok(Some(entry)) => Ok(entry),
             Ok(None) => Err(StorageError::NotFound),
             Err(e) => Err(StorageError::InternalError {
                 source: Box::new(e),
@@ -93,61 +68,30 @@ impl Storer for MongoStorer {
         }
     }
 
-    async fn list<T: Buildable + Send>(
+    async fn list<T: IntoIndex + Buildable + Send>(
         &self,
-        name: &EntryPath,
+        path: &str,
         skip: i64,
         page_size: i64,
-    ) -> Result<Vec<T>, StorageError> {
+    ) -> Result<Vec<Entry>, StorageError> {
+        let index = T::into_index();
+        let filter = bson::doc! { "path": path, "value": index };
         let filter_options = FindOptions::builder().skip(skip).limit(page_size).build();
-        let filter = bson::doc! { "path": name };
 
         match self
             .db
-            .collection_with_type::<Entry>("data")
+            .collection_with_type::<Entry>("entries")
             .find(filter, filter_options)
             .await
         {
             Ok(cursor) => Ok(cursor
                 .filter_map(|result| async move {
                     match result {
-                        Ok(entry) => match entry.value {
-                            States::Referenced { path: name } => match self.get::<T>(&name).await {
-                                Ok(output) => Some(output),
-                                Err(_) => None,
-                            },
-                            States::Sealed {
-                                builder,
-                                unsealer: unsealable,
-                            } => {
-                                let bytes = match unsealable.unseal(self.clone()).await {
-                                    Ok(v) => v,
-                                    Err(_) => return None,
-                                };
-                                let builder = match <T as Buildable>::Builder::try_from(builder) {
-                                    Ok(b) => b,
-                                    Err(_) => return None,
-                                };
-                                match builder.build(bytes.as_ref()) {
-                                    Ok(output) => Some(output),
-                                    Err(_) => None,
-                                }
-                            }
-                            States::Unsealed { builder, bytes } => {
-                                let builder = match <T as Buildable>::Builder::try_from(builder) {
-                                    Ok(b) => b,
-                                    Err(_) => return None,
-                                };
-                                match builder.build(bytes.as_ref()) {
-                                    Ok(output) => Some(output),
-                                    Err(_) => None,
-                                }
-                            }
-                        },
+                        Ok(entry) => Some(entry),
                         Err(_) => None,
                     }
                 })
-                .collect::<Vec<T>>()
+                .collect::<Vec<Entry>>()
                 .await),
             Err(e) => Err(StorageError::InternalError {
                 source: Box::new(e),
@@ -155,16 +99,16 @@ impl Storer for MongoStorer {
         }
     }
 
-    async fn create(&self, name: EntryPath, value: States) -> Result<bool, StorageError> {
-        let filter = bson::doc! { "name": &name };
-        let entry = Entry { path: name, value };
+    async fn create(&self, path: EntryPath, value: States) -> Result<bool, StorageError> {
+        let filter = bson::doc! { "path": &path };
+        let entry = Entry { path, value };
         let filter_options = mongodb::options::ReplaceOptions::builder()
             .upsert(true)
             .build();
 
         match self
             .db
-            .collection_with_type::<Entry>("data")
+            .collection_with_type::<Entry>("entries")
             .replace_one(filter, entry, filter_options)
             .await
         {

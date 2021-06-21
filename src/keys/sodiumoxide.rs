@@ -1,9 +1,10 @@
 use crate::{
-    AsymmetricKeyBuilder, Buildable, Builder, BytesSources, CryptoError, KeyBuilder,
+    AsymmetricKeyBuilder, Buildable, Builder, BytesSources, CryptoError, IntoIndex, KeyBuilder,
     PublicAsymmetricKeyBuilder, SecretAsymmetricKeyBuilder, States, Storer, SymmetricKeyBuilder,
     TypeBuilder, Unsealer,
 };
 use async_trait::async_trait;
+use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
 use sodiumoxide::crypto::{
     box_::{
@@ -39,10 +40,11 @@ impl Unsealer for SodiumOxideSymmetricKeyUnsealer {
     async fn unseal<T: Storer>(&self, storer: T) -> Result<Vec<u8>, CryptoError> {
         let key = match *self.key {
             States::Referenced { ref path } => {
-                storer
+                let entry = storer
                     .get::<SodiumOxideSymmetricKey>(&path)
                     .await
-                    .map_err(|e| CryptoError::StorageError { source: e })?
+                    .map_err(|e| CryptoError::StorageError { source: e })?;
+                storer.resolve::<SodiumOxideSymmetricKey>(&entry).await?
             }
             States::Sealed {
                 ref builder,
@@ -100,6 +102,26 @@ impl Builder for SodiumOxideSymmetricKeyBuilder {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxideSymmetricKey {
     pub key: ExternalSodiumOxideSymmetricKey,
+}
+
+impl IntoIndex for SodiumOxideSymmetricKey {
+    fn into_index() -> Document {
+        bson::doc! {
+            "value": {
+        "c": {
+            "builder": {
+        "t": "Key",
+        "c": {
+            "t": "Symmetric",
+        "c": {
+        "t": "SodiumOxide"
+        }
+        }
+            }
+        }
+            }
+        }
+    }
 }
 
 impl Buildable for SodiumOxideSymmetricKey {
@@ -163,6 +185,29 @@ impl Builder for SodiumOxideSecretAsymmetricKeyBuilder {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxideSecretAsymmetricKey {
     pub key: ExternalSodiumOxideSecretAsymmetricKey,
+}
+
+impl IntoIndex for SodiumOxideSecretAsymmetricKey {
+    fn into_index() -> Document {
+        bson::doc! {
+            "value": {
+        "c": {
+            "builder": {
+        "t": "Key",
+        "c": {
+            "t": "Asymmetric",
+        "c": {
+            "t": "Secret",
+        "c": {
+        "t": "SodiumOxide"
+        }
+        }
+        }
+            }
+        }
+            }
+        }
+    }
 }
 
 impl Buildable for SodiumOxideSecretAsymmetricKey {
@@ -234,6 +279,29 @@ impl Builder for SodiumOxidePublicAsymmetricKeyBuilder {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxidePublicAsymmetricKey {
     pub key: ExternalSodiumOxidePublicAsymmetricKey,
+}
+
+impl IntoIndex for SodiumOxidePublicAsymmetricKey {
+    fn into_index() -> Document {
+        bson::doc! {
+            "value": {
+        "c": {
+            "builder": {
+        "t": "Key",
+        "c": {
+            "t": "Asymmetric",
+        "c": {
+            "t": "Public",
+        "c": {
+        "t": "SodiumOxide"
+        }
+        }
+        }
+            }
+        }
+            }
+        }
+    }
 }
 
 impl Buildable for SodiumOxidePublicAsymmetricKey {

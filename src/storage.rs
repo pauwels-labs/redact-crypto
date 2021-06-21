@@ -2,31 +2,64 @@ pub mod error;
 pub mod mongodb;
 pub mod redact;
 
-use crate::{Buildable, EntryPath, States};
+use crate::{Buildable, Builder, CryptoError, Entry, EntryPath, IntoIndex, States, Unsealer};
 use async_trait::async_trait;
 use error::StorageError;
-use std::{ops::Deref, sync::Arc};
+use std::{convert::TryFrom, ops::Deref, sync::Arc};
 
 /// The operations a storer of `Key` structs must be able to fulfill.
 #[async_trait]
 pub trait Storer: Clone + Send + Sync {
     /// Fetches the instance of the `Key` with the given name.
-    async fn get<T: Buildable>(&self, name: &str) -> Result<T, StorageError>;
+    async fn get<T: IntoIndex + Buildable>(&self, path: &str) -> Result<Entry, StorageError>;
 
     /// Fetches a list of all the stored keys.
-    async fn list<T: Buildable + Send>(
+    async fn list<T: IntoIndex + Buildable + Send>(
         &self,
-        name: &EntryPath,
+        path: &str,
         skip: i64,
         page_size: i64,
-    ) -> Result<Vec<T>, StorageError>;
+    ) -> Result<Vec<Entry>, StorageError>;
 
     /// Adds the given `Key` struct to the backing store.
-    async fn create(&self, name: EntryPath, value: States) -> Result<bool, StorageError>;
+    async fn create(&self, path: EntryPath, value: States) -> Result<bool, StorageError>;
 
-    // fn with_type<T, U>(&self) -> U
-    // where
-    //     U: StorerWithType<T>;
+    /// Takes an entry and resolves it down into its final unsealed type using this storage
+    async fn resolve<T: IntoIndex + Buildable>(&self, entry: &Entry) -> Result<T, CryptoError> {
+        match &entry.value {
+            States::Referenced { path: name } => match self.get::<T>(&name).await {
+                Ok(output) => Ok(self.resolve::<T>(&output).await?),
+                Err(e) => Err(CryptoError::StorageError { source: e }),
+            },
+            States::Sealed {
+                builder,
+                unsealer: unsealable,
+            } => {
+                let bytes = match unsealable.unseal(self.clone()).await {
+                    Ok(v) => Ok(v),
+                    Err(e) => Err(e),
+                }?;
+                let builder = match <T as Buildable>::Builder::try_from(*builder) {
+                    Ok(b) => Ok(b),
+                    Err(e) => Err(e),
+                }?;
+                match builder.build(bytes.as_ref()) {
+                    Ok(output) => Ok(output),
+                    Err(e) => Err(e),
+                }
+            }
+            States::Unsealed { builder, bytes } => {
+                let builder = match <T as Buildable>::Builder::try_from(*builder) {
+                    Ok(b) => Ok(b),
+                    Err(e) => Err(e),
+                }?;
+                match builder.build(bytes.as_ref()) {
+                    Ok(output) => Ok(output),
+                    Err(e) => Err(e),
+                }
+            }
+        }
+    }
 }
 
 /// Allows an `Arc<KeyStorer>` to act exactly like a `KeyStorer`, dereferencing
@@ -36,16 +69,16 @@ impl<U> Storer for Arc<U>
 where
     U: Storer,
 {
-    async fn get<T: Buildable>(&self, name: &str) -> Result<T, StorageError> {
+    async fn get<T: IntoIndex + Buildable>(&self, name: &str) -> Result<Entry, StorageError> {
         self.deref().get::<T>(name).await
     }
 
-    async fn list<T: Buildable + Send>(
+    async fn list<T: IntoIndex + Buildable + Send>(
         &self,
-        name: &EntryPath,
+        name: &str,
         skip: i64,
         page_size: i64,
-    ) -> Result<Vec<T>, StorageError> {
+    ) -> Result<Vec<Entry>, StorageError> {
         self.deref().list::<T>(name, skip, page_size).await
     }
 

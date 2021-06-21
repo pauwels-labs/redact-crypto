@@ -3,8 +3,8 @@ use crate::{
         SodiumOxidePublicAsymmetricKeyBuilder, SodiumOxideSecretAsymmetricKeyBuilder,
         SodiumOxideSymmetricKeyBuilder,
     },
-    AsymmetricKey, Builder, CryptoError, DataBuilder, Key, PublicAsymmetricKey,
-    SecretAsymmetricKey, SymmetricKey,
+    AsymmetricKey, Builder, CryptoError, Data, Key, PublicAsymmetricKey, SecretAsymmetricKey,
+    SymmetricKey,
 };
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
@@ -149,6 +149,40 @@ impl Builder for SecretAsymmetricKeyBuilder {
     fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
         match self {
             Self::SodiumOxide(sosakb) => Ok(SecretAsymmetricKey::SodiumOxide(sosakb.build(bytes)?)),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct DataBuilder {}
+
+impl TryFrom<TypeBuilder> for DataBuilder {
+    type Error = CryptoError;
+
+    fn try_from(builder: TypeBuilder) -> Result<Self, Self::Error> {
+        match builder {
+            TypeBuilder::Data(db) => Ok(db),
+            _ => Err(CryptoError::NotDowncastable),
+        }
+    }
+}
+
+impl Builder for DataBuilder {
+    type Output = Data;
+
+    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
+        if let Ok(b) = serde_json::from_slice::<bool>(bytes) {
+            Ok(Data::Bool(b))
+        } else if let Ok(u) = serde_json::from_slice::<u64>(bytes) {
+            Ok(Data::U64(u))
+        } else if let Ok(i) = serde_json::from_slice::<i64>(bytes) {
+            Ok(Data::I64(i))
+        } else if let Ok(f) = serde_json::from_slice::<f64>(bytes) {
+            Ok(Data::F64(f))
+        } else if let Ok(s) = serde_json::from_slice::<String>(bytes) {
+            Ok(Data::String(s))
+        } else {
+            Err(CryptoError::NotDeserializableToBaseDataType)
         }
     }
 }
