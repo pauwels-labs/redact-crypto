@@ -14,6 +14,7 @@ use std::convert::TryFrom;
 pub struct TypeBuilderContainer(pub TypeBuilder);
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum TypeBuilder {
     Data(DataBuilder),
     Key(KeyBuilder),
@@ -39,6 +40,7 @@ impl Builder for TypeBuilder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum KeyBuilder {
     Symmetric(SymmetricKeyBuilder),
     Asymmetric(AsymmetricKeyBuilder),
@@ -67,6 +69,7 @@ impl Builder for KeyBuilder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum SymmetricKeyBuilder {
     SodiumOxide(SodiumOxideSymmetricKeyBuilder),
 }
@@ -93,6 +96,7 @@ impl Builder for SymmetricKeyBuilder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum AsymmetricKeyBuilder {
     Public(PublicAsymmetricKeyBuilder),
     Secret(SecretAsymmetricKeyBuilder),
@@ -121,6 +125,7 @@ impl Builder for AsymmetricKeyBuilder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum PublicAsymmetricKeyBuilder {
     SodiumOxide(SodiumOxidePublicAsymmetricKeyBuilder),
 }
@@ -149,6 +154,7 @@ impl Builder for PublicAsymmetricKeyBuilder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum SecretAsymmetricKeyBuilder {
     SodiumOxide(SodiumOxideSecretAsymmetricKeyBuilder),
 }
