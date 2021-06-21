@@ -2,7 +2,10 @@ pub mod error;
 pub mod mongodb;
 pub mod redact;
 
-use crate::{Buildable, Builder, CryptoError, Entry, EntryPath, IntoIndex, States, Unsealer};
+use crate::{
+    Buildable, Builder, CryptoError, Entry, EntryPath, IntoIndex, States, TypeBuilderContainer,
+    Unsealer,
+};
 use async_trait::async_trait;
 use error::StorageError;
 use std::{convert::TryFrom, ops::Deref, sync::Arc};
@@ -39,20 +42,22 @@ pub trait Storer: Clone + Send + Sync {
                     Ok(v) => Ok(v),
                     Err(e) => Err(e),
                 }?;
-                let builder = match <T as Buildable>::Builder::try_from(*builder) {
-                    Ok(b) => Ok(b),
-                    Err(e) => Err(e),
-                }?;
+                let builder =
+                    match <T as Buildable>::Builder::try_from(TypeBuilderContainer(*builder)) {
+                        Ok(b) => Ok(b),
+                        Err(e) => Err(e),
+                    }?;
                 match builder.build(bytes.as_ref()) {
                     Ok(output) => Ok(output),
                     Err(e) => Err(e),
                 }
             }
             States::Unsealed { builder, bytes } => {
-                let builder = match <T as Buildable>::Builder::try_from(*builder) {
-                    Ok(b) => Ok(b),
-                    Err(e) => Err(e),
-                }?;
+                let builder =
+                    match <T as Buildable>::Builder::try_from(TypeBuilderContainer(*builder)) {
+                        Ok(b) => Ok(b),
+                        Err(e) => Err(e),
+                    }?;
                 match builder.build(bytes.as_ref()) {
                     Ok(output) => Ok(output),
                     Err(e) => Err(e),

@@ -1,7 +1,7 @@
 use crate::{
     AsymmetricKeyBuilder, Buildable, Builder, BytesSources, CryptoError, IntoIndex, KeyBuilder,
     PublicAsymmetricKeyBuilder, SecretAsymmetricKeyBuilder, States, Storer, SymmetricKeyBuilder,
-    TypeBuilder, Unsealer,
+    TypeBuilder, TypeBuilderContainer, Unsealer,
 };
 use async_trait::async_trait;
 use mongodb::bson::{self, Document};
@@ -51,14 +51,18 @@ impl Unsealer for SodiumOxideSymmetricKeyUnsealer {
                 ref unsealer,
             } => {
                 let bytes = unsealer.unseal(storer).await?;
-                let builder = <SodiumOxideSymmetricKey as Buildable>::Builder::try_from(*builder)?;
+                let builder = <SodiumOxideSymmetricKey as Buildable>::Builder::try_from(
+                    TypeBuilderContainer(*builder),
+                )?;
                 builder.build(bytes.as_ref())?
             }
             States::Unsealed {
                 ref builder,
                 ref bytes,
             } => {
-                let builder = <SodiumOxideSymmetricKey as Buildable>::Builder::try_from(*builder)?;
+                let builder = <SodiumOxideSymmetricKey as Buildable>::Builder::try_from(
+                    TypeBuilderContainer(*builder),
+                )?;
                 builder.build(bytes.as_ref())?
             }
         };
@@ -71,11 +75,11 @@ impl Unsealer for SodiumOxideSymmetricKeyUnsealer {
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 pub struct SodiumOxideSymmetricKeyBuilder {}
 
-impl TryFrom<TypeBuilder> for SodiumOxideSymmetricKeyBuilder {
+impl TryFrom<TypeBuilderContainer> for SodiumOxideSymmetricKeyBuilder {
     type Error = CryptoError;
 
-    fn try_from(builder: TypeBuilder) -> Result<Self, Self::Error> {
-        match builder {
+    fn try_from(builder: TypeBuilderContainer) -> Result<Self, Self::Error> {
+        match builder.0 {
             TypeBuilder::Key(KeyBuilder::Symmetric(SymmetricKeyBuilder::SodiumOxide(soskb))) => {
                 Ok(soskb)
             }
@@ -154,11 +158,11 @@ impl SodiumOxideSymmetricKey {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct SodiumOxideSecretAsymmetricKeyBuilder {}
 
-impl TryFrom<TypeBuilder> for SodiumOxideSecretAsymmetricKeyBuilder {
+impl TryFrom<TypeBuilderContainer> for SodiumOxideSecretAsymmetricKeyBuilder {
     type Error = CryptoError;
 
-    fn try_from(builder: TypeBuilder) -> Result<Self, Self::Error> {
-        match builder {
+    fn try_from(builder: TypeBuilderContainer) -> Result<Self, Self::Error> {
+        match builder.0 {
             TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(
                 SecretAsymmetricKeyBuilder::SodiumOxide(sosakb),
             ))) => Ok(sosakb),
@@ -248,11 +252,11 @@ impl SodiumOxideSecretAsymmetricKey {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct SodiumOxidePublicAsymmetricKeyBuilder {}
 
-impl TryFrom<TypeBuilder> for SodiumOxidePublicAsymmetricKeyBuilder {
+impl TryFrom<TypeBuilderContainer> for SodiumOxidePublicAsymmetricKeyBuilder {
     type Error = CryptoError;
 
-    fn try_from(builder: TypeBuilder) -> Result<Self, Self::Error> {
-        match builder {
+    fn try_from(builder: TypeBuilderContainer) -> Result<Self, Self::Error> {
+        match builder.0 {
             TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Public(
                 PublicAsymmetricKeyBuilder::SodiumOxide(sopakb),
             ))) => Ok(sopakb),

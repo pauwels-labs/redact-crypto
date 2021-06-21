@@ -4,7 +4,7 @@ use crate::{
         SodiumOxideSymmetricKeyUnsealer,
     },
     AsymmetricKeyBuilder, CryptoError, DataBuilder, KeyBuilder, PublicAsymmetricKeyBuilder,
-    SecretAsymmetricKeyBuilder, Storer, SymmetricKeyBuilder, TypeBuilder,
+    SecretAsymmetricKeyBuilder, Storer, SymmetricKeyBuilder, TypeBuilder, TypeBuilderContainer,
 };
 use async_trait::async_trait;
 use mongodb::bson::{self, Document};
@@ -21,7 +21,7 @@ pub trait Buildable {
     fn builder(&self) -> Self::Builder;
 }
 
-pub trait Builder: TryFrom<TypeBuilder, Error = CryptoError> {
+pub trait Builder: TryFrom<TypeBuilderContainer, Error = CryptoError> {
     type Output;
 
     fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError>;
@@ -80,6 +80,17 @@ pub enum Type {
 impl IntoIndex for Type {
     fn into_index() -> Document {
         bson::doc! {}
+    }
+}
+
+impl Buildable for Type {
+    type Builder = TypeBuilder;
+
+    fn builder(&self) -> Self::Builder {
+        match self {
+            Self::Key(kb) => TypeBuilder::Key(kb.builder()),
+            Self::Data(db) => TypeBuilder::Data(db.builder()),
+        }
     }
 }
 

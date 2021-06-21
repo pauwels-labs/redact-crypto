@@ -41,7 +41,7 @@ pub use sources::{BytesSources, FsBytesSource, Sources, VectorBytesSource};
 pub use storage::{error::StorageError, mongodb::MongoStorer, redact::RedactStorer, Storer};
 pub use typebuilders::{
     AsymmetricKeyBuilder, DataBuilder, KeyBuilder, PublicAsymmetricKeyBuilder,
-    SecretAsymmetricKeyBuilder, SymmetricKeyBuilder, TypeBuilder,
+    SecretAsymmetricKeyBuilder, SymmetricKeyBuilder, TypeBuilder, TypeBuilderContainer,
 };
 pub use types::{
     AsymmetricKey, Buildable, Builder, ByteUnsealer, Data, Entry, EntryPath, IntoIndex, Key,
