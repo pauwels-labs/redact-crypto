@@ -1,7 +1,12 @@
 use crate::{Buildable, Builder, Entry, Name, States, StorageError, Storer, Unsealer};
 use async_trait::async_trait;
 use futures::StreamExt;
-use mongodb::{bson, options::ClientOptions, options::FindOneOptions, Client, Database};
+use mongodb::{
+    bson,
+    options::ClientOptions,
+    options::{FindOneOptions, FindOptions},
+    Client, Database,
+};
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
@@ -88,7 +93,15 @@ impl Storer for MongoStorer {
         }
     }
 
-    async fn list<T: Buildable + Send>(&self) -> Result<Vec<T>, StorageError> {
+    async fn list<T: Buildable + Send>(
+        &self,
+        name: &Name,
+        skip: i64,
+        page_size: i64,
+    ) -> Result<Vec<T>, StorageError> {
+        let filter_options = FindOptions::builder().skip(skip).limit(page_size).build();
+        let filter = bson::doc! { "path": name };
+
         match self
             .db
             .collection_with_type::<Entry>("data")

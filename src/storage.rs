@@ -32,7 +32,12 @@ pub trait Storer: Clone + Send + Sync {
     async fn get<T: Buildable>(&self, name: &str) -> Result<T, StorageError>;
 
     /// Fetches a list of all the stored keys.
-    async fn list<T: Buildable + Send>(&self) -> Result<Vec<T>, StorageError>;
+    async fn list<T: Buildable + Send>(
+        &self,
+        name: &Name,
+        skip: i64,
+        page_size: i64,
+    ) -> Result<Vec<T>, StorageError>;
 
     /// Adds the given `Key` struct to the backing store.
     async fn create(&self, name: Name, value: States) -> Result<bool, StorageError>;
@@ -59,8 +64,13 @@ where
         self.deref().get::<T>(name).await
     }
 
-    async fn list<T: Buildable + Send>(&self) -> Result<Vec<T>, StorageError> {
-        self.deref().list::<T>().await
+    async fn list<T: Buildable + Send>(
+        &self,
+        name: &Name,
+        skip: i64,
+        page_size: i64,
+    ) -> Result<Vec<T>, StorageError> {
+        self.deref().list::<T>(name, skip, page_size).await
     }
 
     async fn create(&self, name: Name, key: States) -> Result<bool, StorageError> {

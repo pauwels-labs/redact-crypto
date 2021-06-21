@@ -61,7 +61,12 @@ impl Storer for RedactStorer {
         }
     }
 
-    async fn list<T: Buildable + Send>(&self) -> Result<Vec<T>, StorageError> {
+    async fn list<T: Buildable + Send>(
+        &self,
+        name: &Name,
+        skip: i64,
+        page_size: i64,
+    ) -> Result<Vec<T>, StorageError> {
         Ok(vec![])
         // match reqwest::get(&format!("{}/keys", self.url)).await {
         //     Ok(r) => {
