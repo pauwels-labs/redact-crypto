@@ -1,9 +1,10 @@
 use crate::{
     keys::sodiumoxide::{
         SodiumOxidePublicAsymmetricKey, SodiumOxideSecretAsymmetricKey, SodiumOxideSymmetricKey,
-        SodiumOxideSymmetricKeyBuilder, SodiumOxideSymmetricKeyUnsealer,
+        SodiumOxideSymmetricKeyUnsealer,
     },
-    CryptoError, Storer,
+    AsymmetricKeyBuilder, CryptoError, KeyBuilder, PublicAsymmetricKeyBuilder,
+    SecretAsymmetricKeyBuilder, Storer, SymmetricKeyBuilder, TypeBuilder,
 };
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -12,7 +13,7 @@ use std::{convert::TryFrom, fmt::Debug};
 pub trait Buildable {
     type Builder: Builder<Output = Self>;
 
-    fn builder() -> Self::Builder;
+    fn builder(&self) -> Self::Builder;
 }
 
 pub trait Builder: TryFrom<TypeBuilder, Error = CryptoError> {
@@ -33,12 +34,6 @@ impl Unsealer for ByteUnsealer {
 #[async_trait]
 pub trait Unsealer {
     async fn unseal<T: Storer>(&self, storer: T) -> Result<Vec<u8>, CryptoError>;
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum TypeBuilder {
-    Data(DataBuilder),
-    SodiumOxideSymmetricKey(SodiumOxideSymmetricKeyBuilder),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -81,33 +76,54 @@ pub enum Key {
     Asymmetric(AsymmetricKey),
 }
 
-impl TryFrom<Type> for Key {
-    type Error = CryptoError;
+impl Buildable for Key {
+    type Builder = KeyBuilder;
 
-    fn try_from(value: Type) -> Result<Self, Self::Error> {
-        match value {
-            Type::Key(kt) => Ok(kt),
-            Type::Data(_) => Err(CryptoError::NotDowncastable),
+    fn builder(&self) -> Self::Builder {
+        match self {
+            Self::Symmetric(sk) => KeyBuilder::Symmetric(sk.builder()),
+            Self::Asymmetric(ak) => KeyBuilder::Asymmetric(ak.builder()),
         }
     }
 }
+
+// impl TryFrom<Type> for Key {
+//     type Error = CryptoError;
+
+//     fn try_from(value: Type) -> Result<Self, Self::Error> {
+//         match value {
+//             Type::Key(kt) => Ok(kt),
+//             Type::Data(_) => Err(CryptoError::NotDowncastable),
+//         }
+//     }
+// }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum SymmetricKey {
     SodiumOxide(SodiumOxideSymmetricKey),
 }
 
-impl TryFrom<Type> for SymmetricKey {
-    type Error = CryptoError;
+impl Buildable for SymmetricKey {
+    type Builder = SymmetricKeyBuilder;
 
-    fn try_from(value: Type) -> Result<Self, Self::Error> {
-        let kt = Key::try_from(value)?;
-        match kt {
-            Key::Symmetric(skt) => Ok(skt),
-            Key::Asymmetric(_) => Err(CryptoError::NotDowncastable),
+    fn builder(&self) -> Self::Builder {
+        match self {
+            Self::SodiumOxide(sosk) => SymmetricKeyBuilder::SodiumOxide(sosk.builder()),
         }
     }
 }
+
+// impl TryFrom<Type> for SymmetricKey {
+//     type Error = CryptoError;
+
+//     fn try_from(value: Type) -> Result<Self, Self::Error> {
+//         let kt = Key::try_from(value)?;
+//         match kt {
+//             Key::Symmetric(skt) => Ok(skt),
+//             Key::Asymmetric(_) => Err(CryptoError::NotDowncastable),
+//         }
+//     }
+// }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum AsymmetricKey {
@@ -115,51 +131,82 @@ pub enum AsymmetricKey {
     Secret(SecretAsymmetricKey),
 }
 
-impl TryFrom<Type> for AsymmetricKey {
-    type Error = CryptoError;
+impl Buildable for AsymmetricKey {
+    type Builder = AsymmetricKeyBuilder;
 
-    fn try_from(value: Type) -> Result<Self, Self::Error> {
-        let kt = Key::try_from(value)?;
-        match kt {
-            Key::Asymmetric(akt) => Ok(akt),
-            Key::Symmetric(_) => Err(CryptoError::NotDowncastable),
+    fn builder(&self) -> Self::Builder {
+        match self {
+            Self::Public(pak) => AsymmetricKeyBuilder::Public(pak.builder()),
+            Self::Secret(sak) => AsymmetricKeyBuilder::Secret(sak.builder()),
         }
     }
 }
+
+// impl TryFrom<Type> for AsymmetricKey {
+//     type Error = CryptoError;
+
+//     fn try_from(value: Type) -> Result<Self, Self::Error> {
+//         let kt = Key::try_from(value)?;
+//         match kt {
+//             Key::Asymmetric(akt) => Ok(akt),
+//             Key::Symmetric(_) => Err(CryptoError::NotDowncastable),
+//         }
+//     }
+// }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum PublicAsymmetricKey {
     SodiumOxide(SodiumOxidePublicAsymmetricKey),
 }
 
-impl TryFrom<Type> for PublicAsymmetricKey {
-    type Error = CryptoError;
+impl Buildable for PublicAsymmetricKey {
+    type Builder = PublicAsymmetricKeyBuilder;
 
-    fn try_from(value: Type) -> Result<Self, Self::Error> {
-        let akt = AsymmetricKey::try_from(value)?;
-        match akt {
-            AsymmetricKey::Public(pakt) => Ok(pakt),
-            AsymmetricKey::Secret(_) => Err(CryptoError::NotDowncastable),
+    fn builder(&self) -> Self::Builder {
+        match self {
+            Self::SodiumOxide(sopak) => PublicAsymmetricKeyBuilder::SodiumOxide(sopak.builder()),
         }
     }
 }
+
+// impl TryFrom<Type> for PublicAsymmetricKey {
+//     type Error = CryptoError;
+
+//     fn try_from(value: Type) -> Result<Self, Self::Error> {
+//         let akt = AsymmetricKey::try_from(value)?;
+//         match akt {
+//             AsymmetricKey::Public(pakt) => Ok(pakt),
+//             AsymmetricKey::Secret(_) => Err(CryptoError::NotDowncastable),
+//         }
+//     }
+// }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum SecretAsymmetricKey {
     SodiumOxide(SodiumOxideSecretAsymmetricKey),
 }
 
-impl TryFrom<Type> for SecretAsymmetricKey {
-    type Error = CryptoError;
+impl Buildable for SecretAsymmetricKey {
+    type Builder = SecretAsymmetricKeyBuilder;
 
-    fn try_from(value: Type) -> Result<Self, Self::Error> {
-        let akt = AsymmetricKey::try_from(value)?;
-        match akt {
-            AsymmetricKey::Secret(sakt) => Ok(sakt),
-            AsymmetricKey::Public(_) => Err(CryptoError::NotDowncastable),
+    fn builder(&self) -> Self::Builder {
+        match self {
+            Self::SodiumOxide(sosak) => SecretAsymmetricKeyBuilder::SodiumOxide(sosak.builder()),
         }
     }
 }
+
+// impl TryFrom<Type> for SecretAsymmetricKey {
+//     type Error = CryptoError;
+
+//     fn try_from(value: Type) -> Result<Self, Self::Error> {
+//         let akt = AsymmetricKey::try_from(value)?;
+//         match akt {
+//             AsymmetricKey::Secret(sakt) => Ok(sakt),
+//             AsymmetricKey::Public(_) => Err(CryptoError::NotDowncastable),
+//         }
+//     }
+// }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Data {
@@ -173,7 +220,7 @@ pub enum Data {
 impl Buildable for Data {
     type Builder = DataBuilder;
 
-    fn builder() -> Self::Builder {
+    fn builder(&self) -> Self::Builder {
         DataBuilder {}
     }
 }

@@ -32,13 +32,18 @@ pub mod keys;
 pub mod nonces;
 mod sources;
 mod storage;
+mod typebuilders;
 mod types;
 
 pub use error::CryptoError;
 pub use nonces::{AsymmetricNonces, Nonces, SymmetricNonces};
 pub use sources::{BytesSources, FsBytesSource, Sources, VectorBytesSource};
 pub use storage::{error::StorageError, mongodb::MongoStorer, redact::RedactStorer, Storer};
+pub use typebuilders::{
+    AsymmetricKeyBuilder, KeyBuilder, PublicAsymmetricKeyBuilder, SecretAsymmetricKeyBuilder,
+    SymmetricKeyBuilder, TypeBuilder,
+};
 pub use types::{
-    AsymmetricKey, Buildable, Builder, ByteUnsealer, Entry, Key, Name, PublicAsymmetricKey,
-    SecretAsymmetricKey, States, SymmetricKey, Type, TypeBuilder, Unsealer,
+    AsymmetricKey, Buildable, Builder, ByteUnsealer, DataBuilder, Entry, Key, Name,
+    PublicAsymmetricKey, SecretAsymmetricKey, States, SymmetricKey, Type, Unsealer,
 };
