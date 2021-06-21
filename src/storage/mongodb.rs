@@ -109,6 +109,8 @@ impl Storer for MongoStorer {
             .upsert(true)
             .build();
 
+        println!("test");
+        println!("{:?}", &entry);
         match self
             .db
             .collection_with_type::<Entry>("entries")
