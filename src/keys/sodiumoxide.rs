@@ -39,7 +39,10 @@ pub struct SodiumOxideSymmetricKeyUnsealer {
 impl Unsealer for SodiumOxideSymmetricKeyUnsealer {
     async fn unseal<T: Storer>(&self, storer: T) -> Result<Vec<u8>, CryptoError> {
         let key = match *self.key {
-            States::Referenced { ref path } => {
+            States::Referenced {
+                builder: _,
+                ref path,
+            } => {
                 let entry = storer
                     .get::<SodiumOxideSymmetricKey>(&path)
                     .await

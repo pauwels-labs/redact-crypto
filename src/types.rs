@@ -56,6 +56,7 @@ pub struct Entry {
 #[serde(tag = "t", content = "c")]
 pub enum States {
     Referenced {
+        builder: TypeBuilder,
         path: EntryPath,
     },
     Sealed {

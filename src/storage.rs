@@ -6,6 +6,7 @@ use crate::{
     Buildable, Builder, CryptoError, Entry, EntryPath, IntoIndex, States, TypeBuilderContainer,
     Unsealer,
 };
+use ::mongodb::bson::Document;
 use async_trait::async_trait;
 use error::StorageError;
 use std::{convert::TryFrom, ops::Deref, sync::Arc};
@@ -14,7 +15,16 @@ use std::{convert::TryFrom, ops::Deref, sync::Arc};
 #[async_trait]
 pub trait Storer: Clone + Send + Sync {
     /// Fetches the instance of the `Key` with the given name.
-    async fn get<T: IntoIndex + Buildable>(&self, path: &str) -> Result<Entry, StorageError>;
+    async fn get<T: IntoIndex + Buildable>(&self, path: &str) -> Result<Entry, StorageError> {
+        self.get_indexed::<T>(path, &T::into_index()).await
+    }
+
+    /// Like get, but doesn't enforce IntoIndex and allows providing a custom index doc
+    async fn get_indexed<T: Buildable>(
+        &self,
+        path: &str,
+        index: &Document,
+    ) -> Result<Entry, StorageError>;
 
     /// Fetches a list of all the stored keys.
     async fn list<T: IntoIndex + Buildable + Send>(
@@ -22,6 +32,18 @@ pub trait Storer: Clone + Send + Sync {
         path: &str,
         skip: i64,
         page_size: i64,
+    ) -> Result<Vec<Entry>, StorageError> {
+        self.list_indexed::<T>(path, skip, page_size, &T::into_index())
+            .await
+    }
+
+    /// Like list, but doesn't enforce IntoIndex and allows providing a custom index doc
+    async fn list_indexed<T: Buildable + Send>(
+        &self,
+        path: &str,
+        skip: i64,
+        page_size: i64,
+        index: &Document,
     ) -> Result<Vec<Entry>, StorageError>;
 
     /// Adds the given `Key` struct to the backing store.
@@ -29,11 +51,22 @@ pub trait Storer: Clone + Send + Sync {
 
     /// Takes an entry and resolves it down into its final unsealed type using this storage
     async fn resolve<T: IntoIndex + Buildable>(&self, entry: &Entry) -> Result<T, CryptoError> {
+        self.resolve_indexed::<T>(entry, &T::into_index()).await
+    }
+
+    /// Takes an entry and resolves it down into its final unsealed type using this storage
+    async fn resolve_indexed<T: Buildable>(
+        &self,
+        entry: &Entry,
+        index: &Document,
+    ) -> Result<T, CryptoError> {
         match &entry.value {
-            States::Referenced { path: name } => match self.get::<T>(&name).await {
-                Ok(output) => Ok(self.resolve::<T>(&output).await?),
-                Err(e) => Err(CryptoError::StorageError { source: e }),
-            },
+            States::Referenced { builder: _, path } => {
+                match self.get_indexed::<T>(path, index).await {
+                    Ok(output) => Ok(self.resolve_indexed::<T>(&output, index).await?),
+                    Err(e) => Err(CryptoError::StorageError { source: e }),
+                }
+            }
             States::Sealed {
                 builder,
                 unsealer: unsealable,
@@ -74,17 +107,24 @@ impl<U> Storer for Arc<U>
 where
     U: Storer,
 {
-    async fn get<T: IntoIndex + Buildable>(&self, name: &str) -> Result<Entry, StorageError> {
-        self.deref().get::<T>(name).await
+    async fn get_indexed<T: Buildable>(
+        &self,
+        name: &str,
+        index: &Document,
+    ) -> Result<Entry, StorageError> {
+        self.deref().get_indexed::<T>(name, index).await
     }
 
-    async fn list<T: IntoIndex + Buildable + Send>(
+    async fn list_indexed<T: Buildable + Send>(
         &self,
         name: &str,
         skip: i64,
         page_size: i64,
+        index: &Document,
     ) -> Result<Vec<Entry>, StorageError> {
-        self.deref().list::<T>(name, skip, page_size).await
+        self.deref()
+            .list_indexed::<T>(name, skip, page_size, index)
+            .await
     }
 
     async fn create(&self, name: EntryPath, key: States) -> Result<bool, StorageError> {

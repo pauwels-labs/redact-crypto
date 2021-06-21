@@ -1,8 +1,8 @@
-use crate::{Buildable, Entry, EntryPath, IntoIndex, States, StorageError, Storer};
+use crate::{Buildable, Entry, EntryPath, States, StorageError, Storer};
 use async_trait::async_trait;
 use futures::StreamExt;
 use mongodb::{
-    bson,
+    bson::{self, Document},
     options::ClientOptions,
     options::{FindOneOptions, FindOptions},
     Client, Database,
@@ -49,8 +49,11 @@ impl MongoStorer {
 
 #[async_trait]
 impl Storer for MongoStorer {
-    async fn get<T: IntoIndex + Buildable>(&self, path: &str) -> Result<Entry, StorageError> {
-        let index = T::into_index();
+    async fn get_indexed<T: Buildable>(
+        &self,
+        path: &str,
+        index: &Document,
+    ) -> Result<Entry, StorageError> {
         let filter = bson::doc! { "path": path, "value": index };
         let filter_options = FindOneOptions::builder().build();
 
@@ -68,13 +71,13 @@ impl Storer for MongoStorer {
         }
     }
 
-    async fn list<T: IntoIndex + Buildable + Send>(
+    async fn list_indexed<T: Buildable + Send>(
         &self,
         path: &str,
         skip: i64,
         page_size: i64,
+        index: &Document,
     ) -> Result<Vec<Entry>, StorageError> {
-        let index = T::into_index();
         let filter = bson::doc! { "path": path, "value": index };
         let filter_options = FindOptions::builder().skip(skip).limit(page_size).build();
 

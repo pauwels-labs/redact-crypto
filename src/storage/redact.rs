@@ -1,5 +1,6 @@
-use crate::{Buildable, Entry, EntryPath, IntoIndex, States, StorageError, Storer};
+use crate::{Buildable, Entry, EntryPath, States, StorageError, Storer};
 use async_trait::async_trait;
+use mongodb::bson::Document;
 
 #[derive(Clone)]
 pub struct RedactStorer {
@@ -18,8 +19,12 @@ impl RedactStorer {
 
 #[async_trait]
 impl Storer for RedactStorer {
-    async fn get<T: IntoIndex + Buildable>(&self, path: &str) -> Result<Entry, StorageError> {
-        match reqwest::get(&format!("{}/{}?index={}", &self.url, path, T::into_index(),)).await {
+    async fn get_indexed<T: Buildable>(
+        &self,
+        path: &str,
+        index: &Document,
+    ) -> Result<Entry, StorageError> {
+        match reqwest::get(&format!("{}/{}?index={}", &self.url, path, index)).await {
             Ok(r) => Ok(r
                 .json::<Entry>()
                 .await
@@ -32,19 +37,16 @@ impl Storer for RedactStorer {
         }
     }
 
-    async fn list<T: IntoIndex + Buildable + Send>(
+    async fn list_indexed<T: Buildable + Send>(
         &self,
         path: &str,
         skip: i64,
         page_size: i64,
+        index: &Document,
     ) -> Result<Vec<Entry>, StorageError> {
         match reqwest::get(&format!(
             "{}/{}?index={}&skip={}&skip={}",
-            &self.url,
-            path,
-            T::into_index(),
-            skip,
-            page_size
+            &self.url, path, index, skip, page_size
         ))
         .await
         {
