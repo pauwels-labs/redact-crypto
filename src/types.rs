@@ -5,12 +5,15 @@ use crate::{
     },
     AsymmetricKeyBuilder, BytesSources, CryptoError, DataBuilder, KeyBuilder,
     PublicAsymmetricKeyBuilder, SecretAsymmetricKeyBuilder, Storer, SymmetricKeyBuilder,
-    TypeBuilder, TypeBuilderContainer,
+    TypeBuilder, TypeBuilderContainer, VectorBytesSource,
 };
 use async_trait::async_trait;
 use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
-use std::{convert::TryFrom, fmt::Debug};
+use std::{
+    convert::TryFrom,
+    fmt::{Debug, Display},
+};
 
 pub trait IntoIndex {
     fn into_index() -> Option<Document>;
@@ -408,6 +411,28 @@ pub enum Data {
     I64(i64),
     F64(f64),
     String(String),
+}
+
+impl Display for Data {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Data::Bool(b) => b.to_string(),
+                Data::U64(n) => n.to_string(),
+                Data::I64(n) => n.to_string(),
+                Data::F64(n) => n.to_string(),
+                Data::String(s) => s,
+            }
+        )
+    }
+}
+
+impl From<Data> for BytesSources {
+    fn from(d: Data) -> BytesSources {
+        BytesSources::Vector(VectorBytesSource::new(Some(d.to_string().as_ref())))
+    }
 }
 
 impl IntoIndex for Data {
