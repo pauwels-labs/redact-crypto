@@ -4,7 +4,7 @@ pub mod redact;
 
 use crate::{
     Buildable, Builder, CryptoError, Entry, EntryPath, IntoIndex, States, TypeBuilderContainer,
-    Unsealer,
+    Unsealable,
 };
 use ::mongodb::bson::Document;
 use async_trait::async_trait;
@@ -69,7 +69,7 @@ pub trait Storer: Clone + Send + Sync {
             }
             States::Sealed {
                 builder,
-                unsealer: unsealable,
+                unsealable,
             } => {
                 let bytes = match unsealable.unseal(self.clone()).await {
                     Ok(v) => Ok(v),

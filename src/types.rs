@@ -1,15 +1,21 @@
 use crate::{
     keys::sodiumoxide::{
         SodiumOxidePublicAsymmetricKey, SodiumOxideSecretAsymmetricKey, SodiumOxideSymmetricKey,
-        SodiumOxideSymmetricKeyUnsealer,
+        SodiumOxideSymmetricKeyUnsealable,
     },
-    AsymmetricKeyBuilder, CryptoError, DataBuilder, KeyBuilder, PublicAsymmetricKeyBuilder,
-    SecretAsymmetricKeyBuilder, Storer, SymmetricKeyBuilder, TypeBuilder, TypeBuilderContainer,
+    AsymmetricKeyBuilder, BytesSources, CryptoError, DataBuilder, KeyBuilder,
+    PublicAsymmetricKeyBuilder, SecretAsymmetricKeyBuilder, Storer, SymmetricKeyBuilder,
+    TypeBuilder, TypeBuilderContainer,
 };
 use async_trait::async_trait;
 use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt::Debug};
+
+pub trait Sealer {
+    fn seal_unsealed(&self, source: BytesSources) -> Result<ByteUnsealable, CryptoError>;
+    fn seal_ref(&self, source: BytesSources, path: EntryPath) -> Result<ByteUnsealable, CryptoError>;
+}
 
 pub trait IntoIndex {
     fn into_index() -> Option<Document>;
@@ -28,7 +34,7 @@ pub trait Builder: TryFrom<TypeBuilderContainer, Error = CryptoError> {
 }
 
 #[async_trait]
-impl Unsealer for ByteUnsealer {
+impl Unsealable for ByteUnsealable {
     async fn unseal<T: Storer>(&self, storer: T) -> Result<Vec<u8>, CryptoError> {
         match self {
             Self::SodiumOxideSymmetricKey(sosku) => sosku.unseal(storer).await,
@@ -37,13 +43,13 @@ impl Unsealer for ByteUnsealer {
 }
 
 #[async_trait]
-pub trait Unsealer {
+pub trait Unsealable {
     async fn unseal<T: Storer>(&self, storer: T) -> Result<Vec<u8>, CryptoError>;
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum ByteUnsealer {
-    SodiumOxideSymmetricKey(SodiumOxideSymmetricKeyUnsealer),
+pub enum ByteUnsealable {
+    SodiumOxideSymmetricKey(SodiumOxideSymmetricKeyUnsealable),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -61,7 +67,7 @@ pub enum States {
     },
     Sealed {
         builder: TypeBuilder,
-        unsealer: ByteUnsealer,
+        unsealable: ByteUnsealable,
     },
     Unsealed {
         builder: TypeBuilder,

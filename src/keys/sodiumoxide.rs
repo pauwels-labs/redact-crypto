@@ -1,7 +1,7 @@
 use crate::{
-    AsymmetricKeyBuilder, Buildable, Builder, BytesSources, CryptoError, IntoIndex, KeyBuilder,
-    PublicAsymmetricKeyBuilder, SecretAsymmetricKeyBuilder, States, Storer, SymmetricKeyBuilder,
-    TypeBuilder, TypeBuilderContainer, Unsealer,
+    AsymmetricKeyBuilder, Buildable, Builder, ByteUnsealable, BytesSources, CryptoError, EntryPath,
+    IntoIndex, KeyBuilder, PublicAsymmetricKeyBuilder, Sealer, SecretAsymmetricKeyBuilder, States,
+    Storer, SymmetricKeyBuilder, TypeBuilder, TypeBuilderContainer, Unsealable, VectorBytesSource,
 };
 use async_trait::async_trait;
 use mongodb::bson::{self, Document};
@@ -29,14 +29,14 @@ use std::{boxed::Box, convert::TryFrom};
 
 // SYMMETRIC KEY \\
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SodiumOxideSymmetricKeyUnsealer {
+pub struct SodiumOxideSymmetricKeyUnsealable {
     pub source: BytesSources,
     pub key: Box<States>,
     pub nonce: ExternalSodiumOxideSymmetricNonce,
 }
 
 #[async_trait]
-impl Unsealer for SodiumOxideSymmetricKeyUnsealer {
+impl Unsealable for SodiumOxideSymmetricKeyUnsealable {
     async fn unseal<T: Storer>(&self, storer: T) -> Result<Vec<u8>, CryptoError> {
         let key = match *self.key {
             States::Referenced {
@@ -51,7 +51,7 @@ impl Unsealer for SodiumOxideSymmetricKeyUnsealer {
             }
             States::Sealed {
                 ref builder,
-                ref unsealer,
+                unsealable: ref unsealer,
             } => {
                 let bytes = unsealer.unseal(storer).await?;
                 let builder = <SodiumOxideSymmetricKey as Buildable>::Builder::try_from(
@@ -106,6 +106,12 @@ impl Builder for SodiumOxideSymmetricKeyBuilder {
     }
 }
 
+impl From<SodiumOxideSymmetricKeyBuilder> for TypeBuilder {
+    fn from(b: SodiumOxideSymmetricKeyBuilder) -> TypeBuilder {
+        TypeBuilder::Key(KeyBuilder::Symmetric(SymmetricKeyBuilder::SodiumOxide(b)))
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxideSymmetricKey {
     pub key: ExternalSodiumOxideSymmetricKey,
@@ -154,6 +160,43 @@ impl SodiumOxideSymmetricKey {
     }
 }
 
+impl Sealer for SodiumOxideSymmetricKey {
+    fn seal_unsealed(&self, source: BytesSources) -> Result<ByteUnsealable, CryptoError> {
+        let nonce = secretbox::gen_nonce();
+        let plaintext = source.get()?;
+        let ciphertext = self.seal(plaintext, &nonce);
+        Ok(ByteUnsealable::SodiumOxideSymmetricKey(
+            SodiumOxideSymmetricKeyUnsealable {
+                source: BytesSources::Vector(VectorBytesSource::new(Some(ciphertext.as_ref()))),
+                key: Box::new(States::Unsealed {
+                    builder: self.builder().into(),
+                    bytes: sodiumoxide::base64::encode(
+                        self.key.as_ref(),
+                        sodiumoxide::base64::Variant::Original,
+                    ),
+                }),
+                nonce,
+            },
+        ))
+    }
+
+    fn seal_ref(&self, source: BytesSources, path: EntryPath) -> Result<ByteUnsealable, CryptoError> {
+        let nonce = secretbox::gen_nonce();
+        let plaintext = source.get()?;
+        let ciphertext = self.seal(plaintext, &nonce);
+        Ok(ByteUnsealable::SodiumOxideSymmetricKey(
+            SodiumOxideSymmetricKeyUnsealable {
+                source: BytesSources::Vector(VectorBytesSource::new(Some(ciphertext.as_ref()))),
+                key: Box::new(States::Referenced {
+                    builder: self.builder().into(),
+                    path,
+                }),
+                nonce,
+            },
+        ))
+    }
+}
+
 // SECRET ASYMMETRIC KEY \\
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -169,6 +212,14 @@ impl TryFrom<TypeBuilderContainer> for SodiumOxideSecretAsymmetricKeyBuilder {
             ))) => Ok(sosakb),
             _ => Err(CryptoError::NotDowncastable),
         }
+    }
+}
+
+impl From<SodiumOxideSecretAsymmetricKeyBuilder> for TypeBuilder {
+    fn from(b: SodiumOxideSecretAsymmetricKeyBuilder) -> TypeBuilder {
+        TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(
+            SecretAsymmetricKeyBuilder::SodiumOxide(b),
+        )))
     }
 }
 
