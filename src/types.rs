@@ -28,6 +28,14 @@ pub trait Builder: TryFrom<TypeBuilderContainer, Error = CryptoError> {
     fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError>;
 }
 
+pub trait Sealer {
+    fn seal(
+        &self,
+        plaintext: BytesSources,
+        path: Option<EntryPath>,
+    ) -> Result<ByteUnsealable, CryptoError>;
+}
+
 #[async_trait]
 pub trait Sealable {
     async fn seal<S: Storer>(self, storer: S) -> Result<ByteUnsealable, CryptoError>;
@@ -86,6 +94,22 @@ impl ByteSealable {
 pub struct Entry {
     pub path: EntryPath,
     pub value: States,
+}
+
+impl Entry {
+    pub fn into_ref(self) -> States {
+        States::Referenced {
+            builder: match self.value {
+                States::Referenced { builder, path: _ } => builder,
+                States::Sealed {
+                    builder,
+                    unsealable: _,
+                } => builder,
+                States::Unsealed { builder, bytes: _ } => builder,
+            },
+            path: self.path,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -1,6 +1,6 @@
 use crate::{
     AsymmetricKeyBuilder, Buildable, Builder, ByteSealable, ByteUnsealable, BytesSources,
-    CryptoError, IntoIndex, KeyBuilder, PublicAsymmetricKeyBuilder, Sealable,
+    CryptoError, EntryPath, IntoIndex, KeyBuilder, PublicAsymmetricKeyBuilder, Sealable, Sealer,
     SecretAsymmetricKeyBuilder, States, Storer, SymmetricKeyBuilder, TypeBuilder,
     TypeBuilderContainer, Unsealable, VectorBytesSource,
 };
@@ -123,6 +123,38 @@ impl From<SodiumOxideSymmetricKeyBuilder> for TypeBuilder {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxideSymmetricKey {
     pub key: ExternalSodiumOxideSymmetricKey,
+}
+
+impl Sealer for SodiumOxideSymmetricKey {
+    fn seal(
+        &self,
+        plaintext: BytesSources,
+        path: Option<EntryPath>,
+    ) -> Result<ByteUnsealable, CryptoError> {
+        let nonce = secretbox::gen_nonce();
+        let plaintext = plaintext.get()?;
+        let ciphertext = self.seal(plaintext, &nonce);
+        let key = match path {
+            Some(path) => Box::new(States::Referenced {
+                builder: self.builder().into(),
+                path,
+            }),
+            None => Box::new(States::Unsealed {
+                builder: self.builder().into(),
+                bytes: sodiumoxide::base64::encode(
+                    self.key.as_ref(),
+                    sodiumoxide::base64::Variant::Original,
+                ),
+            }),
+        };
+        Ok(ByteUnsealable::SodiumOxideSymmetricKey(
+            SodiumOxideSymmetricKeyUnsealable {
+                source: BytesSources::Vector(VectorBytesSource::new(Some(ciphertext.as_ref()))),
+                key,
+                nonce,
+            },
+        ))
+    }
 }
 
 impl IntoIndex for SodiumOxideSymmetricKey {
