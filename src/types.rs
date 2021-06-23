@@ -1,7 +1,7 @@
 use crate::{
     keys::sodiumoxide::{
         SodiumOxidePublicAsymmetricKey, SodiumOxideSecretAsymmetricKey, SodiumOxideSymmetricKey,
-        SodiumOxideSymmetricKeyUnsealable,
+        SodiumOxideSymmetricKeySealable, SodiumOxideSymmetricKeyUnsealable,
     },
     AsymmetricKeyBuilder, BytesSources, CryptoError, DataBuilder, KeyBuilder,
     PublicAsymmetricKeyBuilder, SecretAsymmetricKeyBuilder, Storer, SymmetricKeyBuilder,
@@ -11,11 +11,6 @@ use async_trait::async_trait;
 use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt::Debug};
-
-pub trait Sealer {
-    fn seal_unsealed(&self, source: BytesSources) -> Result<ByteUnsealable, CryptoError>;
-    fn seal_ref(&self, source: BytesSources, path: EntryPath) -> Result<ByteUnsealable, CryptoError>;
-}
 
 pub trait IntoIndex {
     fn into_index() -> Option<Document>;
@@ -34,22 +29,57 @@ pub trait Builder: TryFrom<TypeBuilderContainer, Error = CryptoError> {
 }
 
 #[async_trait]
+pub trait Sealable {
+    async fn seal<S: Storer>(self, storer: S) -> Result<ByteUnsealable, CryptoError>;
+}
+
+#[async_trait]
+pub trait Unsealable {
+    async fn unseal<S: Storer>(self, storer: S) -> Result<ByteSealable, CryptoError>;
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum ByteUnsealable {
+    SodiumOxideSymmetricKey(SodiumOxideSymmetricKeyUnsealable),
+}
+
+#[async_trait]
 impl Unsealable for ByteUnsealable {
-    async fn unseal<T: Storer>(&self, storer: T) -> Result<Vec<u8>, CryptoError> {
+    async fn unseal<S: Storer>(self, storer: S) -> Result<ByteSealable, CryptoError> {
         match self {
             Self::SodiumOxideSymmetricKey(sosku) => sosku.unseal(storer).await,
         }
     }
 }
 
-#[async_trait]
-pub trait Unsealable {
-    async fn unseal<T: Storer>(&self, storer: T) -> Result<Vec<u8>, CryptoError>;
+impl ByteUnsealable {
+    pub fn get_source(&self) -> &BytesSources {
+        match self {
+            Self::SodiumOxideSymmetricKey(sosku) => &sosku.source,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum ByteUnsealable {
-    SodiumOxideSymmetricKey(SodiumOxideSymmetricKeyUnsealable),
+pub enum ByteSealable {
+    SodiumOxideSymmetricKey(SodiumOxideSymmetricKeySealable),
+}
+
+#[async_trait]
+impl Sealable for ByteSealable {
+    async fn seal<S: Storer>(self, storer: S) -> Result<ByteUnsealable, CryptoError> {
+        match self {
+            Self::SodiumOxideSymmetricKey(sosks) => sosks.seal(storer).await,
+        }
+    }
+}
+
+impl ByteSealable {
+    pub fn get_source(&self) -> &BytesSources {
+        match self {
+            Self::SodiumOxideSymmetricKey(sosks) => &sosks.source,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -50,23 +50,24 @@ pub trait Storer: Clone + Send + Sync {
     async fn create(&self, path: EntryPath, value: States) -> Result<bool, StorageError>;
 
     /// Takes an entry and resolves it down into its final unsealed type using this storage
-    async fn resolve<T: IntoIndex + Buildable>(&self, entry: &Entry) -> Result<T, CryptoError> {
-        self.resolve_indexed::<T>(entry, &T::into_index()).await
+    async fn resolve<T: IntoIndex + Buildable>(&self, state: States) -> Result<T, CryptoError> {
+        self.resolve_indexed::<T>(state, &T::into_index()).await
     }
 
     /// Takes an entry and resolves it down into its final unsealed type using this storage
     async fn resolve_indexed<T: Buildable>(
         &self,
-        entry: &Entry,
+        state: States,
         index: &Option<Document>,
     ) -> Result<T, CryptoError> {
-        match &entry.value {
-            States::Referenced { builder: _, path } => {
-                match self.get_indexed::<T>(path, index).await {
-                    Ok(output) => Ok(self.resolve_indexed::<T>(&output, index).await?),
-                    Err(e) => Err(CryptoError::StorageError { source: e }),
-                }
-            }
+        match state {
+            States::Referenced {
+                builder: _,
+                ref path,
+            } => match self.get_indexed::<T>(path, index).await {
+                Ok(output) => Ok(self.resolve_indexed::<T>(output.value, index).await?),
+                Err(e) => Err(CryptoError::StorageError { source: e }),
+            },
             States::Sealed {
                 builder,
                 unsealable,
@@ -76,18 +77,18 @@ pub trait Storer: Clone + Send + Sync {
                     Err(e) => Err(e),
                 }?;
                 let builder =
-                    match <T as Buildable>::Builder::try_from(TypeBuilderContainer(*builder)) {
+                    match <T as Buildable>::Builder::try_from(TypeBuilderContainer(builder)) {
                         Ok(b) => Ok(b),
                         Err(e) => Err(e),
                     }?;
-                match builder.build(bytes.as_ref()) {
+                match builder.build(bytes.get_source().get()?.as_ref()) {
                     Ok(output) => Ok(output),
                     Err(e) => Err(e),
                 }
             }
             States::Unsealed { builder, bytes } => {
                 let builder =
-                    match <T as Buildable>::Builder::try_from(TypeBuilderContainer(*builder)) {
+                    match <T as Buildable>::Builder::try_from(TypeBuilderContainer(builder)) {
                         Ok(b) => Ok(b),
                         Err(e) => Err(e),
                     }?;
