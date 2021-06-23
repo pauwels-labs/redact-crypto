@@ -105,7 +105,9 @@ impl FsBytesSource {
             ErrorKind::NotFound => CryptoError::NotFound,
             _ => CryptoError::FsIoError { source: e },
         })?;
-        Ok(VectorBytesSource { value: read_bytes })
+        let bytes =
+            base64::decode(read_bytes).map_err(|e| CryptoError::Base64Decode { source: e })?;
+        Ok(VectorBytesSource { value: bytes })
     }
 
     /// Re-reads the file and stores its bytes in memory
@@ -115,9 +117,10 @@ impl FsBytesSource {
     }
 
     /// Re-writes the key to be the given bytes
-    pub fn set(&mut self, key: &[u8]) -> Result<(), CryptoError> {
+    pub fn set(&mut self, value: &[u8]) -> Result<(), CryptoError> {
         let path_ref: &StdPathBuf = (&self.path).into();
-        std::fs::write(path_ref, key)
+        let bytes = base64::encode(value);
+        std::fs::write(path_ref, bytes)
             .map(|_| self.reload())
             .map_err(|source| match source.kind() {
                 std::io::ErrorKind::NotFound => CryptoError::NotFound,

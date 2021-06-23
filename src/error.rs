@@ -1,4 +1,5 @@
 use crate::StorageError;
+use base64::DecodeError;
 use std::{
     error::Error,
     fmt::{self, Display, Formatter},
@@ -34,6 +35,9 @@ pub enum CryptoError {
 
     /// Indicates the given bytes could not be serialized to a base data type
     NotDeserializableToBaseDataType,
+
+    /// Indicates an error happened when decoding base64 string
+    Base64Decode { source: DecodeError },
 }
 
 impl Error for CryptoError {
@@ -48,6 +52,7 @@ impl Error for CryptoError {
             CryptoError::FilePathHasNoFileStem => None,
             CryptoError::FilePathIsInvalidUTF8 => None,
             CryptoError::NotDeserializableToBaseDataType => None,
+            CryptoError::Base64Decode { ref source } => Some(source),
         }
     }
 }
@@ -97,6 +102,9 @@ impl Display for CryptoError {
             }
             CryptoError::NotDeserializableToBaseDataType => {
                 write!(f, "The given bytes could not be deserialized to one of: bool, u64, i64, f64, or string")
+            }
+            CryptoError::Base64Decode { .. } => {
+                write!(f, "Error occurred while decoding string from base64")
             }
         }
     }
