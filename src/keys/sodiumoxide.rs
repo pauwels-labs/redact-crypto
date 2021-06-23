@@ -180,9 +180,11 @@ impl Buildable for SodiumOxideSymmetricKey {
 impl SodiumOxideSymmetricKey {
     pub const KEYBYTES: usize = EXTERNALSODIUMOXIDESYMMETRICKEYBYTES;
 
-    // pub fn seal(&self, plaintext: &[u8], nonce: &ExternalSodiumOxideSymmetricNonce) -> Vec<u8> {
-    //     secretbox::seal(plaintext, nonce, &self.key)
-    // }
+    pub fn new() -> Self {
+        SodiumOxideSymmetricKey {
+            key: secretbox::gen_key(),
+        }
+    }
 
     pub fn unseal(
         &self,
