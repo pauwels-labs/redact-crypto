@@ -3,8 +3,7 @@ pub mod mongodb;
 pub mod redact;
 
 use crate::{
-    Buildable, Builder, CryptoError, Entry, EntryPath, IntoIndex, States, TypeBuilderContainer,
-    Unsealable,
+    Buildable, Builder, Entry, EntryPath, IntoIndex, States, TypeBuilderContainer, Unsealable,
 };
 use ::mongodb::bson::Document;
 use async_trait::async_trait;
@@ -50,7 +49,7 @@ pub trait Storer: Clone + Send + Sync {
     async fn create(&self, path: EntryPath, value: States) -> Result<bool, StorageError>;
 
     /// Takes an entry and resolves it down into its final unsealed type using this storage
-    async fn resolve<T: IntoIndex + Buildable>(&self, state: States) -> Result<T, CryptoError> {
+    async fn resolve<T: IntoIndex + Buildable>(&self, state: States) -> Result<T, StorageError> {
         self.resolve_indexed::<T>(state, &T::into_index()).await
     }
 
@@ -59,14 +58,14 @@ pub trait Storer: Clone + Send + Sync {
         &self,
         state: States,
         index: &Option<Document>,
-    ) -> Result<T, CryptoError> {
+    ) -> Result<T, StorageError> {
         match state {
             States::Referenced {
                 builder: _,
                 ref path,
             } => match self.get_indexed::<T>(path, index).await {
                 Ok(output) => Ok(self.resolve_indexed::<T>(output.value, index).await?),
-                Err(e) => Err(CryptoError::StorageError { source: e }),
+                Err(e) => Err(e),
             },
             States::Sealed {
                 builder,
@@ -74,27 +73,45 @@ pub trait Storer: Clone + Send + Sync {
             } => {
                 let bytes = match unsealable.unseal(self.clone()).await {
                     Ok(v) => Ok(v),
-                    Err(e) => Err(e),
+                    Err(e) => Err(StorageError::InternalError {
+                        source: Box::new(e),
+                    }),
                 }?;
                 let builder =
                     match <T as Buildable>::Builder::try_from(TypeBuilderContainer(builder)) {
                         Ok(b) => Ok(b),
-                        Err(e) => Err(e),
+                        Err(e) => Err(StorageError::InternalError {
+                            source: Box::new(e),
+                        }),
                     }?;
-                match builder.build(bytes.get_source().get()?.as_ref()) {
+                match builder.build(
+                    bytes
+                        .get_source()
+                        .get()
+                        .map_err(|e| StorageError::InternalError {
+                            source: Box::new(e),
+                        })?
+                        .as_ref(),
+                ) {
                     Ok(output) => Ok(output),
-                    Err(e) => Err(e),
+                    Err(e) => Err(StorageError::InternalError {
+                        source: Box::new(e),
+                    }),
                 }
             }
             States::Unsealed { builder, bytes } => {
                 let builder =
                     match <T as Buildable>::Builder::try_from(TypeBuilderContainer(builder)) {
                         Ok(b) => Ok(b),
-                        Err(e) => Err(e),
+                        Err(e) => Err(StorageError::InternalError {
+                            source: Box::new(e),
+                        }),
                     }?;
                 match builder.build(bytes.as_ref()) {
                     Ok(output) => Ok(output),
-                    Err(e) => Err(e),
+                    Err(e) => Err(StorageError::InternalError {
+                        source: Box::new(e),
+                    }),
                 }
             }
         }

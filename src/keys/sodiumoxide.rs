@@ -40,7 +40,10 @@ pub struct SodiumOxideSymmetricKeySealable {
 impl Sealable for SodiumOxideSymmetricKeySealable {
     async fn seal<T: Storer>(self, storer: T) -> Result<ByteUnsealable, CryptoError> {
         let stateful_key = *self.key.clone();
-        let key = storer.resolve::<SodiumOxideSymmetricKey>(*self.key).await?;
+        let key = storer
+            .resolve::<SodiumOxideSymmetricKey>(*self.key)
+            .await
+            .map_err(|e| CryptoError::StorageError { source: e })?;
         let plaintext = self.source.get()?;
         let ciphertext = key.seal(plaintext, &self.nonce);
         Ok(ByteUnsealable::SodiumOxideSymmetricKey(
@@ -64,7 +67,10 @@ pub struct SodiumOxideSymmetricKeyUnsealable {
 impl Unsealable for SodiumOxideSymmetricKeyUnsealable {
     async fn unseal<S: Storer>(self, storer: S) -> Result<ByteSealable, CryptoError> {
         let stateful_key = *self.key.clone();
-        let key = storer.resolve::<SodiumOxideSymmetricKey>(*self.key).await?;
+        let key = storer
+            .resolve::<SodiumOxideSymmetricKey>(*self.key)
+            .await
+            .map_err(|e| CryptoError::StorageError { source: e })?;
         let ciphertext = self.source.get()?;
         let plaintext = key.unseal(ciphertext, &self.nonce)?;
         Ok(ByteSealable::SodiumOxideSymmetricKey(
