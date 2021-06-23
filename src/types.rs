@@ -423,7 +423,7 @@ impl Display for Data {
                 Data::U64(n) => n.to_string(),
                 Data::I64(n) => n.to_string(),
                 Data::F64(n) => n.to_string(),
-                Data::String(s) => s,
+                Data::String(s) => s.to_owned(),
             }
         )
     }
