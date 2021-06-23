@@ -45,6 +45,6 @@ pub use typebuilders::{
 };
 pub use types::{
     AsymmetricKey, Buildable, Builder, ByteSealable, ByteUnsealable, Data, Entry, EntryPath,
-    IntoIndex, Key, PublicAsymmetricKey, Sealable, Sealer, SecretAsymmetricKey, States,
+    IntoIndex, Key, PublicAsymmetricKey, Sealable, SymmetricSealer, SecretAsymmetricKey, States,
     SymmetricKey, Type, Unsealable,
 };

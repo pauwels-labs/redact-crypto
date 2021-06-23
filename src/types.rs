@@ -28,14 +28,6 @@ pub trait Builder: TryFrom<TypeBuilderContainer, Error = CryptoError> {
     fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError>;
 }
 
-pub trait Sealer {
-    fn seal(
-        &self,
-        plaintext: BytesSources,
-        path: Option<EntryPath>,
-    ) -> Result<ByteUnsealable, CryptoError>;
-}
-
 #[async_trait]
 pub trait Sealable {
     async fn seal<S: Storer>(self, storer: S) -> Result<ByteUnsealable, CryptoError>;
@@ -44,6 +36,16 @@ pub trait Sealable {
 #[async_trait]
 pub trait Unsealable {
     async fn unseal<S: Storer>(self, storer: S) -> Result<ByteSealable, CryptoError>;
+}
+
+pub trait SymmetricSealer {
+    type SealedOutput;
+
+    fn seal(
+        &self,
+        plaintext: BytesSources,
+        path: Option<EntryPath>,
+    ) -> Result<Self::SealedOutput, CryptoError>;
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -200,6 +202,22 @@ impl Buildable for Key {
 #[serde(tag = "t", content = "c")]
 pub enum SymmetricKey {
     SodiumOxide(SodiumOxideSymmetricKey),
+}
+
+impl SymmetricSealer for SymmetricKey {
+    type SealedOutput = ByteUnsealable;
+
+    fn seal(
+        &self,
+        plaintext: BytesSources,
+        path: Option<EntryPath>,
+    ) -> Result<Self::SealedOutput, CryptoError> {
+        match self {
+            Self::SodiumOxide(sosk) => Ok(ByteUnsealable::SodiumOxideSymmetricKey(
+                sosk.seal(plaintext, path)?,
+            )),
+        }
+    }
 }
 
 impl IntoIndex for SymmetricKey {
