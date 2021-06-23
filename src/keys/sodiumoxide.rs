@@ -69,7 +69,7 @@ impl Unsealable for SodiumOxideSymmetricKeyUnsealable {
         let plaintext = key.unseal(ciphertext, &self.nonce)?;
         Ok(ByteSealable::SodiumOxideSymmetricKey(
             SodiumOxideSymmetricKeySealable {
-                source: BytesSources::Vector(VectorBytesSource::new(Some(plaintext.as_ref()))),
+                source: BytesSources::Vector(VectorBytesSource::new(plaintext.as_ref())),
                 key: Box::new(stateful_key),
                 nonce: self.nonce,
             },
@@ -98,7 +98,7 @@ impl Builder for SodiumOxideSymmetricKeyBuilder {
 
     fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
         Ok(SodiumOxideSymmetricKey {
-            key: ExternalSodiumOxideSymmetricKey::from_slice(bytes).ok_or(
+            key: ExternalSodiumOxideSymmetricKey::from_slice(&bytes).ok_or(
                 CryptoError::InvalidKeyLength {
                     expected: SodiumOxideSymmetricKey::KEYBYTES,
                     actual: bytes.len(),
@@ -137,14 +137,11 @@ impl SymmetricSealer for SodiumOxideSymmetricKey {
             }),
             None => Box::new(States::Unsealed {
                 builder: self.builder().into(),
-                bytes: sodiumoxide::base64::encode(
-                    self.key.as_ref(),
-                    sodiumoxide::base64::Variant::Original,
-                ),
+                bytes: BytesSources::Vector(VectorBytesSource::new(self.key.as_ref())),
             }),
         };
         Ok(SodiumOxideSymmetricKeyUnsealable {
-            source: BytesSources::Vector(VectorBytesSource::new(Some(ciphertext.as_ref()))),
+            source: BytesSources::Vector(VectorBytesSource::new(ciphertext.as_ref())),
             key,
             nonce,
         })
@@ -196,47 +193,6 @@ impl SodiumOxideSymmetricKey {
     }
 }
 
-// impl Sealer for SodiumOxideSymmetricKey {
-//     fn seal_unsealed(&self, source: BytesSources) -> Result<ByteUnsealable, CryptoError> {
-//         let nonce = secretbox::gen_nonce();
-//         let plaintext = source.get()?;
-//         let ciphertext = self.seal(plaintext, &nonce);
-//         Ok(ByteUnsealable::SodiumOxideSymmetricKey(
-//             SodiumOxideSymmetricKeyUnsealable {
-//                 source: BytesSources::Vector(VectorBytesSource::new(Some(ciphertext.as_ref()))),
-//                 key: Box::new(States::Unsealed {
-//                     builder: self.builder().into(),
-//                     bytes: sodiumoxide::base64::encode(
-//                         self.key.as_ref(),
-//                         sodiumoxide::base64::Variant::Original,
-//                     ),
-//                 }),
-//                 nonce,
-//             },
-//         ))
-//     }
-
-//     fn seal_ref(
-//         &self,
-//         source: BytesSources,
-//         path: EntryPath,
-//     ) -> Result<ByteUnsealable, CryptoError> {
-//         let nonce = secretbox::gen_nonce();
-//         let plaintext = source.get()?;
-//         let ciphertext = self.seal(plaintext, &nonce);
-//         Ok(ByteUnsealable::SodiumOxideSymmetricKey(
-//             SodiumOxideSymmetricKeyUnsealable {
-//                 source: BytesSources::Vector(VectorBytesSource::new(Some(ciphertext.as_ref()))),
-//                 key: Box::new(States::Referenced {
-//                     builder: self.builder().into(),
-//                     path,
-//                 }),
-//                 nonce,
-//             },
-//         ))
-//     }
-// }
-
 // SECRET ASYMMETRIC KEY \\
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -260,7 +216,7 @@ impl Builder for SodiumOxideSecretAsymmetricKeyBuilder {
 
     fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
         Ok(SodiumOxideSecretAsymmetricKey {
-            key: ExternalSodiumOxideSecretAsymmetricKey::from_slice(bytes).ok_or(
+            key: ExternalSodiumOxideSecretAsymmetricKey::from_slice(&bytes).ok_or(
                 CryptoError::InvalidKeyLength {
                     expected: SodiumOxideSecretAsymmetricKey::KEYBYTES,
                     actual: bytes.len(),
@@ -360,7 +316,7 @@ impl Builder for SodiumOxidePublicAsymmetricKeyBuilder {
 
     fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
         Ok(SodiumOxidePublicAsymmetricKey {
-            key: ExternalSodiumOxidePublicAsymmetricKey::from_slice(bytes).ok_or(
+            key: ExternalSodiumOxidePublicAsymmetricKey::from_slice(&bytes).ok_or(
                 CryptoError::InvalidKeyLength {
                     expected: SodiumOxidePublicAsymmetricKey::KEYBYTES,
                     actual: bytes.len(),

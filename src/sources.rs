@@ -1,5 +1,8 @@
 use crate::CryptoError;
-use serde::{Deserialize, Serialize};
+use serde::{
+    de::{self, Deserializer},
+    Deserialize, Serialize, Serializer,
+};
 use std::{convert::Into, io::ErrorKind, path::PathBuf as StdPathBuf, str::FromStr};
 
 /// Enumerates all the different types of sources.
@@ -102,9 +105,7 @@ impl FsBytesSource {
             ErrorKind::NotFound => CryptoError::NotFound,
             _ => CryptoError::FsIoError { source: e },
         })?;
-        Ok(VectorBytesSource {
-            value: Some(read_bytes),
-        })
+        Ok(VectorBytesSource { value: read_bytes })
     }
 
     /// Re-reads the file and stores its bytes in memory
@@ -133,7 +134,7 @@ impl FsBytesSource {
     }
 
     /// Returns the path where the key is stored
-    pub fn get_path(&self) -> &Path {
+    pub fn path(&self) -> &Path {
         &self.path
     }
 }
@@ -141,28 +142,51 @@ impl FsBytesSource {
 /// A source that is an array of bytes in memory
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VectorBytesSource {
-    value: Option<Vec<u8>>,
+    #[serde(
+        serialize_with = "byte_vector_serialize",
+        deserialize_with = "byte_vector_deserialize"
+    )]
+    value: Vec<u8>,
+}
+
+fn byte_vector_serialize<S>(bytes: &[u8], s: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let bytes = base64::encode(bytes);
+    s.serialize_str(&bytes)
+}
+
+fn byte_vector_deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s: &str = de::Deserialize::deserialize(deserializer)?;
+    base64::decode(s).map_err(de::Error::custom)
 }
 
 impl VectorBytesSource {
     /// Creates a new `VectorBytesSource` from the given byte array
-    pub fn new(bytes: Option<&[u8]>) -> Self {
+    pub fn new(bytes: &[u8]) -> Self {
         VectorBytesSource {
-            value: bytes.map(|bytes| bytes.to_vec()),
+            value: bytes.to_owned(),
         }
     }
 
     /// Re-writes the key to be the given bytes
     pub fn set(&mut self, key: &[u8]) -> Result<(), CryptoError> {
-        self.value = Some(key.to_vec());
+        self.value = key.to_owned();
         Ok(())
+        // self.value = Some(key.to_vec());
+        // Ok(())
     }
 
     /// Returns the key as an array of bytes
     pub fn get(&self) -> Result<&[u8], CryptoError> {
-        match self.value {
-            Some(ref v) => Ok(&v),
-            None => Err(CryptoError::NotFound),
-        }
+        Ok(self.value.as_ref())
+        // match self.value {
+        //     Some(ref v) => Ok(&v),
+        //     None => Err(CryptoError::NotFound),
+        // }
     }
 }

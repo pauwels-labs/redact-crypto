@@ -130,7 +130,7 @@ pub enum States {
     },
     Unsealed {
         builder: TypeBuilder,
-        bytes: String,
+        bytes: BytesSources,
     },
 }
 
@@ -431,7 +431,7 @@ impl Display for Data {
 
 impl From<Data> for BytesSources {
     fn from(d: Data) -> BytesSources {
-        BytesSources::Vector(VectorBytesSource::new(Some(d.to_string().as_ref())))
+        BytesSources::Vector(VectorBytesSource::new(d.to_string().as_ref()))
     }
 }
 

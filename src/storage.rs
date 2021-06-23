@@ -84,15 +84,11 @@ pub trait Storer: Clone + Send + Sync {
                             source: Box::new(e),
                         }),
                     }?;
-                match builder.build(
-                    bytes
-                        .get_source()
-                        .get()
-                        .map_err(|e| StorageError::InternalError {
-                            source: Box::new(e),
-                        })?
-                        .as_ref(),
-                ) {
+                match builder.build(bytes.get_source().get().map_err(|e| {
+                    StorageError::InternalError {
+                        source: Box::new(e),
+                    }
+                })?) {
                     Ok(output) => Ok(output),
                     Err(e) => Err(StorageError::InternalError {
                         source: Box::new(e),
@@ -107,7 +103,10 @@ pub trait Storer: Clone + Send + Sync {
                             source: Box::new(e),
                         }),
                     }?;
-                match builder.build(bytes.as_ref()) {
+                let bytes = bytes.get().map_err(|e| StorageError::InternalError {
+                    source: Box::new(e),
+                })?;
+                match builder.build(bytes) {
                     Ok(output) => Ok(output),
                     Err(e) => Err(StorageError::InternalError {
                         source: Box::new(e),

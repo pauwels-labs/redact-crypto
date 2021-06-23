@@ -11,21 +11,6 @@ pub enum CryptoError {
     /// Indicates an error occurred while performing IO on the filesystem
     FsIoError { source: io::Error },
 
-    /// Indicates the key loaded key isn't the right size for the selected executor
-    SourceKeyBadSize,
-
-    /// Indicates the source key is not a symmetric key
-    NotSymmetric,
-
-    /// Indicates the source key is not an asymmetric key
-    NotAsymmetric,
-
-    /// Indicates the source key is not a secret asymmetric key
-    NotSecret,
-
-    /// This error will never occur
-    Infallible,
-
     /// Indicates the key source could not source the key
     NotFound,
 
@@ -33,13 +18,7 @@ pub enum CryptoError {
     CiphertextFailedVerification,
 
     /// Indicates the provided nonce is not the correct length
-    InvalidNonceLength { expected: usize, actual: usize },
-
-    /// Indicates the provided nonce is not the correct length
     InvalidKeyLength { expected: usize, actual: usize },
-
-    /// Indicates the wrong type of key was provided as a parameter
-    IncorrectKeyType { expected: String, actual: String },
 
     /// Wraps a StorageError
     StorageError { source: StorageError },
@@ -61,16 +40,9 @@ impl Error for CryptoError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match *self {
             CryptoError::FsIoError { ref source } => Some(source),
-            CryptoError::SourceKeyBadSize => None,
-            CryptoError::NotSymmetric => None,
-            CryptoError::NotAsymmetric => None,
-            CryptoError::NotSecret => None,
-            CryptoError::Infallible => None,
             CryptoError::NotFound => None,
             CryptoError::CiphertextFailedVerification => None,
-            CryptoError::InvalidNonceLength { .. } => None,
             CryptoError::InvalidKeyLength { .. } => None,
-            CryptoError::IncorrectKeyType { .. } => None,
             CryptoError::StorageError { ref source } => Some(source),
             CryptoError::NotDowncastable => None,
             CryptoError::FilePathHasNoFileStem => None,
@@ -86,24 +58,6 @@ impl Display for CryptoError {
             CryptoError::FsIoError { .. } => {
                 write!(f, "Error occured during file system IO")
             }
-            CryptoError::SourceKeyBadSize => {
-                write!(
-                    f,
-                    "Loaded key is not the correct size for the selected executor"
-                )
-            }
-            CryptoError::NotSymmetric => {
-                write!(f, "Key is not a symmetric key")
-            }
-            CryptoError::NotAsymmetric => {
-                write!(f, "Key is not an asymmetric key")
-            }
-            CryptoError::NotSecret => {
-                write!(f, "Key is not a secret asymmetric key")
-            }
-            CryptoError::Infallible => {
-                write!(f, "This error should never occur")
-            }
             CryptoError::NotFound => {
                 write!(f, "The key source was not found")
             }
@@ -113,16 +67,6 @@ impl Display for CryptoError {
                     "The ciphertext failed verification before attempting to decrypt"
                 )
             }
-            CryptoError::InvalidNonceLength {
-                ref expected,
-                ref actual,
-            } => {
-                write!(
-                    f,
-                    "The provided nonce was not the correct length, expected: {}, actual: {}",
-                    expected, actual,
-                )
-            }
             CryptoError::InvalidKeyLength {
                 ref expected,
                 ref actual,
@@ -130,16 +74,6 @@ impl Display for CryptoError {
                 write!(
                     f,
                     "The provided key was not the correct length, expected: {}, actual: {}",
-                    expected, actual,
-                )
-            }
-            CryptoError::IncorrectKeyType {
-                ref expected,
-                ref actual,
-            } => {
-                write!(
-                    f,
-                    "The key provided was of an incorrect type, expected: {}, actual: {}",
                     expected, actual,
                 )
             }
