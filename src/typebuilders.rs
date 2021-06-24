@@ -183,6 +183,7 @@ impl Builder for SecretAsymmetricKeyBuilder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[serde(tag = "t", content = "c")]
 pub enum DataBuilder {
     Bool(BoolDataBuilder),
     U64(U64DataBuilder),
@@ -213,27 +214,11 @@ impl Builder for DataBuilder {
             Self::F64(ndb) => ndb.build(bytes),
             Self::String(sdb) => sdb.build(bytes),
         }
-
-        // let s = String::from_utf8(bytes.to_vec())
-        //     .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
-
-        // if let Ok(b) = serde_json::from_slice::<bool>(bytes) {
-        //     Ok(Data::Bool(b))
-        // } else if let Ok(u) = serde_json::from_slice::<u64>(bytes) {
-        //     Ok(Data::U64(u))
-        // } else if let Ok(i) = serde_json::from_slice::<i64>(bytes) {
-        //     Ok(Data::I64(i))
-        // } else if let Ok(f) = serde_json::from_slice::<f64>(bytes) {
-        //     Ok(Data::F64(f))
-        // } else if let Ok(s) = serde_json::from_slice::<String>(bytes) {
-        //     Ok(Data::String(s))
-        // } else {
-        //     Err(CryptoError::NotDeserializableToBaseDataType)
-        // }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[serde(tag = "t", content = "c")]
 pub struct BoolDataBuilder {}
 
 impl TryFrom<TypeBuilderContainer> for BoolDataBuilder {
@@ -259,6 +244,7 @@ impl Builder for BoolDataBuilder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[serde(tag = "t", content = "c")]
 pub struct U64DataBuilder {}
 
 impl TryFrom<TypeBuilderContainer> for U64DataBuilder {
@@ -284,6 +270,7 @@ impl Builder for U64DataBuilder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[serde(tag = "t", content = "c")]
 pub struct I64DataBuilder {}
 
 impl TryFrom<TypeBuilderContainer> for I64DataBuilder {
@@ -309,6 +296,7 @@ impl Builder for I64DataBuilder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[serde(tag = "t", content = "c")]
 pub struct F64DataBuilder {}
 
 impl TryFrom<TypeBuilderContainer> for F64DataBuilder {
@@ -334,6 +322,7 @@ impl Builder for F64DataBuilder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[serde(tag = "t", content = "c")]
 pub struct StringDataBuilder {}
 
 impl TryFrom<TypeBuilderContainer> for StringDataBuilder {
