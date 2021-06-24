@@ -53,6 +53,7 @@ pub trait SymmetricSealer {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum ByteUnsealable {
     SodiumOxideSymmetricKey(SodiumOxideSymmetricKeyUnsealable),
 }
@@ -75,6 +76,7 @@ impl ByteUnsealable {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum ByteSealable {
     SodiumOxideSymmetricKey(SodiumOxideSymmetricKeySealable),
 }
