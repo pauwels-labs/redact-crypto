@@ -75,6 +75,7 @@ impl Storer for RedactStorer {
     async fn create(&self, path: EntryPath, value: States) -> Result<bool, StorageError> {
         let entry = Entry { path, value };
         let client = reqwest::Client::new();
+        println!("{}/", self.url);
         match client
             .post(&format!("{}/", self.url))
             .json(&entry)
