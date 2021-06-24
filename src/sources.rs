@@ -9,6 +9,7 @@ use std::{convert::Into, io::ErrorKind, path::PathBuf as StdPathBuf, str::FromSt
 /// Currently supported:
 /// - Bytes: sources that can be deserialized to a byte array
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum Sources {
     Bytes(BytesSources),
 }
@@ -18,6 +19,7 @@ pub enum Sources {
 /// - Fs: data stored on the filesystem
 /// - Vector: data stored in a vector of bytes
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "t", content = "c")]
 pub enum BytesSources {
     Fs(FsBytesSource),
     Vector(VectorBytesSource),
