@@ -28,16 +28,13 @@ impl Storer for RedactStorer {
         if let Some(i) = index {
             req_url.push_str(format!("index={}", i).as_ref());
         }
-        println!("{}", req_url);
         match reqwest::get(&req_url).await {
-            Ok(r) => {
-                println!("{:?}", r);
-                Ok(r.json::<Entry>()
-                    .await
-                    .map_err(|source| StorageError::InternalError {
-                        source: Box::new(source),
-                    })?)
-            }
+            Ok(r) => Ok(r
+                .json::<Entry>()
+                .await
+                .map_err(|source| StorageError::InternalError {
+                    source: Box::new(source),
+                })?),
             Err(source) => Err(StorageError::InternalError {
                 source: Box::new(source),
             }),
@@ -75,7 +72,6 @@ impl Storer for RedactStorer {
     async fn create(&self, path: EntryPath, value: States) -> Result<bool, StorageError> {
         let entry = Entry { path, value };
         let client = reqwest::Client::new();
-        println!("{}/", self.url);
         match client
             .post(&format!("{}/", self.url))
             .json(&entry)
