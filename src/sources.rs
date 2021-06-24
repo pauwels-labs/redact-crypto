@@ -166,7 +166,7 @@ fn byte_vector_deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let s: &str = de::Deserialize::deserialize(deserializer)?;
+    let s: String = de::Deserialize::deserialize(deserializer)?;
     base64::decode(s).map_err(de::Error::custom)
 }
 
