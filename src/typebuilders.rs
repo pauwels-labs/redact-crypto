@@ -7,7 +7,7 @@ use crate::{
     SymmetricKey, Type,
 };
 use serde::{Deserialize, Serialize};
-use std::convert::TryFrom;
+use std::{convert::TryFrom, str::FromStr};
 
 /// Need this to provide a level an indirection for TryFrom
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
@@ -183,7 +183,13 @@ impl Builder for SecretAsymmetricKeyBuilder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub struct DataBuilder {}
+pub enum DataBuilder {
+    Bool(BoolDataBuilder),
+    U64(U64DataBuilder),
+    I64(I64DataBuilder),
+    F64(F64DataBuilder),
+    String(StringDataBuilder),
+}
 
 impl TryFrom<TypeBuilderContainer> for DataBuilder {
     type Error = CryptoError;
@@ -200,18 +206,153 @@ impl Builder for DataBuilder {
     type Output = Data;
 
     fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
-        if let Ok(b) = serde_json::from_slice::<bool>(bytes) {
-            Ok(Data::Bool(b))
-        } else if let Ok(u) = serde_json::from_slice::<u64>(bytes) {
-            Ok(Data::U64(u))
-        } else if let Ok(i) = serde_json::from_slice::<i64>(bytes) {
-            Ok(Data::I64(i))
-        } else if let Ok(f) = serde_json::from_slice::<f64>(bytes) {
-            Ok(Data::F64(f))
-        } else if let Ok(s) = serde_json::from_slice::<String>(bytes) {
-            Ok(Data::String(s))
-        } else {
-            Err(CryptoError::NotDeserializableToBaseDataType)
+        match self {
+            Self::Bool(bdb) => bdb.build(bytes),
+            Self::U64(ndb) => ndb.build(bytes),
+            Self::I64(ndb) => ndb.build(bytes),
+            Self::F64(ndb) => ndb.build(bytes),
+            Self::String(sdb) => sdb.build(bytes),
         }
+
+        // let s = String::from_utf8(bytes.to_vec())
+        //     .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+
+        // if let Ok(b) = serde_json::from_slice::<bool>(bytes) {
+        //     Ok(Data::Bool(b))
+        // } else if let Ok(u) = serde_json::from_slice::<u64>(bytes) {
+        //     Ok(Data::U64(u))
+        // } else if let Ok(i) = serde_json::from_slice::<i64>(bytes) {
+        //     Ok(Data::I64(i))
+        // } else if let Ok(f) = serde_json::from_slice::<f64>(bytes) {
+        //     Ok(Data::F64(f))
+        // } else if let Ok(s) = serde_json::from_slice::<String>(bytes) {
+        //     Ok(Data::String(s))
+        // } else {
+        //     Err(CryptoError::NotDeserializableToBaseDataType)
+        // }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct BoolDataBuilder {}
+
+impl TryFrom<TypeBuilderContainer> for BoolDataBuilder {
+    type Error = CryptoError;
+
+    fn try_from(builder: TypeBuilderContainer) -> Result<Self, Self::Error> {
+        match builder.0 {
+            TypeBuilder::Data(DataBuilder::Bool(bdb)) => Ok(bdb),
+            _ => Err(CryptoError::NotDowncastable),
+        }
+    }
+}
+
+impl Builder for BoolDataBuilder {
+    type Output = Data;
+
+    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
+        let s = String::from_utf8(bytes.to_vec())
+            .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+        let b = bool::from_str(&s).map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+        Ok(Data::Bool(b))
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct U64DataBuilder {}
+
+impl TryFrom<TypeBuilderContainer> for U64DataBuilder {
+    type Error = CryptoError;
+
+    fn try_from(builder: TypeBuilderContainer) -> Result<Self, Self::Error> {
+        match builder.0 {
+            TypeBuilder::Data(DataBuilder::U64(ndb)) => Ok(ndb),
+            _ => Err(CryptoError::NotDowncastable),
+        }
+    }
+}
+
+impl Builder for U64DataBuilder {
+    type Output = Data;
+
+    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
+        let s = String::from_utf8(bytes.to_vec())
+            .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+        let n = u64::from_str(&s).map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+        Ok(Data::U64(n))
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct I64DataBuilder {}
+
+impl TryFrom<TypeBuilderContainer> for I64DataBuilder {
+    type Error = CryptoError;
+
+    fn try_from(builder: TypeBuilderContainer) -> Result<Self, Self::Error> {
+        match builder.0 {
+            TypeBuilder::Data(DataBuilder::I64(ndb)) => Ok(ndb),
+            _ => Err(CryptoError::NotDowncastable),
+        }
+    }
+}
+
+impl Builder for I64DataBuilder {
+    type Output = Data;
+
+    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
+        let s = String::from_utf8(bytes.to_vec())
+            .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+        let n = i64::from_str(&s).map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+        Ok(Data::I64(n))
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct F64DataBuilder {}
+
+impl TryFrom<TypeBuilderContainer> for F64DataBuilder {
+    type Error = CryptoError;
+
+    fn try_from(builder: TypeBuilderContainer) -> Result<Self, Self::Error> {
+        match builder.0 {
+            TypeBuilder::Data(DataBuilder::F64(ndb)) => Ok(ndb),
+            _ => Err(CryptoError::NotDowncastable),
+        }
+    }
+}
+
+impl Builder for F64DataBuilder {
+    type Output = Data;
+
+    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
+        let s = String::from_utf8(bytes.to_vec())
+            .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+        let n = f64::from_str(&s).map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+        Ok(Data::F64(n))
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct StringDataBuilder {}
+
+impl TryFrom<TypeBuilderContainer> for StringDataBuilder {
+    type Error = CryptoError;
+
+    fn try_from(builder: TypeBuilderContainer) -> Result<Self, Self::Error> {
+        match builder.0 {
+            TypeBuilder::Data(DataBuilder::String(sdb)) => Ok(sdb),
+            _ => Err(CryptoError::NotDowncastable),
+        }
+    }
+}
+
+impl Builder for StringDataBuilder {
+    type Output = Data;
+
+    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
+        let s = String::from_utf8(bytes.to_vec())
+            .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+        Ok(Data::String(s))
     }
 }

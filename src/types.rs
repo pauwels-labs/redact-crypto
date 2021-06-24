@@ -3,9 +3,10 @@ use crate::{
         SodiumOxidePublicAsymmetricKey, SodiumOxideSecretAsymmetricKey, SodiumOxideSymmetricKey,
         SodiumOxideSymmetricKeySealable, SodiumOxideSymmetricKeyUnsealable,
     },
-    AsymmetricKeyBuilder, BytesSources, CryptoError, DataBuilder, KeyBuilder,
-    PublicAsymmetricKeyBuilder, SecretAsymmetricKeyBuilder, Storer, SymmetricKeyBuilder,
-    TypeBuilder, TypeBuilderContainer, VectorBytesSource,
+    AsymmetricKeyBuilder, BoolDataBuilder, BytesSources, CryptoError, DataBuilder, F64DataBuilder,
+    I64DataBuilder, KeyBuilder, PublicAsymmetricKeyBuilder, SecretAsymmetricKeyBuilder, Storer,
+    StringDataBuilder, SymmetricKeyBuilder, TypeBuilder, TypeBuilderContainer, U64DataBuilder,
+    VectorBytesSource,
 };
 use async_trait::async_trait;
 use mongodb::bson::{self, Document};
@@ -385,24 +386,6 @@ impl Buildable for SecretAsymmetricKey {
     }
 }
 
-// impl TryFrom<Type> for SecretAsymmetricKey {
-//     type Error = CryptoError;
-
-//     fn try_from(value: Type) -> Result<Self, Self::Error> {
-//         let akt = AsymmetricKey::try_from(value)?;
-//         match akt {
-//             AsymmetricKey::Secret(sakt) => Ok(sakt),
-//             AsymmetricKey::Public(_) => Err(CryptoError::NotDowncastable),
-//         }
-//     }
-// }
-
-// #[derive(Serialize, Deserialize, Debug, Clone)]
-// pub struct Data {
-//     id: ID,
-//     value: DataValue,
-// }
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "t", content = "c")]
 pub enum Data {
@@ -451,6 +434,12 @@ impl Buildable for Data {
     type Builder = DataBuilder;
 
     fn builder(&self) -> Self::Builder {
-        DataBuilder {}
+        match self {
+            Self::Bool(_) => DataBuilder::Bool(BoolDataBuilder {}),
+            Self::U64(_) => DataBuilder::U64(U64DataBuilder {}),
+            Self::I64(_) => DataBuilder::I64(I64DataBuilder {}),
+            Self::F64(_) => DataBuilder::F64(F64DataBuilder {}),
+            Self::String(_) => DataBuilder::String(StringDataBuilder {}),
+        }
     }
 }

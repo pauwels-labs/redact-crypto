@@ -40,11 +40,12 @@ pub use nonces::{AsymmetricNonces, Nonces, SymmetricNonces};
 pub use sources::{BytesSources, FsBytesSource, Sources, VectorBytesSource};
 pub use storage::{error::StorageError, mongodb::MongoStorer, redact::RedactStorer, Storer};
 pub use typebuilders::{
-    AsymmetricKeyBuilder, DataBuilder, KeyBuilder, PublicAsymmetricKeyBuilder,
-    SecretAsymmetricKeyBuilder, SymmetricKeyBuilder, TypeBuilder, TypeBuilderContainer,
+    AsymmetricKeyBuilder, BoolDataBuilder, DataBuilder, F64DataBuilder, I64DataBuilder, KeyBuilder,
+    PublicAsymmetricKeyBuilder, SecretAsymmetricKeyBuilder, StringDataBuilder, SymmetricKeyBuilder,
+    TypeBuilder, TypeBuilderContainer, U64DataBuilder,
 };
 pub use types::{
     AsymmetricKey, Buildable, Builder, ByteSealable, ByteUnsealable, Data, Entry, EntryPath,
-    IntoIndex, Key, PublicAsymmetricKey, Sealable, SymmetricSealer, SecretAsymmetricKey, States,
-    SymmetricKey, Type, Unsealable,
+    IntoIndex, Key, PublicAsymmetricKey, Sealable, SecretAsymmetricKey, States, SymmetricKey,
+    SymmetricSealer, Type, Unsealable,
 };
