@@ -31,8 +31,14 @@ impl Storer for RedactStorer {
         match reqwest::get(&req_url).await {
             Ok(r) => Ok(r
                 .error_for_status()
-                .map_err(|source| StorageError::InternalError {
-                    source: Box::new(source),
+                .map_err(|source| {
+                    if source.status() == Some(reqwest::StatusCode::NOT_FOUND) {
+                        StorageError::NotFound
+                    } else {
+                        StorageError::InternalError {
+                            source: Box::new(source),
+                        }
+                    }
                 })?
                 .json::<Entry>()
                 .await
@@ -62,8 +68,14 @@ impl Storer for RedactStorer {
         match reqwest::get(&req_url).await {
             Ok(r) => Ok(r
                 .error_for_status()
-                .map_err(|source| StorageError::InternalError {
-                    source: Box::new(source),
+                .map_err(|source| {
+                    if source.status() == Some(reqwest::StatusCode::NOT_FOUND) {
+                        StorageError::NotFound
+                    } else {
+                        StorageError::InternalError {
+                            source: Box::new(source),
+                        }
+                    }
                 })?
                 .json::<Vec<Entry>>()
                 .await
