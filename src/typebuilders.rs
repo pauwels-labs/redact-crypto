@@ -218,7 +218,6 @@ impl Builder for DataBuilder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-#[serde(tag = "t", content = "c")]
 pub struct BoolDataBuilder {}
 
 impl TryFrom<TypeBuilderContainer> for BoolDataBuilder {
@@ -244,7 +243,6 @@ impl Builder for BoolDataBuilder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-#[serde(tag = "t", content = "c")]
 pub struct U64DataBuilder {}
 
 impl TryFrom<TypeBuilderContainer> for U64DataBuilder {
@@ -270,7 +268,6 @@ impl Builder for U64DataBuilder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-#[serde(tag = "t", content = "c")]
 pub struct I64DataBuilder {}
 
 impl TryFrom<TypeBuilderContainer> for I64DataBuilder {
@@ -296,7 +293,6 @@ impl Builder for I64DataBuilder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-#[serde(tag = "t", content = "c")]
 pub struct F64DataBuilder {}
 
 impl TryFrom<TypeBuilderContainer> for F64DataBuilder {
@@ -322,7 +318,6 @@ impl Builder for F64DataBuilder {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-#[serde(tag = "t", content = "c")]
 pub struct StringDataBuilder {}
 
 impl TryFrom<TypeBuilderContainer> for StringDataBuilder {
