@@ -1,8 +1,8 @@
 use crate::{
-    AsymmetricKeyBuilder, Buildable, Builder, ByteSealable, ByteUnsealable, BytesSources,
-    CryptoError, EntryPath, IntoIndex, KeyBuilder, PublicAsymmetricKeyBuilder, Sealable,
+    AsymmetricKeyBuilder, Builder, ByteSealable, ByteSource, ByteUnsealable, CryptoError,
+    EntryPath, HasBuilder, HasIndex, KeyBuilder, PublicAsymmetricKeyBuilder, Sealable,
     SecretAsymmetricKeyBuilder, States, Storer, SymmetricKeyBuilder, SymmetricSealer, TypeBuilder,
-    TypeBuilderContainer, Unsealable, VectorBytesSource,
+    TypeBuilderContainer, Unsealable, VectorByteSource,
 };
 use async_trait::async_trait;
 use mongodb::bson::{self, Document};
@@ -31,7 +31,7 @@ use std::{boxed::Box, convert::TryFrom};
 // SYMMETRIC KEY \\
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxideSymmetricKeySealable {
-    pub source: BytesSources,
+    pub source: ByteSource,
     pub key: Box<States>,
     pub nonce: ExternalSodiumOxideSymmetricNonce,
 }
@@ -52,7 +52,7 @@ impl Sealable for SodiumOxideSymmetricKeySealable {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxideSymmetricKeyUnsealable {
-    pub source: BytesSources,
+    pub source: ByteSource,
     pub key: Box<States>,
     pub nonce: ExternalSodiumOxideSymmetricNonce,
 }
@@ -69,7 +69,7 @@ impl Unsealable for SodiumOxideSymmetricKeyUnsealable {
         let plaintext = key.unseal(ciphertext, &self.nonce)?;
         Ok(ByteSealable::SodiumOxideSymmetricKey(
             SodiumOxideSymmetricKeySealable {
-                source: BytesSources::Vector(VectorBytesSource::new(plaintext.as_ref())),
+                source: ByteSource::Vector(VectorByteSource::new(plaintext.as_ref())),
                 key: Box::new(stateful_key),
                 nonce: self.nonce,
             },
@@ -124,7 +124,7 @@ impl SymmetricSealer for SodiumOxideSymmetricKey {
 
     fn seal(
         &self,
-        plaintext: BytesSources,
+        plaintext: ByteSource,
         path: Option<EntryPath>,
     ) -> Result<Self::SealedOutput, CryptoError> {
         let nonce = secretbox::gen_nonce();
@@ -137,19 +137,21 @@ impl SymmetricSealer for SodiumOxideSymmetricKey {
             }),
             None => Box::new(States::Unsealed {
                 builder: self.builder().into(),
-                bytes: BytesSources::Vector(VectorBytesSource::new(self.key.as_ref())),
+                bytes: ByteSource::Vector(VectorByteSource::new(self.key.as_ref())),
             }),
         };
         Ok(SodiumOxideSymmetricKeyUnsealable {
-            source: BytesSources::Vector(VectorBytesSource::new(ciphertext.as_ref())),
+            source: ByteSource::Vector(VectorByteSource::new(ciphertext.as_ref())),
             key,
             nonce,
         })
     }
 }
 
-impl IntoIndex for SodiumOxideSymmetricKey {
-    fn into_index() -> Option<Document> {
+impl HasIndex for SodiumOxideSymmetricKey {
+    type Index = Document;
+
+    fn get_index() -> Option<Self::Index> {
         Some(bson::doc! {
         "c": {
             "builder": {
@@ -166,7 +168,7 @@ impl IntoIndex for SodiumOxideSymmetricKey {
     }
 }
 
-impl Buildable for SodiumOxideSymmetricKey {
+impl HasBuilder for SodiumOxideSymmetricKey {
     type Builder = SodiumOxideSymmetricKeyBuilder;
 
     fn builder(&self) -> Self::Builder {
@@ -239,8 +241,10 @@ pub struct SodiumOxideSecretAsymmetricKey {
     pub key: ExternalSodiumOxideSecretAsymmetricKey,
 }
 
-impl IntoIndex for SodiumOxideSecretAsymmetricKey {
-    fn into_index() -> Option<Document> {
+impl HasIndex for SodiumOxideSecretAsymmetricKey {
+    type Index = Document;
+
+    fn get_index() -> Option<Self::Index> {
         Some(bson::doc! {
         "c": {
             "builder": {
@@ -260,7 +264,7 @@ impl IntoIndex for SodiumOxideSecretAsymmetricKey {
     }
 }
 
-impl Buildable for SodiumOxideSecretAsymmetricKey {
+impl HasBuilder for SodiumOxideSecretAsymmetricKey {
     type Builder = SodiumOxideSecretAsymmetricKeyBuilder;
 
     fn builder(&self) -> Self::Builder {
@@ -339,8 +343,10 @@ pub struct SodiumOxidePublicAsymmetricKey {
     pub key: ExternalSodiumOxidePublicAsymmetricKey,
 }
 
-impl IntoIndex for SodiumOxidePublicAsymmetricKey {
-    fn into_index() -> Option<Document> {
+impl HasIndex for SodiumOxidePublicAsymmetricKey {
+    type Index = Document;
+
+    fn get_index() -> Option<Self::Index> {
         Some(bson::doc! {
         "c": {
             "builder": {
@@ -360,7 +366,7 @@ impl IntoIndex for SodiumOxidePublicAsymmetricKey {
     }
 }
 
-impl Buildable for SodiumOxidePublicAsymmetricKey {
+impl HasBuilder for SodiumOxidePublicAsymmetricKey {
     type Builder = SodiumOxidePublicAsymmetricKeyBuilder;
 
     fn builder(&self) -> Self::Builder {

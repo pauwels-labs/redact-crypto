@@ -1,3 +1,7 @@
+//! CryptoError covers all errors not covered by StorageError. It is returned by
+//! every function in this crate returning a Result except those used in the
+//! `Storer` trait.
+
 use crate::StorageError;
 use base64::DecodeError;
 use std::{
@@ -9,34 +13,34 @@ use std::{
 /// Error that wraps all possible errors out of the redact-crypto crate
 #[derive(Debug)]
 pub enum CryptoError {
-    /// Indicates an error occurred while performing IO on the filesystem
+    /// Error occurred while performing IO on the filesystem
     FsIoError { source: io::Error },
 
-    /// Indicates the key source could not source the key
-    NotFound,
+    /// File path given was not found
+    FileNotFound { path: String },
 
-    /// Indicates a ciphertext failed verification before decryption
+    /// Ciphertext failed veri fication before decryption
     CiphertextFailedVerification,
 
-    /// Indicates the provided nonce is not the correct length
+    /// Provided bytes are not the right length for the
     InvalidKeyLength { expected: usize, actual: usize },
 
     /// Wraps a StorageError
     StorageError { source: StorageError },
 
-    /// Indicates the given value was not of the right type to be downcasted to the requested type
+    /// Given value was not of the right type to be downcasted to the requested type
     NotDowncastable,
 
-    /// Indicates the file path given has an invalid file name with no stem
-    FilePathHasNoFileStem,
+    /// File path given has an invalid file name with no stem
+    FilePathHasNoFileStem { path: String },
 
-    /// Indicates the file path was invalid UTF-8
+    /// File path given was invalid UTF-8
     FilePathIsInvalidUTF8,
 
-    /// Indicates the given bytes could not be serialized to a base data type
+    /// Given bytes could not be serialized to a base data type
     NotDeserializableToBaseDataType,
 
-    /// Indicates an error happened when decoding base64 string
+    /// Error happened when decoding base64 string
     Base64Decode { source: DecodeError },
 }
 
@@ -44,12 +48,12 @@ impl Error for CryptoError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match *self {
             CryptoError::FsIoError { ref source } => Some(source),
-            CryptoError::NotFound => None,
+            CryptoError::FileNotFound { .. } => None,
             CryptoError::CiphertextFailedVerification => None,
             CryptoError::InvalidKeyLength { .. } => None,
             CryptoError::StorageError { ref source } => Some(source),
             CryptoError::NotDowncastable => None,
-            CryptoError::FilePathHasNoFileStem => None,
+            CryptoError::FilePathHasNoFileStem { .. } => None,
             CryptoError::FilePathIsInvalidUTF8 => None,
             CryptoError::NotDeserializableToBaseDataType => None,
             CryptoError::Base64Decode { ref source } => Some(source),
@@ -63,14 +67,11 @@ impl Display for CryptoError {
             CryptoError::FsIoError { .. } => {
                 write!(f, "Error occured during file system IO")
             }
-            CryptoError::NotFound => {
-                write!(f, "The key source was not found")
+            CryptoError::FileNotFound { ref path } => {
+                write!(f, "Path \"{}\" not found", path)
             }
             CryptoError::CiphertextFailedVerification => {
-                write!(
-                    f,
-                    "The ciphertext failed verification before attempting to decrypt"
-                )
+                write!(f, "Ciphertext failed verification before decryption")
             }
             CryptoError::InvalidKeyLength {
                 ref expected,
@@ -78,7 +79,7 @@ impl Display for CryptoError {
             } => {
                 write!(
                     f,
-                    "The provided key was not the correct length, expected: {}, actual: {}",
+                    "Provided key was not the correct length, expected: {}, actual: {}",
                     expected, actual,
                 )
             }
@@ -91,17 +92,18 @@ impl Display for CryptoError {
                     "Could not downcast the Types-value into the requested variant"
                 )
             }
-            CryptoError::FilePathHasNoFileStem => {
+            CryptoError::FilePathHasNoFileStem { ref path } => {
                 write!(
                     f,
-                    "The given file path was invalid as the file name has no stem"
+                    "File path \"{}\" was invalid as the file name has no stem",
+                    path
                 )
             }
             CryptoError::FilePathIsInvalidUTF8 => {
-                write!(f, "The given file path was not valid UTF-8")
+                write!(f, "Given file path was not valid UTF-8")
             }
             CryptoError::NotDeserializableToBaseDataType => {
-                write!(f, "The given bytes could not be deserialized to one of: bool, u64, i64, f64, or string")
+                write!(f, "Given bytes could not be deserialized to one of: bool, u64, i64, f64, or string")
             }
             CryptoError::Base64Decode { .. } => {
                 write!(f, "Error occurred while decoding string from base64")

@@ -1,4 +1,4 @@
-use crate::{Buildable, Entry, EntryPath, States, StorageError, Storer};
+use crate::{Entry, EntryPath, HasBuilder, States, StorageError, Storer};
 use async_trait::async_trait;
 use mongodb::bson::Document;
 
@@ -19,7 +19,7 @@ impl RedactStorer {
 
 #[async_trait]
 impl Storer for RedactStorer {
-    async fn get_indexed<T: Buildable>(
+    async fn get_indexed<T: HasBuilder>(
         &self,
         path: &str,
         index: &Option<Document>,
@@ -51,7 +51,7 @@ impl Storer for RedactStorer {
         }
     }
 
-    async fn list_indexed<T: Buildable + Send>(
+    async fn list_indexed<T: HasBuilder + Send>(
         &self,
         path: &str,
         skip: i64,

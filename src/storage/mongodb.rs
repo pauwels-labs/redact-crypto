@@ -1,4 +1,4 @@
-use crate::{Buildable, Entry, EntryPath, States, StorageError, Storer};
+use crate::{Entry, EntryPath, HasBuilder, States, StorageError, Storer};
 use async_trait::async_trait;
 use futures::StreamExt;
 use mongodb::{
@@ -49,7 +49,7 @@ impl MongoStorer {
 
 #[async_trait]
 impl Storer for MongoStorer {
-    async fn get_indexed<T: Buildable>(
+    async fn get_indexed<T: HasBuilder>(
         &self,
         path: &str,
         index: &Option<Document>,
@@ -75,7 +75,7 @@ impl Storer for MongoStorer {
         }
     }
 
-    async fn list_indexed<T: Buildable + Send>(
+    async fn list_indexed<T: HasBuilder + Send>(
         &self,
         path: &str,
         skip: i64,

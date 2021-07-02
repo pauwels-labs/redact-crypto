@@ -1,43 +1,57 @@
+//! The storage module covers all aspects of CRUD operations on Redact data-types.
+//! It allows for retrieving data entries stored in a Redact database. These data entries
+//! can be either unencrypted bytes, encrypted bytes, or a reference pointing to another entry.
+//!
+//! Read operations allow for retrieval of data based on type information and the data's path.
+//!
+
 pub mod error;
 pub mod mongodb;
 pub mod redact;
 
-use crate::{
-    Buildable, Builder, Entry, EntryPath, IntoIndex, States, TypeBuilderContainer, Unsealable,
-};
+use crate::{Builder, Entry, EntryPath, HasBuilder, States, TypeBuilderContainer, Unsealable};
 use ::mongodb::bson::Document;
 use async_trait::async_trait;
 use error::StorageError;
 use std::{convert::TryFrom, ops::Deref, sync::Arc};
 
+pub trait HasIndex {
+    type Index;
+
+    fn get_index() -> Option<Self::Index>;
+}
+
 /// The operations a storer of `Key` structs must be able to fulfill.
 #[async_trait]
 pub trait Storer: Clone + Send + Sync {
     /// Fetches the instance of the `Key` with the given name.
-    async fn get<T: IntoIndex + Buildable>(&self, path: &str) -> Result<Entry, StorageError> {
-        self.get_indexed::<T>(path, &T::into_index()).await
+    async fn get<T: HasIndex<Index = Document> + HasBuilder>(
+        &self,
+        path: &str,
+    ) -> Result<Entry, StorageError> {
+        self.get_indexed::<T>(path, &T::get_index()).await
     }
 
     /// Like get, but doesn't enforce IntoIndex and allows providing a custom index doc
-    async fn get_indexed<T: Buildable>(
+    async fn get_indexed<T: HasBuilder>(
         &self,
         path: &str,
         index: &Option<Document>,
     ) -> Result<Entry, StorageError>;
 
     /// Fetches a list of all the stored keys.
-    async fn list<T: IntoIndex + Buildable + Send>(
+    async fn list<T: HasIndex<Index = Document> + HasBuilder + Send>(
         &self,
         path: &str,
         skip: i64,
         page_size: i64,
     ) -> Result<Vec<Entry>, StorageError> {
-        self.list_indexed::<T>(path, skip, page_size, &T::into_index())
+        self.list_indexed::<T>(path, skip, page_size, &T::get_index())
             .await
     }
 
     /// Like list, but doesn't enforce IntoIndex and allows providing a custom index doc
-    async fn list_indexed<T: Buildable + Send>(
+    async fn list_indexed<T: HasBuilder + Send>(
         &self,
         path: &str,
         skip: i64,
@@ -49,12 +63,15 @@ pub trait Storer: Clone + Send + Sync {
     async fn create(&self, path: EntryPath, value: States) -> Result<bool, StorageError>;
 
     /// Takes an entry and resolves it down into its final unsealed type using this storage
-    async fn resolve<T: IntoIndex + Buildable>(&self, state: States) -> Result<T, StorageError> {
-        self.resolve_indexed::<T>(state, &T::into_index()).await
+    async fn resolve<T: HasIndex<Index = Document> + HasBuilder>(
+        &self,
+        state: States,
+    ) -> Result<T, StorageError> {
+        self.resolve_indexed::<T>(state, &T::get_index()).await
     }
 
     /// Takes an entry and resolves it down into its final unsealed type using this storage
-    async fn resolve_indexed<T: Buildable>(
+    async fn resolve_indexed<T: HasBuilder>(
         &self,
         state: States,
         index: &Option<Document>,
@@ -78,7 +95,7 @@ pub trait Storer: Clone + Send + Sync {
                     }),
                 }?;
                 let builder =
-                    match <T as Buildable>::Builder::try_from(TypeBuilderContainer(builder)) {
+                    match <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(builder)) {
                         Ok(b) => Ok(b),
                         Err(e) => Err(StorageError::InternalError {
                             source: Box::new(e),
@@ -97,7 +114,7 @@ pub trait Storer: Clone + Send + Sync {
             }
             States::Unsealed { builder, bytes } => {
                 let builder =
-                    match <T as Buildable>::Builder::try_from(TypeBuilderContainer(builder)) {
+                    match <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(builder)) {
                         Ok(b) => Ok(b),
                         Err(e) => Err(StorageError::InternalError {
                             source: Box::new(e),
@@ -124,7 +141,7 @@ impl<U> Storer for Arc<U>
 where
     U: Storer,
 {
-    async fn get_indexed<T: Buildable>(
+    async fn get_indexed<T: HasBuilder>(
         &self,
         name: &str,
         index: &Option<Document>,
@@ -132,7 +149,7 @@ where
         self.deref().get_indexed::<T>(name, index).await
     }
 
-    async fn list_indexed<T: Buildable + Send>(
+    async fn list_indexed<T: HasBuilder + Send>(
         &self,
         name: &str,
         skip: i64,
