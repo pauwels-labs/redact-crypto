@@ -54,7 +54,7 @@ pub mod key;
 pub mod nonce;
 mod sealable;
 mod source;
-mod storage;
+pub mod storage;
 mod unsealable;
 
 pub use data::{

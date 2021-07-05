@@ -19,7 +19,7 @@ pub trait SymmetricSealer {
     fn seal(
         &self,
         plaintext: ByteSource,
-        path: Option<EntryPath>,
+        key_path: Option<EntryPath>,
     ) -> Result<Self::SealedOutput, CryptoError>;
 }
 

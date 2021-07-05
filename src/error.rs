@@ -113,7 +113,7 @@ impl Display for CryptoError {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::StorageError;
 
     #[test]

@@ -540,7 +540,7 @@ dependencies = [
  "http",
  "indexmap",
  "slab",
- "tokio 1.6.0",
+ "tokio 1.7.1",
  "tokio-util 0.6.7",
  "tracing",
 ]
@@ -688,7 +688,7 @@ dependencies = [
  "itoa",
  "pin-project",
  "socket2 0.4.0",
- "tokio 1.6.0",
+ "tokio 1.7.1",
  "tower-service",
  "tracing",
  "want",
@@ -719,7 +719,7 @@ dependencies = [
  "bytes 1.0.1",
  "hyper 0.14.7",
  "native-tls",
- "tokio 1.6.0",
+ "tokio 1.7.1",
  "tokio-native-tls",
 ]
 
@@ -1423,6 +1423,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sodiumoxide",
+ "tokio 1.7.1",
  "uuid",
 ]
 
@@ -1524,7 +1525,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "tokio 1.6.0",
+ "tokio 1.7.1",
  "tokio-native-tls",
  "url",
  "wasm-bindgen",
@@ -1922,21 +1923,24 @@ dependencies = [
  "num_cpus",
  "pin-project-lite 0.1.12",
  "slab",
- "tokio-macros",
+ "tokio-macros 0.2.6",
 ]
 
 [[package]]
 name = "tokio"
-version = "1.6.0"
+version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd3076b5c8cc18138b8f8814895c11eb4de37114a5d127bafdc5e55798ceef37"
+checksum = "5fb2ed024293bb19f7a5dc54fe83bf86532a44c12a2bb8ba40d64a4509395ca2"
 dependencies = [
  "autocfg",
  "bytes 1.0.1",
  "libc",
  "memchr",
  "mio 0.7.11",
+ "num_cpus",
  "pin-project-lite 0.2.6",
+ "tokio-macros 1.2.0",
+ "winapi 0.3.9",
 ]
 
 [[package]]
@@ -1951,13 +1955,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-macros"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c49e3df43841dafb86046472506755d8501c5615673955f6aa17181125d13c37"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "tokio-native-tls"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7d995660bd2b7f8c1568414c1126076c13fbb725c40112dc0120b78eb9b717b"
 dependencies = [
  "native-tls",
- "tokio 1.6.0",
+ "tokio 1.7.1",
 ]
 
 [[package]]
@@ -2009,7 +2024,7 @@ dependencies = [
  "futures-sink",
  "log",
  "pin-project-lite 0.2.6",
- "tokio 1.6.0",
+ "tokio 1.7.1",
 ]
 
 [[package]]

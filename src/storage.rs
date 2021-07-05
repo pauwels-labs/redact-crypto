@@ -13,7 +13,7 @@ use crate::{Builder, Entry, EntryPath, HasBuilder, States, TypeBuilderContainer,
 use ::mongodb::bson::Document;
 use async_trait::async_trait;
 use error::StorageError;
-use std::{convert::TryFrom, ops::Deref, sync::Arc};
+use std::convert::TryFrom;
 
 pub trait HasIndex {
     type Index;
@@ -25,7 +25,7 @@ pub trait HasIndex {
 #[async_trait]
 pub trait Storer: Clone + Send + Sync {
     /// Fetches the instance of the `Key` with the given name.
-    async fn get<T: HasIndex<Index = Document> + HasBuilder>(
+    async fn get<T: HasIndex<Index = Document> + HasBuilder + 'static>(
         &self,
         path: &str,
     ) -> Result<Entry, StorageError> {
@@ -33,14 +33,14 @@ pub trait Storer: Clone + Send + Sync {
     }
 
     /// Like get, but doesn't enforce IntoIndex and allows providing a custom index doc
-    async fn get_indexed<T: HasBuilder>(
+    async fn get_indexed<T: HasBuilder + 'static>(
         &self,
         path: &str,
         index: &Option<Document>,
     ) -> Result<Entry, StorageError>;
 
     /// Fetches a list of all the stored keys.
-    async fn list<T: HasIndex<Index = Document> + HasBuilder + Send>(
+    async fn list<T: HasIndex<Index = Document> + HasBuilder + Send + 'static>(
         &self,
         path: &str,
         skip: i64,
@@ -51,7 +51,7 @@ pub trait Storer: Clone + Send + Sync {
     }
 
     /// Like list, but doesn't enforce IntoIndex and allows providing a custom index doc
-    async fn list_indexed<T: HasBuilder + Send>(
+    async fn list_indexed<T: HasBuilder + Send + 'static>(
         &self,
         path: &str,
         skip: i64,
@@ -63,7 +63,7 @@ pub trait Storer: Clone + Send + Sync {
     async fn create(&self, path: EntryPath, value: States) -> Result<bool, StorageError>;
 
     /// Takes an entry and resolves it down into its final unsealed type using this storage
-    async fn resolve<T: HasIndex<Index = Document> + HasBuilder>(
+    async fn resolve<T: HasIndex<Index = Document> + HasBuilder + 'static>(
         &self,
         state: States,
     ) -> Result<T, StorageError> {
@@ -71,7 +71,7 @@ pub trait Storer: Clone + Send + Sync {
     }
 
     /// Takes an entry and resolves it down into its final unsealed type using this storage
-    async fn resolve_indexed<T: HasBuilder>(
+    async fn resolve_indexed<T: HasBuilder + 'static>(
         &self,
         state: States,
         index: &Option<Document>,
@@ -136,63 +136,65 @@ pub trait Storer: Clone + Send + Sync {
 
 /// Allows an `Arc<KeyStorer>` to act exactly like a `KeyStorer`, dereferencing
 /// itself and passing calls through to the underlying `KeyStorer`.
-#[async_trait]
-impl<U> Storer for Arc<U>
-where
-    U: Storer,
-{
-    async fn get_indexed<T: HasBuilder>(
-        &self,
-        name: &str,
-        index: &Option<Document>,
-    ) -> Result<Entry, StorageError> {
-        self.deref().get_indexed::<T>(name, index).await
-    }
+// #[async_trait]
+// impl<U> Storer for Arc<U>
+// where
+//     U: Storer,
+// {
+//     async fn get_indexed<T: HasBuilder>(
+//         &self,
+//         name: &str,
+//         index: &Option<Document>,
+//     ) -> Result<Entry, StorageError> {
+//         self.deref().get_indexed::<T>(name, index).await
+//     }
 
-    async fn list_indexed<T: HasBuilder + Send>(
+//     async fn list_indexed<T: HasBuilder + Send>(
+//         &self,
+//         name: &str,
+//         skip: i64,
+//         page_size: i64,
+//         index: &Option<Document>,
+//     ) -> Result<Vec<Entry>, StorageError> {
+//         self.deref()
+//             .list_indexed::<T>(name, skip, page_size, index)
+//             .await
+//     }
+
+//     async fn create(&self, name: EntryPath, key: States) -> Result<bool, StorageError> {
+//         self.deref().create(name, key).await
+//     }
+// }
+
+pub mod tests {
+    use super::Storer;
+    use crate::{Entry, EntryPath, HasBuilder, States, StorageError};
+    use async_trait::async_trait;
+    use mockall::predicate::*;
+    use mockall::*;
+    use mongodb::bson::Document;
+
+    mock! {
+    pub Storer {}
+    #[async_trait]
+    impl Storer for Storer {
+    async fn get_indexed<T: HasBuilder + 'static>(
         &self,
-        name: &str,
+        path: &str,
+        index: &Option<Document>,
+    ) -> Result<Entry, StorageError>;
+    /// Like list, but doesn't enforce IntoIndex and allows providing a custom index doc
+    async fn list_indexed<T: HasBuilder + Send + 'static>(
+        &self,
+        path: &str,
         skip: i64,
         page_size: i64,
         index: &Option<Document>,
-    ) -> Result<Vec<Entry>, StorageError> {
-        self.deref()
-            .list_indexed::<T>(name, skip, page_size, index)
-            .await
+    ) -> Result<Vec<Entry>, StorageError>;
+    async fn create(&self, path: EntryPath, value: States) -> Result<bool, StorageError>;
     }
-
-    async fn create(&self, name: EntryPath, key: States) -> Result<bool, StorageError> {
-        self.deref().create(name, key).await
+    impl Clone for Storer {
+        fn clone(&self) -> Self;
+    }
     }
 }
-
-// pub mod tests {
-//     use crate::{MaybeSealedSourceCollection, KeyName, KeyStorer, Keys, StorageError};
-//     use async_trait::async_trait;
-//     use mockall::predicate::*;
-//     use mockall::*;
-//     use serde::{de::DeserializeOwned, Serialize};
-//     use std::fmt::Debug;
-
-//     mock! {
-//     pub KeyStorer {}
-//     #[async_trait]
-//     impl KeyStorer for KeyStorer {
-//         async fn get<T>(&self, name: &str) -> Result<T, StorageError>
-//         where
-//         T: Serialize + Debug + Unpin + DeserializeOwned + Send + Sync + 'static;
-//         async fn list(
-//         &self,
-//         ) -> Result<MaybeSealedSourceCollection, StorageError>;
-//         async fn create(&self, name: KeyName, value: Keys) -> Result<bool, StorageError>;
-//     }
-//     impl Clone for DataStorer {
-//         fn clone(&self) -> Self;
-//     }
-//     }
-
-//     #[test]
-//     fn test_unit() {
-//         assert!(true);
-//     }
-// }

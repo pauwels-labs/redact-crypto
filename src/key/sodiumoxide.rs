@@ -125,12 +125,12 @@ impl SymmetricSealer for SodiumOxideSymmetricKey {
     fn seal(
         &self,
         plaintext: ByteSource,
-        path: Option<EntryPath>,
+        key_path: Option<EntryPath>,
     ) -> Result<Self::SealedOutput, CryptoError> {
         let nonce = secretbox::gen_nonce();
         let plaintext = plaintext.get()?;
         let ciphertext = secretbox::seal(plaintext, &nonce, &self.key);
-        let key = match path {
+        let key = match key_path {
             Some(path) => Box::new(States::Referenced {
                 builder: self.builder().into(),
                 path,
@@ -272,8 +272,19 @@ impl HasBuilder for SodiumOxideSecretAsymmetricKey {
     }
 }
 
+impl Default for SodiumOxideSecretAsymmetricKey {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SodiumOxideSecretAsymmetricKey {
     pub const KEYBYTES: usize = EXTERNALSODIUMOXIDESECRETASYMMETRICKEYBYTES;
+
+    pub fn new() -> Self {
+        let (_, key) = box_::gen_keypair();
+        SodiumOxideSecretAsymmetricKey { key }
+    }
 
     pub fn seal(
         &self,
@@ -396,5 +407,260 @@ impl SodiumOxidePublicAsymmetricKey {
         let precomputed_key = box_::precompute(&self.key, secret_key);
         box_::open_precomputed(ciphertext, nonce, &precomputed_key)
             .map_err(|_| CryptoError::CiphertextFailedVerification)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        SodiumOxideSymmetricKey, SodiumOxideSymmetricKeyBuilder, SodiumOxideSymmetricKeySealable,
+    };
+    use crate::{
+        storage::tests::MockStorer, BoolDataBuilder, Builder, ByteSource, DataBuilder, Entry,
+        HasBuilder, HasIndex, KeyBuilder, Sealable, States, StringDataBuilder, SymmetricKeyBuilder,
+        SymmetricSealer, TypeBuilder, TypeBuilderContainer, Unsealable, VectorByteSource,
+    };
+    use mongodb::bson::{self, Document};
+    use sodiumoxide::crypto::secretbox;
+    use std::convert::TryInto;
+
+    #[tokio::test]
+    async fn test_seal_symmetrickeysealable_with_unsealed_key() {
+        let source = ByteSource::Vector(VectorByteSource::new(b"hello, world!"));
+        let raw_key = SodiumOxideSymmetricKey::new();
+        let key = States::Unsealed {
+            builder: TypeBuilder::Key(KeyBuilder::Symmetric(SymmetricKeyBuilder::SodiumOxide(
+                raw_key.builder(),
+            ))),
+            bytes: ByteSource::Vector(VectorByteSource::new(raw_key.key.as_ref())),
+        };
+        let nonce = secretbox::gen_nonce();
+        let sosks = SodiumOxideSymmetricKeySealable {
+            source,
+            key: Box::new(key),
+            nonce,
+        };
+        let storer = MockStorer::new();
+        let _ = sosks.seal(storer).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_seal_symmetrickeysealable_with_referenced_key() {
+        let source = ByteSource::Vector(VectorByteSource::new(b"hello, world!"));
+        let key_ref = States::Referenced {
+            builder: TypeBuilder::Key(KeyBuilder::Symmetric(SymmetricKeyBuilder::SodiumOxide(
+                SodiumOxideSymmetricKeyBuilder {},
+            ))),
+            path: ".keys.somePath".to_owned(),
+        };
+        let nonce = secretbox::gen_nonce();
+        let sosks = SodiumOxideSymmetricKeySealable {
+            source,
+            key: Box::new(key_ref),
+            nonce,
+        };
+        let mut storer = MockStorer::new();
+        storer
+            .expect_get_indexed::<SodiumOxideSymmetricKey>()
+            .withf(|path: &str, index: &Option<Document>| {
+                path == ".keys.somePath" && *index == SodiumOxideSymmetricKey::get_index()
+            })
+            .returning(|path, _| {
+                let raw_key = SodiumOxideSymmetricKey::new();
+                let key_unsealed = States::Unsealed {
+                    builder: TypeBuilder::Key(KeyBuilder::Symmetric(
+                        SymmetricKeyBuilder::SodiumOxide(SodiumOxideSymmetricKeyBuilder {}),
+                    )),
+                    bytes: ByteSource::Vector(VectorByteSource::new(raw_key.key.as_ref())),
+                };
+
+                Ok(Entry {
+                    path: path.to_owned(),
+                    value: key_unsealed,
+                })
+            });
+        let _ = sosks.seal(storer).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_unseal_symmetrickeyunsealable_with_unsealed_key() {
+        let source = ByteSource::Vector(VectorByteSource::new(b"hello, world!"));
+        let raw_key = SodiumOxideSymmetricKey::new();
+        let sosku = raw_key.seal(source, None).unwrap();
+        let storer = MockStorer::new();
+        let bs = sosku.unseal(storer).await.unwrap();
+        let source = bs.get_source();
+        let sdb = StringDataBuilder {};
+        let d = sdb.build(source.get().unwrap()).unwrap();
+        assert_eq!(d.to_string(), "hello, world!".to_owned());
+    }
+
+    #[tokio::test]
+    async fn test_unseal_symmetrickeyunsealable_with_referenced_key() {
+        let source = ByteSource::Vector(VectorByteSource::new(b"hello, world!"));
+        let raw_key = SodiumOxideSymmetricKey::new();
+        let key_bytes = raw_key.key.as_ref().to_vec();
+        let sosku = raw_key
+            .seal(source, Some(".keys.somePath".to_owned()))
+            .unwrap();
+        let mut storer = MockStorer::new();
+        storer
+            .expect_get_indexed::<SodiumOxideSymmetricKey>()
+            .withf(|path: &str, index: &Option<Document>| {
+                path == ".keys.somePath" && *index == SodiumOxideSymmetricKey::get_index()
+            })
+            .returning(move |path, _| {
+                let key_unsealed = States::Unsealed {
+                    builder: TypeBuilder::Key(KeyBuilder::Symmetric(
+                        SymmetricKeyBuilder::SodiumOxide(SodiumOxideSymmetricKeyBuilder {}),
+                    )),
+                    bytes: ByteSource::Vector(VectorByteSource::new(key_bytes.as_ref())),
+                };
+
+                Ok(Entry {
+                    path: path.to_owned(),
+                    value: key_unsealed,
+                })
+            });
+        let bs = sosku.unseal(storer).await.unwrap();
+        let source = bs.get_source();
+        let sdb = StringDataBuilder {};
+        let d = sdb.build(source.get().unwrap()).unwrap();
+        assert_eq!(d.to_string(), "hello, world!".to_owned());
+    }
+
+    #[test]
+    fn test_sodiumoxidesymmetrickeybuilder_build_valid() {
+        let soskb = SodiumOxideSymmetricKeyBuilder {};
+        let external_key = secretbox::gen_key();
+        let key = soskb.build(external_key.as_ref()).unwrap();
+        assert_eq!(key.key.as_ref(), external_key.as_ref());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_sodiumoxidesymmetrickeybuilder_build_invalid() {
+        let soskb = SodiumOxideSymmetricKeyBuilder {};
+        let _ = soskb.build(b"bla").unwrap();
+    }
+
+    #[test]
+    fn test_sodiumoxidesymmetrickeybuilder_from_typebuildercontainer_valid() {
+        let tbc = TypeBuilderContainer(TypeBuilder::Key(KeyBuilder::Symmetric(
+            SymmetricKeyBuilder::SodiumOxide(SodiumOxideSymmetricKeyBuilder {}),
+        )));
+        let soskb: SodiumOxideSymmetricKeyBuilder = tbc.try_into().unwrap();
+        let key = SodiumOxideSymmetricKey::new();
+        soskb.build(key.key.as_ref()).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_sodiumoxidesymmetrickeybuilder_from_typebuildercontainer_invalid() {
+        let tbc = TypeBuilderContainer(TypeBuilder::Data(DataBuilder::Bool(BoolDataBuilder {})));
+        let _: SodiumOxideSymmetricKeyBuilder = tbc.try_into().unwrap();
+    }
+
+    #[test]
+    fn test_seal_symmetrickey_with_non_referenced_key() {
+        let sosk = SodiumOxideSymmetricKey::new();
+        let plaintext = ByteSource::Vector(VectorByteSource::new(b"hello, world!"));
+        let unsealable = sosk.seal(plaintext, None).unwrap();
+        let unsealed_bytes = sosk
+            .unseal(unsealable.source.get().unwrap(), &unsealable.nonce)
+            .unwrap();
+        match *unsealable.key {
+            States::Unsealed {
+                builder: _,
+                bytes: _,
+            } => (),
+            _ => panic!("Key used for unsealable should have been unsealed"),
+        };
+        assert_eq!(
+            "hello, world!".to_owned(),
+            String::from_utf8(unsealed_bytes).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_seal_symmetrickey_with_referenced_key() {
+        let sosk = SodiumOxideSymmetricKey::new();
+        let plaintext = ByteSource::Vector(VectorByteSource::new(b"hello, world!"));
+        let unsealable = sosk
+            .seal(plaintext, Some(".keys.somePath.".to_owned()))
+            .unwrap();
+        let unsealed_bytes = sosk
+            .unseal(unsealable.source.get().unwrap(), &unsealable.nonce)
+            .unwrap();
+        match *unsealable.key {
+            States::Referenced { builder: _, path } => {
+                assert_eq!(path, ".keys.somePath.".to_owned())
+            }
+            _ => panic!("Key used for unsealable should have been unsealed"),
+        };
+        assert_eq!(
+            "hello, world!".to_owned(),
+            String::from_utf8(unsealed_bytes).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_symmetrickey_to_index() {
+        let index = SodiumOxideSymmetricKey::get_index();
+        assert_eq!(
+            index,
+            Some(bson::doc! {
+            "c": {
+                "builder": {
+            "t": "Key",
+            "c": {
+                "t": "Symmetric",
+            "c": {
+            "t": "SodiumOxide"
+            }
+            }
+                }
+            }
+                })
+        )
+    }
+
+    #[test]
+    fn test_symmetrickey_to_builder() {
+        let sosk = SodiumOxideSymmetricKey::new();
+        let builder = sosk.builder();
+        let key_bytes = sosk.key.as_ref();
+        let built_key = builder.build(key_bytes).unwrap();
+        assert_eq!(built_key.key.as_ref(), sosk.key.as_ref());
+    }
+
+    #[test]
+    fn test_symmetrickey_new() {
+        let sosk = SodiumOxideSymmetricKey::new();
+        assert!(!sosk.key.as_ref().is_empty());
+    }
+
+    #[test]
+    #[should_panic(expected = "CiphertextFailedVerification")]
+    fn test_symmetrickey_unseal_with_invalid_bytes() {
+        let sosk = SodiumOxideSymmetricKey::new();
+        let ciphertext = b"bla";
+        let _ = sosk
+            .unseal(ciphertext, &sodiumoxide::crypto::secretbox::gen_nonce())
+            .unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "CiphertextFailedVerification")]
+    fn test_symmetrickey_unseal_with_invalid_nonce() {
+        let sosk = SodiumOxideSymmetricKey::new();
+        let bytes = ByteSource::Vector(VectorByteSource::new(b"hello, world!"));
+        let unsealable = sosk.seal(bytes, None).unwrap();
+        let _ = sosk
+            .unseal(
+                unsealable.source.get().unwrap(),
+                &sodiumoxide::crypto::secretbox::gen_nonce(),
+            )
+            .unwrap();
     }
 }

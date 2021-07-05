@@ -113,3 +113,79 @@ impl Builder for TypeBuilder {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{Entry, States, Type, TypeBuilder, TypeBuilderContainer};
+    use crate::{
+        BoolDataBuilder, Builder, ByteSource, Data, DataBuilder, HasBuilder, HasIndex,
+        StringDataBuilder, VectorByteSource,
+    };
+    use std::convert::TryInto;
+
+    #[test]
+    fn test_entry_into_ref() {
+        let s = States::Unsealed {
+            builder: TypeBuilder::Data(DataBuilder::String(StringDataBuilder {})),
+            bytes: ByteSource::Vector(VectorByteSource::new(b"hello, world!")),
+        };
+        let e = Entry {
+            path: ".somePath.".to_owned(),
+            value: s,
+        };
+        let s_ref = e.into_ref();
+        match s_ref {
+            States::Referenced { builder, path } => {
+                match builder {
+                    TypeBuilder::Data(DataBuilder::String(_)) => (),
+                    _ => panic!("Referenced builder should have been a StringDataBuilder"),
+                };
+                assert_eq!(path, ".somePath.".to_owned());
+            }
+            _ => panic!("Outputted state should have been a Referenced"),
+        }
+    }
+
+    #[test]
+    fn test_type_to_index() {
+        assert_eq!(Type::get_index(), None);
+    }
+
+    #[test]
+    fn test_type_to_builder() {
+        let t = Type::Data(Data::String("hello, world!".to_owned()));
+        let tb = t.builder();
+        match tb {
+            TypeBuilder::Data(DataBuilder::String(_)) => (),
+            _ => panic!("Outputted builder should have been a StringDataBuilder"),
+        }
+    }
+
+    #[test]
+    fn test_typebuilder_build_valid() {
+        let tb = TypeBuilder::Data(DataBuilder::String(StringDataBuilder {}));
+        let t = tb.build(b"hello, world!").unwrap();
+        match t {
+            Type::Data(Data::String(s)) => assert_eq!(s, "hello, world!".to_owned()),
+            _ => panic!("Extracted type should have been a data string-type"),
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_typebuilder_build_invalid() {
+        let tb = TypeBuilder::Data(DataBuilder::Bool(BoolDataBuilder {}));
+        tb.build(b"not a bool").unwrap();
+    }
+
+    #[test]
+    fn test_typebuilder_from_typebuildercontainer_valid() {
+        let tbc = TypeBuilderContainer(TypeBuilder::Data(DataBuilder::Bool(BoolDataBuilder {})));
+        let tb: TypeBuilder = tbc.try_into().unwrap();
+        let t = tb.build(b"true").unwrap();
+        match t {
+            Type::Data(Data::Bool(b)) => assert_eq!(b, true),
+            _ => panic!("Extracted data should have been a bool-type"),
+        }
+    }
+}
