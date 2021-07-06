@@ -196,6 +196,80 @@ impl SodiumOxideSymmetricKey {
 }
 
 // SECRET ASYMMETRIC KEY \\
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SodiumOxideSecretAsymmetricKeySealable {
+    pub source: ByteSource,
+    pub key: Box<States>,
+    pub nonce: ExternalSodiumOxideAsymmetricNonce,
+    pub public_key: Option<Box<States>>,
+}
+
+#[async_trait]
+impl Sealable for SodiumOxideSecretAsymmetricKeySealable {
+    async fn seal<T: Storer>(self, storer: T) -> Result<ByteUnsealable, CryptoError> {
+        let stateful_key = *self.key.clone();
+        let key = storer
+            .resolve::<SodiumOxideSecretAsymmetricKey>(*self.key)
+            .await
+            .map_err(|e| CryptoError::StorageError { source: e })?;
+        let public_key = match self.public_key {
+            Some(public_key) => Ok(storer
+                .resolve::<SodiumOxidePublicAsymmetricKey>(*public_key)
+                .await
+                .map_err(|e| CryptoError::StorageError { source: e })?),
+            None => Ok(SodiumOxidePublicAsymmetricKey {
+                key: key.key.public_key(),
+            }),
+        }?;
+        let mut unsealable = key.seal(self.source, Some(public_key), None)?;
+        unsealable.key = Box::new(stateful_key);
+        Ok(ByteUnsealable::SodiumOxideSecretAsymmetricKey(unsealable))
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SodiumOxideSecretAsymmetricKeyUnsealable {
+    pub source: ByteSource,
+    pub key: Box<States>,
+    pub nonce: ExternalSodiumOxideAsymmetricNonce,
+    pub public_key: Option<Box<States>>,
+}
+
+#[async_trait]
+impl Unsealable for SodiumOxideSecretAsymmetricKeyUnsealable {
+    async fn unseal<S: Storer>(self, storer: S) -> Result<ByteSealable, CryptoError> {
+        let stateful_key = *self.key.clone();
+        let key = storer
+            .resolve::<SodiumOxideSecretAsymmetricKey>(*self.key)
+            .await
+            .map_err(|e| CryptoError::StorageError { source: e })?;
+        let public_key = match self.public_key {
+            Some(public_key) => Ok(storer
+                .resolve::<SodiumOxidePublicAsymmetricKey>(*public_key)
+                .await
+                .map_err(|e| CryptoError::StorageError { source: e })?),
+            None => Ok(SodiumOxidePublicAsymmetricKey {
+                key: key.key.public_key(),
+            }),
+        }?;
+        let precomputed_key = box_::precompute(&public_key.key, &key.key);
+        let ciphertext = self.source.get()?;
+        let plaintext = box_::open_precomputed(ciphertext, &self.nonce, &precomputed_key)
+            .map_err(|_| CryptoError::CiphertextFailedVerification)?;
+        let public_key = Box::new(States::Unsealed {
+            builder: public_key.builder().into(),
+            bytes: ByteSource::Vector(VectorByteSource::new(public_key.key.as_ref())),
+        });
+        Ok(ByteSealable::SodiumOxideSecretAsymmetricKey(
+            SodiumOxideSecretAsymmetricKeySealable {
+                source: ByteSource::Vector(VectorByteSource::new(plaintext.as_ref())),
+                key: Box::new(stateful_key),
+                nonce: self.nonce,
+                public_key: Some(public_key),
+            },
+        ))
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct SodiumOxideSecretAsymmetricKeyBuilder {}
@@ -286,14 +360,42 @@ impl SodiumOxideSecretAsymmetricKey {
         SodiumOxideSecretAsymmetricKey { key }
     }
 
-    pub fn seal(
+    fn seal(
         &self,
-        plaintext: &[u8],
-        public_key: &ExternalSodiumOxidePublicAsymmetricKey,
-        nonce: &ExternalSodiumOxideAsymmetricNonce,
-    ) -> Vec<u8> {
-        let precomputed_key = box_::precompute(public_key, &self.key);
-        box_::seal_precomputed(plaintext, nonce, &precomputed_key)
+        plaintext: ByteSource,
+        public_key: Option<SodiumOxidePublicAsymmetricKey>,
+        key_path: Option<EntryPath>,
+    ) -> Result<SodiumOxideSecretAsymmetricKeyUnsealable, CryptoError> {
+        let nonce = box_::gen_nonce();
+        let plaintext = plaintext.get()?;
+        let public_key = match public_key {
+            Some(sopak) => sopak,
+            None => SodiumOxidePublicAsymmetricKey {
+                key: self.key.public_key(),
+            },
+        };
+        let precomputed_key = box_::precompute(&public_key.key, &self.key);
+        let ciphertext = box_::seal_precomputed(plaintext, &nonce, &precomputed_key);
+        let key = match key_path {
+            Some(path) => Box::new(States::Referenced {
+                builder: self.builder().into(),
+                path,
+            }),
+            None => Box::new(States::Unsealed {
+                builder: self.builder().into(),
+                bytes: ByteSource::Vector(VectorByteSource::new(self.key.as_ref())),
+            }),
+        };
+        let public_key = Box::new(States::Unsealed {
+            builder: public_key.builder().into(),
+            bytes: ByteSource::Vector(VectorByteSource::new(self.key.as_ref())),
+        });
+        Ok(SodiumOxideSecretAsymmetricKeyUnsealable {
+            source: ByteSource::Vector(VectorByteSource::new(ciphertext.as_ref())),
+            key,
+            nonce,
+            public_key: Some(public_key),
+        })
     }
 
     pub fn unseal(

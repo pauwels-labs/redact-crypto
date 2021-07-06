@@ -1,6 +1,8 @@
 use crate::{
-    key::sodiumoxide::SodiumOxideSymmetricKeyUnsealable, ByteSealable, ByteSource, CryptoError,
-    Storer,
+    key::sodiumoxide::{
+        SodiumOxideSecretAsymmetricKeyUnsealable, SodiumOxideSymmetricKeyUnsealable,
+    },
+    ByteSealable, ByteSource, CryptoError, Storer,
 };
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -14,6 +16,7 @@ pub trait Unsealable {
 #[serde(tag = "t", content = "c")]
 pub enum ByteUnsealable {
     SodiumOxideSymmetricKey(SodiumOxideSymmetricKeyUnsealable),
+    SodiumOxideSecretAsymmetricKey(SodiumOxideSecretAsymmetricKeyUnsealable),
 }
 
 #[async_trait]
@@ -21,6 +24,7 @@ impl Unsealable for ByteUnsealable {
     async fn unseal<S: Storer>(self, storer: S) -> Result<ByteSealable, CryptoError> {
         match self {
             Self::SodiumOxideSymmetricKey(sosku) => sosku.unseal(storer).await,
+            Self::SodiumOxideSecretAsymmetricKey(sosaku) => sosaku.unseal(storer).await,
         }
     }
 }
@@ -29,6 +33,7 @@ impl ByteUnsealable {
     pub fn get_source(&self) -> &ByteSource {
         match self {
             Self::SodiumOxideSymmetricKey(sosku) => &sosku.source,
+            Self::SodiumOxideSecretAsymmetricKey(sosaku) => &sosaku.source,
         }
     }
 }
