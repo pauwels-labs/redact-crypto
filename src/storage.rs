@@ -134,8 +134,8 @@ pub trait Storer: Clone + Send + Sync {
     }
 }
 
-// Allows an `Arc<KeyStorer>` to act exactly like a `KeyStorer`, dereferencing
-// itself and passing calls through to the underlying `KeyStorer`.
+// Allows an `Arc<Storer>` to act exactly like a `Storer`, dereferencing
+// itself and passing calls through to the underlying `Storer`.
 #[async_trait]
 impl<U> Storer for Arc<U>
 where
