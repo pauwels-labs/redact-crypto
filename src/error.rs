@@ -1,3 +1,9 @@
+//! CryptoError covers all errors not covered by StorageError. It is returned by
+//! every function in this crate returning a Result except those used in the
+//! `Storer` trait.
+
+use crate::StorageError;
+use base64::DecodeError;
 use std::{
     error::Error,
     fmt::{self, Display, Formatter},
@@ -7,42 +13,54 @@ use std::{
 /// Error that wraps all possible errors out of the redact-crypto crate
 #[derive(Debug)]
 pub enum CryptoError {
-    /// Indicates an error occurred while performing IO on the filesystem
+    /// Error occurred while performing IO on the filesystem
     FsIoError { source: io::Error },
 
-    /// Indicates the key loaded key isn't the right size for the selected executor
-    SourceKeyBadSize,
+    /// File path given was not found
+    FileNotFound { path: String },
 
-    /// Indicates the source key is not a symmetric key
-    NotSymmetric,
+    /// Ciphertext failed veri fication before decryption
+    CiphertextFailedVerification,
 
-    /// Indicates the source key is not an asymmetric key
-    NotAsymmetric,
+    /// Provided bytes are not the right length for the
+    InvalidKeyLength { expected: usize, actual: usize },
 
-    /// Indicates the source key is not a secret asymmetric key
-    NotSecret,
+    /// Wraps a StorageError
+    StorageError { source: StorageError },
 
-    /// This error will never occur
-    Infallible,
+    /// Given value was not of the right type to be downcasted to the requested type
+    NotDowncastable,
 
-    /// Indicates the key source could not source the key
-    NotFound,
+    /// File path given has an invalid file name with no stem
+    FilePathHasNoFileStem { path: String },
 
-    /// Indicates the key sources is not a bytes key source but must be
-    NotBytesKeySource,
+    /// File path given was invalid UTF-8
+    FilePathIsInvalidUTF8,
+
+    /// Given bytes could not be serialized to a base data type
+    NotDeserializableToBaseDataType,
+
+    /// Error happened when decoding base64 string
+    Base64Decode { source: DecodeError },
+
+    /// Wrong nonce was provided during seal/unseal operation
+    WrongNonceType,
 }
 
 impl Error for CryptoError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match *self {
             CryptoError::FsIoError { ref source } => Some(source),
-            CryptoError::SourceKeyBadSize => None,
-            CryptoError::NotSymmetric => None,
-            CryptoError::NotAsymmetric => None,
-            CryptoError::NotSecret => None,
-            CryptoError::Infallible => None,
-            CryptoError::NotFound => None,
-            CryptoError::NotBytesKeySource => None,
+            CryptoError::FileNotFound { .. } => None,
+            CryptoError::CiphertextFailedVerification => None,
+            CryptoError::InvalidKeyLength { .. } => None,
+            CryptoError::StorageError { ref source } => Some(source),
+            CryptoError::NotDowncastable => None,
+            CryptoError::FilePathHasNoFileStem { .. } => None,
+            CryptoError::FilePathIsInvalidUTF8 => None,
+            CryptoError::NotDeserializableToBaseDataType => None,
+            CryptoError::Base64Decode { ref source } => Some(source),
+            CryptoError::WrongNonceType => None,
         }
     }
 }
@@ -53,36 +71,56 @@ impl Display for CryptoError {
             CryptoError::FsIoError { .. } => {
                 write!(f, "Error occured during file system IO")
             }
-            CryptoError::SourceKeyBadSize => {
+            CryptoError::FileNotFound { ref path } => {
+                write!(f, "Path \"{}\" not found", path)
+            }
+            CryptoError::CiphertextFailedVerification => {
+                write!(f, "Ciphertext failed verification before decryption")
+            }
+            CryptoError::InvalidKeyLength {
+                ref expected,
+                ref actual,
+            } => {
                 write!(
                     f,
-                    "Loaded key is not the correct size for the selected executor"
+                    "Provided key was not the correct length, expected: {}, actual: {}",
+                    expected, actual,
                 )
             }
-            CryptoError::NotSymmetric => {
-                write!(f, "Key is not a symmetric key")
+            CryptoError::StorageError { .. } => {
+                write!(f, "Error occured while interacting with key storage")
             }
-            CryptoError::NotAsymmetric => {
-                write!(f, "Key is not an asymmetric key")
+            CryptoError::NotDowncastable => {
+                write!(
+                    f,
+                    "Could not downcast the Types-value into the requested variant"
+                )
             }
-            CryptoError::NotSecret => {
-                write!(f, "Key is not a secret asymmetric key")
+            CryptoError::FilePathHasNoFileStem { ref path } => {
+                write!(
+                    f,
+                    "File path \"{}\" was invalid as the file name has no stem",
+                    path
+                )
             }
-            CryptoError::Infallible => {
-                write!(f, "This error should never occur")
+            CryptoError::FilePathIsInvalidUTF8 => {
+                write!(f, "Given file path was not valid UTF-8")
             }
-            CryptoError::NotFound => {
-                write!(f, "The key source was not found")
+            CryptoError::NotDeserializableToBaseDataType => {
+                write!(f, "Given bytes could not be deserialized to one of: bool, u64, i64, f64, or string")
             }
-            CryptoError::NotBytesKeySource => {
-                write!(f, "The key source was not a bytes key source but must be")
+            CryptoError::Base64Decode { .. } => {
+                write!(f, "Error occurred while decoding string from base64")
+            }
+            CryptoError::WrongNonceType => {
+                write!(f, "Invalid type of nonce was provided for the operation")
             }
         }
     }
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::StorageError;
 
     #[test]

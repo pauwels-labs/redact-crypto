@@ -1,22 +1,36 @@
-use crate::keys::{Key, KeyCollection};
-use crate::storage::{KeyStorer, StorageError};
+use crate::{Entry, EntryPath, HasBuilder, States, StorageError, Storer};
 use async_trait::async_trait;
 use futures::StreamExt;
-use mongodb::{bson, options::ClientOptions, options::FindOneOptions, Client, Database};
+use mongodb::{
+    bson::{self, Document},
+    options::ClientOptions,
+    options::{FindOneOptions, FindOptions},
+    Client, Database,
+};
+use serde::{Deserialize, Serialize};
 
 /// Stores an instance of a mongodb-backed key storer
 #[derive(Clone)]
-pub struct MongoKeyStorer {
-    url: String,
-    db_name: String,
+pub struct MongoStorer {
+    db_info: MongoDbInfo,
     client: Client,
     db: Database,
 }
 
-impl MongoKeyStorer {
+#[derive(Serialize, Deserialize, Clone)]
+pub struct MongoDbInfo {
+    url: String,
+    db_name: String,
+}
+
+impl MongoStorer {
     /// Instantiates a mongo-backed key storer using a URL to the mongo cluster and the
     /// name of the DB to connect to.
     pub async fn new(url: &str, db_name: &str) -> Self {
+        let db_info = MongoDbInfo {
+            url: url.to_owned(),
+            db_name: db_name.to_owned(),
+        };
         let db_client_options = ClientOptions::parse_with_resolver_config(
             url,
             mongodb::options::ResolverConfig::cloudflare(),
@@ -25,9 +39,8 @@ impl MongoKeyStorer {
         .unwrap();
         let client = Client::with_options(db_client_options).unwrap();
         let db = client.database(db_name);
-        MongoKeyStorer {
-            url: url.to_owned(),
-            db_name: db_name.to_owned(),
+        MongoStorer {
+            db_info,
             client,
             db,
         }
@@ -35,18 +48,26 @@ impl MongoKeyStorer {
 }
 
 #[async_trait]
-impl KeyStorer for MongoKeyStorer {
-    async fn get(&self, name: &str) -> Result<Key, StorageError> {
+impl Storer for MongoStorer {
+    async fn get_indexed<T: HasBuilder>(
+        &self,
+        path: &str,
+        index: &Option<Document>,
+    ) -> Result<Entry, StorageError> {
+        let mut filter = bson::doc! { "path": path };
+        if let Some(i) = index {
+            filter.insert("value", i);
+        }
+
         let filter_options = FindOneOptions::builder().build();
-        let filter = bson::doc! { "name": name };
 
         match self
             .db
-            .collection_with_type::<Key>("data")
+            .collection_with_type::<Entry>("entries")
             .find_one(filter, filter_options)
             .await
         {
-            Ok(Some(data)) => Ok(data),
+            Ok(Some(entry)) => Ok(entry),
             Ok(None) => Err(StorageError::NotFound),
             Err(e) => Err(StorageError::InternalError {
                 source: Box::new(e),
@@ -54,36 +75,51 @@ impl KeyStorer for MongoKeyStorer {
         }
     }
 
-    async fn list(&self) -> Result<KeyCollection, StorageError> {
+    async fn list_indexed<T: HasBuilder + Send>(
+        &self,
+        path: &str,
+        skip: i64,
+        page_size: i64,
+        index: &Option<Document>,
+    ) -> Result<Vec<Entry>, StorageError> {
+        let mut filter = bson::doc! { "path": path };
+        if let Some(i) = index {
+            filter.insert("value", i);
+        }
+        let filter_options = FindOptions::builder().skip(skip).limit(page_size).build();
+
         match self
             .db
-            .collection_with_type::<Key>("keys")
-            .find(None, None)
+            .collection_with_type::<Entry>("entries")
+            .find(filter, filter_options)
             .await
         {
-            Ok(mut cursor) => {
-                let mut results = Vec::new();
-                while let Some(item) = cursor.next().await {
-                    results.push(item.unwrap());
-                }
-                Ok(KeyCollection { results })
-            }
+            Ok(cursor) => Ok(cursor
+                .filter_map(|result| async move {
+                    match result {
+                        Ok(entry) => Some(entry),
+                        Err(_) => None,
+                    }
+                })
+                .collect::<Vec<Entry>>()
+                .await),
             Err(e) => Err(StorageError::InternalError {
                 source: Box::new(e),
             }),
         }
     }
 
-    async fn create(&self, value: Key) -> Result<bool, StorageError> {
+    async fn create(&self, path: EntryPath, value: States) -> Result<bool, StorageError> {
+        let filter = bson::doc! { "path": &path };
+        let entry = Entry { path, value };
         let filter_options = mongodb::options::ReplaceOptions::builder()
             .upsert(true)
             .build();
-        let filter = bson::doc! { "name": &value.name };
 
         match self
             .db
-            .collection_with_type::<Key>("keys")
-            .replace_one(filter, value, filter_options)
+            .collection_with_type::<Entry>("entries")
+            .replace_one(filter, entry, filter_options)
             .await
         {
             Ok(_) => Ok(true),
