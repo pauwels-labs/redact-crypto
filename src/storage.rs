@@ -13,7 +13,7 @@ use crate::{Builder, Entry, EntryPath, HasBuilder, States, TypeBuilderContainer,
 use ::mongodb::bson::Document;
 use async_trait::async_trait;
 use error::StorageError;
-use std::convert::TryFrom;
+use std::{convert::TryFrom, ops::Deref, sync::Arc};
 
 pub trait HasIndex {
     type Index;
@@ -134,37 +134,37 @@ pub trait Storer: Clone + Send + Sync {
     }
 }
 
-/// Allows an `Arc<KeyStorer>` to act exactly like a `KeyStorer`, dereferencing
-/// itself and passing calls through to the underlying `KeyStorer`.
-// #[async_trait]
-// impl<U> Storer for Arc<U>
-// where
-//     U: Storer,
-// {
-//     async fn get_indexed<T: HasBuilder>(
-//         &self,
-//         name: &str,
-//         index: &Option<Document>,
-//     ) -> Result<Entry, StorageError> {
-//         self.deref().get_indexed::<T>(name, index).await
-//     }
+// Allows an `Arc<KeyStorer>` to act exactly like a `KeyStorer`, dereferencing
+// itself and passing calls through to the underlying `KeyStorer`.
+#[async_trait]
+impl<U> Storer for Arc<U>
+where
+    U: Storer,
+{
+    async fn get_indexed<T: HasBuilder + 'static>(
+        &self,
+        name: &str,
+        index: &Option<Document>,
+    ) -> Result<Entry, StorageError> {
+        self.deref().get_indexed::<T>(name, index).await
+    }
 
-//     async fn list_indexed<T: HasBuilder + Send>(
-//         &self,
-//         name: &str,
-//         skip: i64,
-//         page_size: i64,
-//         index: &Option<Document>,
-//     ) -> Result<Vec<Entry>, StorageError> {
-//         self.deref()
-//             .list_indexed::<T>(name, skip, page_size, index)
-//             .await
-//     }
+    async fn list_indexed<T: HasBuilder + Send + 'static>(
+        &self,
+        name: &str,
+        skip: i64,
+        page_size: i64,
+        index: &Option<Document>,
+    ) -> Result<Vec<Entry>, StorageError> {
+        self.deref()
+            .list_indexed::<T>(name, skip, page_size, index)
+            .await
+    }
 
-//     async fn create(&self, name: EntryPath, key: States) -> Result<bool, StorageError> {
-//         self.deref().create(name, key).await
-//     }
-// }
+    async fn create(&self, name: EntryPath, key: States) -> Result<bool, StorageError> {
+        self.deref().create(name, key).await
+    }
+}
 
 pub mod tests {
     use super::Storer;
