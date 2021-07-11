@@ -6,7 +6,7 @@ use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt::Display, str::FromStr};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(tag = "t", content = "c")]
 pub enum Data {
     Bool(bool),
