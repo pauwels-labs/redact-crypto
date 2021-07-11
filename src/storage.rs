@@ -191,6 +191,11 @@ pub mod tests {
         page_size: i64,
         index: &Option<Document>,
     ) -> Result<Vec<Entry>, StorageError>;
+    // async fn resolve_indexed<T: HasBuilder + 'static>(
+    //     &self,
+    //     state: States,
+    //     index: &Option<Document>,
+    // ) -> Result<T, StorageError>;
     async fn create(&self, path: EntryPath, value: States) -> Result<bool, StorageError>;
     }
     impl Clone for Storer {

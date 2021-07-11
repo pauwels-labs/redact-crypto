@@ -6,8 +6,8 @@ use self::sodiumoxide::{
     SodiumOxideSymmetricKeyBuilder,
 };
 use crate::{
-    Builder, ByteSource, ByteUnsealable, CryptoError, EntryPath, HasBuilder, HasIndex, TypeBuilder,
-    TypeBuilderContainer,
+    Builder, ByteSource, ByteUnsealable, CryptoError, EntryPath, HasBuilder, HasIndex,
+    SymmetricNonce, TypeBuilder, TypeBuilderContainer,
 };
 use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
@@ -15,12 +15,82 @@ use std::convert::TryFrom;
 
 pub trait SymmetricSealer {
     type SealedOutput;
+    type Nonce;
 
     fn seal(
         &self,
         plaintext: ByteSource,
+        nonce: Option<&Self::Nonce>,
         key_path: Option<EntryPath>,
     ) -> Result<Self::SealedOutput, CryptoError>;
+}
+
+pub trait SymmetricUnsealer {
+    type UnsealedOutput;
+    type Nonce;
+
+    fn unseal(
+        &self,
+        ciphertext: ByteSource,
+        nonce: &Self::Nonce,
+        key_path: Option<EntryPath>,
+    ) -> Result<Self::UnsealedOutput, CryptoError>;
+}
+
+pub trait SecretAsymmetricSealer {
+    type SealedOutput;
+    type Nonce;
+    type PublicKey;
+
+    fn seal(
+        &self,
+        plaintext: ByteSource,
+        public_key: Option<&Self::PublicKey>,
+        nonce: Option<&Self::Nonce>,
+        key_path: Option<EntryPath>,
+    ) -> Result<Self::SealedOutput, CryptoError>;
+}
+
+pub trait SecretAsymmetricUnsealer {
+    type UnsealedOutput;
+    type Nonce;
+    type PublicKey;
+
+    fn unseal(
+        &self,
+        ciphertext: ByteSource,
+        public_key: Option<&Self::PublicKey>,
+        nonce: &Self::Nonce,
+        key_path: Option<EntryPath>,
+    ) -> Result<Self::UnsealedOutput, CryptoError>;
+}
+
+pub trait PublicAsymmetricSealer {
+    type SealedOutput;
+    type Nonce;
+    type SecretKey;
+
+    fn seal(
+        &self,
+        plaintext: ByteSource,
+        secret_key: &Self::SecretKey,
+        nonce: Option<&Self::Nonce>,
+        key_path: Option<EntryPath>,
+    ) -> Result<Self::SealedOutput, CryptoError>;
+}
+
+pub trait PublicAsymmetricUnsealer {
+    type UnsealedOutput;
+    type Nonce;
+    type SecretKey;
+
+    fn unseal(
+        &self,
+        ciphertext: ByteSource,
+        secret_key: &Self::SecretKey,
+        nonce: &Self::Nonce,
+        key_path: Option<EntryPath>,
+    ) -> Result<Self::UnsealedOutput, CryptoError>;
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -92,16 +162,26 @@ pub enum SymmetricKey {
 
 impl SymmetricSealer for SymmetricKey {
     type SealedOutput = ByteUnsealable;
+    type Nonce = SymmetricNonce;
 
     fn seal(
         &self,
         plaintext: ByteSource,
+        nonce: Option<&Self::Nonce>,
         path: Option<EntryPath>,
     ) -> Result<Self::SealedOutput, CryptoError> {
         match self {
-            Self::SodiumOxide(sosk) => Ok(ByteUnsealable::SodiumOxideSymmetricKey(
-                sosk.seal(plaintext, path)?,
-            )),
+            Self::SodiumOxide(sosk) => {
+                let nonce = match nonce {
+                    Some(n) => match n {
+                        SymmetricNonce::SodiumOxide(sosn) => Ok(Some(sosn)),
+                    },
+                    None => Ok(None),
+                }?;
+                Ok(ByteUnsealable::SodiumOxideSymmetricKey(
+                    sosk.seal(plaintext, nonce, path)?,
+                ))
+            }
         }
     }
 }

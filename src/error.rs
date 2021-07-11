@@ -42,6 +42,9 @@ pub enum CryptoError {
 
     /// Error happened when decoding base64 string
     Base64Decode { source: DecodeError },
+
+    /// Wrong nonce was provided during seal/unseal operation
+    WrongNonceType,
 }
 
 impl Error for CryptoError {
@@ -57,6 +60,7 @@ impl Error for CryptoError {
             CryptoError::FilePathIsInvalidUTF8 => None,
             CryptoError::NotDeserializableToBaseDataType => None,
             CryptoError::Base64Decode { ref source } => Some(source),
+            CryptoError::WrongNonceType => None,
         }
     }
 }
@@ -107,6 +111,9 @@ impl Display for CryptoError {
             }
             CryptoError::Base64Decode { .. } => {
                 write!(f, "Error occurred while decoding string from base64")
+            }
+            CryptoError::WrongNonceType => {
+                write!(f, "Invalid type of nonce was provided for the operation")
             }
         }
     }

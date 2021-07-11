@@ -5,21 +5,21 @@ use sodiumoxide::crypto::{
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SodiuOxideSymmetricNonce {
+pub struct SodiumOxideSymmetricNonce {
     pub nonce: ExternalSymmetricNonce,
 }
 
-impl SodiuOxideSymmetricNonce {
+impl SodiumOxideSymmetricNonce {
     pub const NONCEBYTES: usize = EXTERNALSYMMETRICNONCEBYTES;
 
     pub fn from_slice(bs: &[u8]) -> Option<Self> {
-        Some(SodiuOxideSymmetricNonce {
+        Some(SodiumOxideSymmetricNonce {
             nonce: ExternalSymmetricNonce::from_slice(bs)?,
         })
     }
 
     pub fn new() -> Self {
-        SodiuOxideSymmetricNonce {
+        SodiumOxideSymmetricNonce {
             nonce: secretbox::gen_nonce(),
         }
     }

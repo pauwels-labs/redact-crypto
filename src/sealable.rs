@@ -1,5 +1,8 @@
 use crate::{
-    key::sodiumoxide::{SodiumOxideSecretAsymmetricKeySealable, SodiumOxideSymmetricKeySealable},
+    key::sodiumoxide::{
+        SodiumOxidePublicAsymmetricKeySealable, SodiumOxideSecretAsymmetricKeySealable,
+        SodiumOxideSymmetricKeySealable,
+    },
     ByteSource, ByteUnsealable, CryptoError, Storer,
 };
 use async_trait::async_trait;
@@ -15,6 +18,7 @@ pub trait Sealable {
 pub enum ByteSealable {
     SodiumOxideSymmetricKey(SodiumOxideSymmetricKeySealable),
     SodiumOxideSecretAsymmetricKey(SodiumOxideSecretAsymmetricKeySealable),
+    SodiumOxidePublicAsymmetricKey(SodiumOxidePublicAsymmetricKeySealable),
 }
 
 #[async_trait]
@@ -23,6 +27,7 @@ impl Sealable for ByteSealable {
         match self {
             Self::SodiumOxideSymmetricKey(sosks) => sosks.seal(storer).await,
             Self::SodiumOxideSecretAsymmetricKey(sosaks) => sosaks.seal(storer).await,
+            Self::SodiumOxidePublicAsymmetricKey(sopaks) => sopaks.seal(storer).await,
         }
     }
 }
@@ -32,6 +37,7 @@ impl ByteSealable {
         match self {
             Self::SodiumOxideSymmetricKey(sosks) => &sosks.source,
             Self::SodiumOxideSecretAsymmetricKey(sosaks) => &sosaks.source,
+            Self::SodiumOxidePublicAsymmetricKey(sopaks) => &sopaks.source,
         }
     }
 }

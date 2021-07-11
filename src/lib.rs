@@ -67,8 +67,10 @@ pub use entry::{
 pub use error::CryptoError;
 pub use key::{
     AsymmetricKey, AsymmetricKeyBuilder, Key, KeyBuilder, PublicAsymmetricKey,
-    PublicAsymmetricKeyBuilder, SecretAsymmetricKey, SecretAsymmetricKeyBuilder, SymmetricKey,
-    SymmetricKeyBuilder, SymmetricSealer,
+    PublicAsymmetricKeyBuilder, PublicAsymmetricSealer, PublicAsymmetricUnsealer,
+    SecretAsymmetricKey, SecretAsymmetricKeyBuilder, SecretAsymmetricSealer,
+    SecretAsymmetricUnsealer, SymmetricKey, SymmetricKeyBuilder, SymmetricSealer,
+    SymmetricUnsealer,
 };
 pub use nonce::{AsymmetricNonce, Nonce, SymmetricNonce};
 pub use sealable::{ByteSealable, Sealable};
