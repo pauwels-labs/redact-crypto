@@ -166,6 +166,7 @@ where
     }
 }
 
+#[cfg(test)]
 pub mod tests {
     use super::Storer;
     use crate::{Entry, EntryPath, HasBuilder, States, StorageError};
