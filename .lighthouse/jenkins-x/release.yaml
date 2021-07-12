@@ -74,7 +74,7 @@ spec:
           script: |
             #!/bin/sh
             # We skip verification here as our build already succeeded previously
-            cargo publish --locked --no-verify
+            cargo publish --no-verify
         volumes:
         - name: coveralls-repo-tokens
           secret:
