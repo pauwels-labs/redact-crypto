@@ -1424,7 +1424,7 @@ dependencies = [
 
 [[package]]
 name = "redact-crypto"
-version = "0.1.0"
+version = "1.0.4"
 dependencies = [
  "async-trait",
  "base64 0.13.0",
