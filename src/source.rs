@@ -3,16 +3,12 @@
 //! for read/write operations on the set of bytes it covers.
 
 use crate::CryptoError;
+use once_cell::sync::OnceCell;
 use serde::{
     de::{self, Deserializer},
     Deserialize, Serialize, Serializer,
 };
-use std::{
-    convert::{Into, TryFrom},
-    io::ErrorKind,
-    path::PathBuf as StdPathBuf,
-    str::FromStr,
-};
+use std::{convert::Into, io::ErrorKind, path::PathBuf as StdPathBuf, str::FromStr};
 
 /// Enumerates all the different types of sources.
 /// Currently supported:
@@ -93,32 +89,14 @@ impl FromStr for Path {
     }
 }
 
-/// Intermediate type used during FsBytesSource deserialization.
-/// An FsBytesSource is initially deserialized to an UncachedFsBytesSource
-/// which then reads the bytes from the filesystem to make an FsBytesSource.
+/// A source that is a path to a file on the filesystem. The contents
+/// of the file are cached on the first call to get(), and can be refreshed
+/// by calling the reload() method.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct UncachedFsByteSource {
-    path: Path,
-}
-
-/// A source that is a path to a file on the filesystem.
-/// Bytes are loaded on creation of the FsBytesSource. Bytes can be
-/// refreshed from the filesystem by calling reload. To get fresh bytes
-/// on every call of get, use an UncachedFsBytesSource.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(try_from = "UncachedFsByteSource")]
 pub struct FsByteSource {
     path: Path,
     #[serde(skip)]
-    cached: Option<VectorByteSource>,
-}
-
-impl TryFrom<UncachedFsByteSource> for FsByteSource {
-    type Error = CryptoError;
-
-    fn try_from(source: UncachedFsByteSource) -> Result<Self, Self::Error> {
-        FsByteSource::new(source.path)
-    }
+    cached: OnceCell<VectorByteSource>,
 }
 
 impl FromStr for FsByteSource {
@@ -126,20 +104,15 @@ impl FromStr for FsByteSource {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let path = Path::from_str(s)?;
-        FsByteSource::new(path)
+        Ok(FsByteSource::new(path))
     }
 }
 
 impl FsByteSource {
     /// Creates an `FsBytesSource` from a path on the filesystem
-    pub fn new(path: Path) -> Result<Self, CryptoError> {
-        match Self::read_from_path(&path) {
-            Ok(vbks) => Ok(Self {
-                path,
-                cached: Some(vbks),
-            }),
-            Err(e) => Err(e),
-        }
+    pub fn new(path: Path) -> Self {
+        let cached = OnceCell::new();
+        FsByteSource { path, cached }
     }
 
     /// Reads a `VectorBytesSource` from a path on the filesystem
@@ -162,10 +135,11 @@ impl FsByteSource {
         Ok(VectorByteSource { value: bytes })
     }
 
-    /// Re-reads the file and stores its bytes in memory
-    pub fn reload(&mut self) -> Result<(), CryptoError> {
-        self.cached = Some(Self::read_from_path(&self.path)?);
-        Ok(())
+    /// Empties the cache, triggering a reload of the file on the next
+    /// call to get. Note that this function does not perform any file
+    /// I/O.
+    pub fn reload(&mut self) {
+        self.cached.take();
     }
 
     /// Re-writes the file at the path to the given bytes
@@ -185,23 +159,14 @@ impl FsByteSource {
             .map_err(|source| match source.kind() {
                 std::io::ErrorKind::NotFound => CryptoError::FileNotFound { path: path_str },
                 _ => CryptoError::FsIoError { source },
-            })?
+            })
     }
 
     /// Returns the bytes stored at the path
     pub fn get(&self) -> Result<&[u8], CryptoError> {
-        match self.cached {
-            Some(ref vbs) => vbs.get(),
-            None => Err(CryptoError::FileNotFound {
-                path: self
-                    .path
-                    .path
-                    .clone()
-                    .into_os_string()
-                    .into_string()
-                    .unwrap_or_else(|_| "<Invalid UTF8>".to_owned()),
-            }),
-        }
+        self.cached
+            .get_or_try_init(|| Self::read_from_path(&self.path))?
+            .get()
     }
 
     /// Returns the path where the key is stored
