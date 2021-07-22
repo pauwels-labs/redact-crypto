@@ -2,7 +2,7 @@
 
 pub mod sodiumoxide;
 
-use self::sodiumoxide::{SodiumOxideSymmetricNonce, SodiumOxideAsymmetricNonce};
+use self::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce};
 use serde::{Deserialize, Serialize};
 
 /// Highest-level nonce enum splits nonces into symmetric and asymmetric categories

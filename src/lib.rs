@@ -74,7 +74,7 @@ pub use key::{
 };
 pub use nonce::{AsymmetricNonce, Nonce, SymmetricNonce};
 pub use sealable::{ByteSealable, Sealable};
-pub use source::{ByteSource, FsByteSource, Source, VectorByteSource};
+pub use source::{ByteSource, FsByteSource, Path, Source, VectorByteSource};
 pub use storage::{
     error::StorageError, mongodb::MongoStorer, redact::RedactStorer, HasIndex, Storer,
 };
