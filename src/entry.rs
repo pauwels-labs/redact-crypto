@@ -98,6 +98,15 @@ impl HasBuilder for Type {
     }
 }
 
+impl HasByteSource for Type {
+    fn byte_source(&self) -> ByteSource {
+        match self {
+            Self::Key(kb) => kb.byte_source(),
+            Self::Data(db) => db.byte_source(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 #[serde(tag = "t", content = "c")]
 pub enum TypeBuilder {
