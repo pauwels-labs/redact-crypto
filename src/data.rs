@@ -1,6 +1,6 @@
 use crate::{
-    Builder, ByteSource, CryptoError, HasBuilder, HasIndex, TypeBuilder, TypeBuilderContainer,
-    VectorByteSource,
+    Builder, ByteSource, CryptoError, HasBuilder, HasByteSource, HasIndex, TypeBuilder,
+    TypeBuilderContainer, VectorByteSource,
 };
 use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
@@ -63,6 +63,12 @@ impl HasBuilder for Data {
             Self::F64(_) => DataBuilder::F64(F64DataBuilder {}),
             Self::String(_) => DataBuilder::String(StringDataBuilder {}),
         }
+    }
+}
+
+impl HasByteSource for Data {
+    fn byte_source(&self) -> ByteSource {
+        self.clone().into()
     }
 }
 

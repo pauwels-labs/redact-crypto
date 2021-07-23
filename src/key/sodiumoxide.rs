@@ -1,7 +1,7 @@
 use crate::{
     nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce},
     AsymmetricKeyBuilder, Builder, ByteSealable, ByteSource, ByteUnsealable, CryptoError,
-    EntryPath, HasBuilder, HasIndex, KeyBuilder, PublicAsymmetricKeyBuilder,
+    EntryPath, HasBuilder, HasByteSource, HasIndex, KeyBuilder, PublicAsymmetricKeyBuilder,
     PublicAsymmetricSealer, PublicAsymmetricUnsealer, Sealable, SecretAsymmetricKeyBuilder,
     SecretAsymmetricSealer, SecretAsymmetricUnsealer, States, Storer, SymmetricKeyBuilder,
     SymmetricSealer, SymmetricUnsealer, TypeBuilder, TypeBuilderContainer, Unsealable,
@@ -205,6 +205,12 @@ impl HasBuilder for SodiumOxideSymmetricKey {
 
     fn builder(&self) -> Self::Builder {
         SodiumOxideSymmetricKeyBuilder {}
+    }
+}
+
+impl HasByteSource for SodiumOxideSymmetricKey {
+    fn byte_source(&self) -> ByteSource {
+        ByteSource::Vector(VectorByteSource::new(self.key.as_ref()))
     }
 }
 
@@ -452,6 +458,12 @@ impl HasBuilder for SodiumOxideSecretAsymmetricKey {
     }
 }
 
+impl HasByteSource for SodiumOxideSecretAsymmetricKey {
+    fn byte_source(&self) -> ByteSource {
+        ByteSource::Vector(VectorByteSource::new(self.secret_key.as_ref()))
+    }
+}
+
 impl Default for SodiumOxideSecretAsymmetricKey {
     fn default() -> Self {
         Self::new()
@@ -683,6 +695,12 @@ impl HasBuilder for SodiumOxidePublicAsymmetricKey {
 
     fn builder(&self) -> Self::Builder {
         SodiumOxidePublicAsymmetricKeyBuilder {}
+    }
+}
+
+impl HasByteSource for SodiumOxidePublicAsymmetricKey {
+    fn byte_source(&self) -> ByteSource {
+        ByteSource::Vector(VectorByteSource::new(self.public_key.as_ref()))
     }
 }
 

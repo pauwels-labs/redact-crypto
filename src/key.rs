@@ -6,8 +6,8 @@ use self::sodiumoxide::{
     SodiumOxideSymmetricKeyBuilder,
 };
 use crate::{
-    Builder, ByteSource, ByteUnsealable, CryptoError, EntryPath, HasBuilder, HasIndex,
-    SymmetricNonce, TypeBuilder, TypeBuilderContainer,
+    Builder, ByteSource, ByteUnsealable, CryptoError, EntryPath, HasBuilder, HasByteSource,
+    HasIndex, SymmetricNonce, TypeBuilder, TypeBuilderContainer,
 };
 use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
@@ -125,6 +125,15 @@ impl HasBuilder for Key {
     }
 }
 
+impl HasByteSource for Key {
+    fn byte_source(&self) -> ByteSource {
+        match self {
+            Self::Symmetric(sk) => sk.byte_source(),
+            Self::Asymmetric(ak) => ak.byte_source(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 #[serde(tag = "t", content = "c")]
 pub enum KeyBuilder {
@@ -219,6 +228,14 @@ impl HasBuilder for SymmetricKey {
     }
 }
 
+impl HasByteSource for SymmetricKey {
+    fn byte_source(&self) -> ByteSource {
+        match self {
+            Self::SodiumOxide(sosk) => sosk.byte_source(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 #[serde(tag = "t", content = "c")]
 pub enum SymmetricKeyBuilder {
@@ -283,6 +300,15 @@ impl HasBuilder for AsymmetricKey {
         match self {
             Self::Public(pak) => AsymmetricKeyBuilder::Public(pak.builder()),
             Self::Secret(sak) => AsymmetricKeyBuilder::Secret(sak.builder()),
+        }
+    }
+}
+
+impl HasByteSource for AsymmetricKey {
+    fn byte_source(&self) -> ByteSource {
+        match self {
+            Self::Public(pak) => pak.byte_source(),
+            Self::Secret(sak) => sak.byte_source(),
         }
     }
 }
@@ -358,6 +384,14 @@ impl HasBuilder for PublicAsymmetricKey {
     }
 }
 
+impl HasByteSource for PublicAsymmetricKey {
+    fn byte_source(&self) -> ByteSource {
+        match self {
+            Self::SodiumOxide(sopak) => sopak.byte_source(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 #[serde(tag = "t", content = "c")]
 pub enum PublicAsymmetricKeyBuilder {
@@ -425,6 +459,14 @@ impl HasBuilder for SecretAsymmetricKey {
     fn builder(&self) -> Self::Builder {
         match self {
             Self::SodiumOxide(sosak) => SecretAsymmetricKeyBuilder::SodiumOxide(sosak.builder()),
+        }
+    }
+}
+
+impl HasByteSource for SecretAsymmetricKey {
+    fn byte_source(&self) -> ByteSource {
+        match self {
+            Self::SodiumOxide(sosak) => sosak.byte_source(),
         }
     }
 }

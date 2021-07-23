@@ -34,7 +34,7 @@ impl<T: HasBuilder + HasByteSource> From<T> for States {
     fn from(value: T) -> Self {
         States::Unsealed {
             builder: value.builder().into(),
-            bytes: value.byte_source().clone(),
+            bytes: value.byte_source(),
         }
     }
 }

@@ -88,7 +88,7 @@ impl From<SourceError> for CryptoError {
 }
 
 pub trait HasByteSource {
-    fn byte_source(&self) -> &ByteSource;
+    fn byte_source(&self) -> ByteSource;
 }
 
 /// Enumerates all the different types of sources.
