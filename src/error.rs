@@ -98,10 +98,7 @@ mod tests {
             source: Box::new(CryptoError::NotDowncastable),
         }
         .to_string();
-        assert_eq!(
-            s,
-            "Could not downcast the Types-value into the requested variant"
-        );
+        assert_eq!(s, "Internal error occurred");
     }
 
     #[test]

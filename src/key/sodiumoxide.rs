@@ -91,15 +91,18 @@ impl TryFrom<TypeBuilderContainer> for SodiumOxideSymmetricKeyBuilder {
 impl Builder for SodiumOxideSymmetricKeyBuilder {
     type Output = SodiumOxideSymmetricKey;
 
-    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
-        Ok(SodiumOxideSymmetricKey {
-            key: ExternalSodiumOxideSymmetricKey::from_slice(&bytes).ok_or(
-                CryptoError::InvalidKeyLength {
-                    expected: SodiumOxideSymmetricKey::KEYBYTES,
-                    actual: bytes.len(),
-                },
-            )?,
-        })
+    fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
+        match bytes {
+            Some(bytes) => Ok(SodiumOxideSymmetricKey {
+                key: ExternalSodiumOxideSymmetricKey::from_slice(&bytes).ok_or(
+                    CryptoError::InvalidKeyLength {
+                        expected: SodiumOxideSymmetricKey::KEYBYTES,
+                        actual: bytes.len(),
+                    },
+                )?,
+            }),
+            None => Ok(SodiumOxideSymmetricKey::new()),
+        }
     }
 }
 
@@ -307,15 +310,18 @@ impl TryFrom<TypeBuilderContainer> for SodiumOxideSecretAsymmetricKeyBuilder {
 impl Builder for SodiumOxideSecretAsymmetricKeyBuilder {
     type Output = SodiumOxideSecretAsymmetricKey;
 
-    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
-        Ok(SodiumOxideSecretAsymmetricKey {
-            secret_key: ExternalSodiumOxideSecretAsymmetricKey::from_slice(&bytes).ok_or(
-                CryptoError::InvalidKeyLength {
-                    expected: SodiumOxideSecretAsymmetricKey::KEYBYTES,
-                    actual: bytes.len(),
-                },
-            )?,
-        })
+    fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
+        match bytes {
+            Some(bytes) => Ok(SodiumOxideSecretAsymmetricKey {
+                secret_key: ExternalSodiumOxideSecretAsymmetricKey::from_slice(&bytes).ok_or(
+                    CryptoError::InvalidKeyLength {
+                        expected: SodiumOxideSecretAsymmetricKey::KEYBYTES,
+                        actual: bytes.len(),
+                    },
+                )?,
+            }),
+            None => Ok(SodiumOxideSecretAsymmetricKey::new()),
+        }
     }
 }
 
@@ -559,15 +565,21 @@ impl TryFrom<TypeBuilderContainer> for SodiumOxidePublicAsymmetricKeyBuilder {
 impl Builder for SodiumOxidePublicAsymmetricKeyBuilder {
     type Output = SodiumOxidePublicAsymmetricKey;
 
-    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
-        Ok(SodiumOxidePublicAsymmetricKey {
-            public_key: ExternalSodiumOxidePublicAsymmetricKey::from_slice(&bytes).ok_or(
-                CryptoError::InvalidKeyLength {
-                    expected: SodiumOxidePublicAsymmetricKey::KEYBYTES,
-                    actual: bytes.len(),
-                },
-            )?,
-        })
+    fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
+        match bytes {
+            Some(bytes) => Ok(SodiumOxidePublicAsymmetricKey {
+                public_key: ExternalSodiumOxidePublicAsymmetricKey::from_slice(&bytes).ok_or(
+                    CryptoError::InvalidKeyLength {
+                        expected: SodiumOxidePublicAsymmetricKey::KEYBYTES,
+                        actual: bytes.len(),
+                    },
+                )?,
+            }),
+            None => {
+                let (pk, _) = SodiumOxidePublicAsymmetricKey::new();
+                Ok(pk)
+            }
+        }
     }
 }
 
@@ -769,7 +781,7 @@ mod tests {
             34, 107, 174, 121, 199, 180, 254, 254, 161, 219, 225, 158, 220, 56,
         ];
         let sosakb = SodiumOxideSecretAsymmetricKeyBuilder {};
-        let secret_key = sosakb.build(&key_bytes).unwrap();
+        let secret_key = sosakb.build(Some(&key_bytes)).unwrap();
         let public_key = SodiumOxidePublicAsymmetricKey {
             public_key: secret_key.secret_key.public_key(),
         };
@@ -941,7 +953,7 @@ mod tests {
             34, 107, 174, 121, 199, 180, 254, 254, 161, 219, 225, 158, 220, 56,
         ];
         let sosakb = SodiumOxideSecretAsymmetricKeyBuilder {};
-        sosakb.build(&key_bytes).unwrap()
+        sosakb.build(Some(&key_bytes)).unwrap()
     }
 
     fn get_soan() -> SodiumOxideAsymmetricNonce {
@@ -1112,7 +1124,7 @@ mod tests {
             216, 211, 141, 66, 62, 17, 156, 76, 160, 132, 29, 145, 18,
         ];
         let soskb = SodiumOxideSymmetricKeyBuilder {};
-        soskb.build(&key_bytes).unwrap()
+        soskb.build(Some(&key_bytes)).unwrap()
     }
 
     /// Returns the exact same symmetric nonce on every call
@@ -1252,7 +1264,7 @@ mod tests {
         let bs = sosku.unseal(storer).await.unwrap();
         let source = bs.get_source();
         let sdb = StringDataBuilder {};
-        let d = sdb.build(source.get().unwrap()).unwrap();
+        let d = sdb.build(Some(source.get().unwrap())).unwrap();
         assert_eq!(d.to_string(), "hello, world!".to_owned());
     }
 
@@ -1274,7 +1286,7 @@ mod tests {
         let bs = sosku.unseal(storer).await.unwrap();
         let source = bs.get_source();
         let sdb = StringDataBuilder {};
-        let d = sdb.build(source.get().unwrap()).unwrap();
+        let d = sdb.build(Some(source.get().unwrap())).unwrap();
         assert_eq!(d.to_string(), "hello, world!".to_owned());
     }
 
@@ -1282,7 +1294,7 @@ mod tests {
     fn test_sodiumoxidesymmetrickeybuilder_build_valid() {
         let soskb = SodiumOxideSymmetricKeyBuilder {};
         let external_key = secretbox::gen_key();
-        let key = soskb.build(external_key.as_ref()).unwrap();
+        let key = soskb.build(Some(external_key.as_ref())).unwrap();
         assert_eq!(key.key.as_ref(), external_key.as_ref());
     }
 
@@ -1290,7 +1302,7 @@ mod tests {
     #[should_panic]
     fn test_sodiumoxidesymmetrickeybuilder_build_invalid() {
         let soskb = SodiumOxideSymmetricKeyBuilder {};
-        let _ = soskb.build(b"bla").unwrap();
+        let _ = soskb.build(Some(b"bla")).unwrap();
     }
 
     #[test]
@@ -1300,7 +1312,7 @@ mod tests {
         )));
         let soskb: SodiumOxideSymmetricKeyBuilder = tbc.try_into().unwrap();
         let key = SodiumOxideSymmetricKey::new();
-        soskb.build(key.key.as_ref()).unwrap();
+        soskb.build(Some(key.key.as_ref())).unwrap();
     }
 
     #[test]
@@ -1401,7 +1413,7 @@ mod tests {
         let sosk = SodiumOxideSymmetricKey::new();
         let builder = sosk.builder();
         let key_bytes = sosk.key.as_ref();
-        let built_key = builder.build(key_bytes).unwrap();
+        let built_key = builder.build(Some(key_bytes)).unwrap();
         assert_eq!(built_key.key.as_ref(), sosk.key.as_ref());
     }
 
@@ -1467,7 +1479,7 @@ mod tests {
         let bs = sosaku.unseal(storer).await.unwrap();
         let source = bs.get_source();
         let sdb = StringDataBuilder {};
-        let d = sdb.build(source.get().unwrap()).unwrap();
+        let d = sdb.build(Some(source.get().unwrap())).unwrap();
         assert_eq!(d.to_string(), "hello, world!".to_owned());
     }
 
@@ -1498,7 +1510,7 @@ mod tests {
         let bs = sosaku.unseal(storer).await.unwrap();
         let source = bs.get_source();
         let sdb = StringDataBuilder {};
-        let d = sdb.build(source.get().unwrap()).unwrap();
+        let d = sdb.build(Some(source.get().unwrap())).unwrap();
         assert_eq!(d.to_string(), "hello, world!".to_owned());
     }
 
@@ -1506,7 +1518,7 @@ mod tests {
     fn test_sodiumoxidesecretasymmetrickeybuilder_build_valid() {
         let sosakb = SodiumOxideSecretAsymmetricKeyBuilder {};
         let (_, sk) = box_::gen_keypair();
-        let key = sosakb.build(sk.as_ref()).unwrap();
+        let key = sosakb.build(Some(sk.as_ref())).unwrap();
         assert_eq!(key.secret_key.as_ref(), sk.as_ref());
     }
 
@@ -1514,7 +1526,7 @@ mod tests {
     #[should_panic]
     fn test_sodiumoxidesecretasymmetrickeybuilder_build_invalid() {
         let sosakb = SodiumOxideSecretAsymmetricKeyBuilder {};
-        let _ = sosakb.build(b"bla").unwrap();
+        let _ = sosakb.build(Some(b"bla")).unwrap();
     }
 
     #[test]
@@ -1526,7 +1538,7 @@ mod tests {
         )));
         let sosakb: SodiumOxideSecretAsymmetricKeyBuilder = tbc.try_into().unwrap();
         let key = SodiumOxideSecretAsymmetricKey::new();
-        sosakb.build(key.secret_key.as_ref()).unwrap();
+        sosakb.build(Some(key.secret_key.as_ref())).unwrap();
     }
 
     #[test]
@@ -1634,7 +1646,7 @@ mod tests {
         let sosak = SodiumOxideSecretAsymmetricKey::new();
         let builder = sosak.builder();
         let key_bytes = sosak.secret_key.as_ref();
-        let built_key = builder.build(key_bytes).unwrap();
+        let built_key = builder.build(Some(key_bytes)).unwrap();
         assert_eq!(built_key.secret_key.as_ref(), sosak.secret_key.as_ref());
     }
 
@@ -1699,7 +1711,7 @@ mod tests {
         let bs = sopaku.unseal(storer).await.unwrap();
         let source = bs.get_source();
         let sdb = StringDataBuilder {};
-        let d = sdb.build(source.get().unwrap()).unwrap();
+        let d = sdb.build(Some(source.get().unwrap())).unwrap();
         assert_eq!(d.to_string(), "hello, world!".to_owned());
     }
 
@@ -1730,7 +1742,7 @@ mod tests {
         let bs = sopaku.unseal(storer).await.unwrap();
         let source = bs.get_source();
         let sdb = StringDataBuilder {};
-        let d = sdb.build(source.get().unwrap()).unwrap();
+        let d = sdb.build(Some(source.get().unwrap())).unwrap();
         assert_eq!(d.to_string(), "hello, world!".to_owned());
     }
 
@@ -1738,7 +1750,7 @@ mod tests {
     fn test_sodiumoxidepublicasymmetrickeybuilder_build_valid() {
         let sopakb = SodiumOxidePublicAsymmetricKeyBuilder {};
         let (_, sk) = box_::gen_keypair();
-        let key = sopakb.build(sk.as_ref()).unwrap();
+        let key = sopakb.build(Some(sk.as_ref())).unwrap();
         assert_eq!(key.public_key.as_ref(), sk.as_ref());
     }
 
@@ -1746,7 +1758,7 @@ mod tests {
     #[should_panic]
     fn test_sodiumoxidepublicasymmetrickeybuilder_build_invalid() {
         let sopakb = SodiumOxidePublicAsymmetricKeyBuilder {};
-        let _ = sopakb.build(b"bla").unwrap();
+        let _ = sopakb.build(Some(b"bla")).unwrap();
     }
 
     #[test]
@@ -1758,7 +1770,7 @@ mod tests {
         )));
         let sopakb: SodiumOxidePublicAsymmetricKeyBuilder = tbc.try_into().unwrap();
         let (public_key, _) = SodiumOxidePublicAsymmetricKey::new();
-        sopakb.build(public_key.public_key.as_ref()).unwrap();
+        sopakb.build(Some(public_key.public_key.as_ref())).unwrap();
     }
 
     #[test]
@@ -1867,7 +1879,7 @@ mod tests {
         let (sopak, _) = SodiumOxidePublicAsymmetricKey::new();
         let builder = sopak.builder();
         let key_bytes = sopak.public_key.as_ref();
-        let built_key = builder.build(key_bytes).unwrap();
+        let built_key = builder.build(Some(key_bytes)).unwrap();
         assert_eq!(built_key.public_key.as_ref(), sopak.public_key.as_ref());
     }
 

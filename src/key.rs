@@ -161,7 +161,7 @@ impl From<KeyBuilder> for TypeBuilder {
 impl Builder for KeyBuilder {
     type Output = Key;
 
-    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
+    fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
         match self {
             Self::Symmetric(sk) => Ok(Key::Symmetric(sk.build(bytes)?)),
             Self::Asymmetric(ak) => Ok(Key::Asymmetric(ak.build(bytes)?)),
@@ -262,7 +262,7 @@ impl From<SymmetricKeyBuilder> for TypeBuilder {
 impl Builder for SymmetricKeyBuilder {
     type Output = SymmetricKey;
 
-    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
+    fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
         match self {
             Self::SodiumOxide(soskb) => Ok(SymmetricKey::SodiumOxide(soskb.build(bytes)?)),
         }
@@ -340,7 +340,7 @@ impl From<AsymmetricKeyBuilder> for TypeBuilder {
 impl Builder for AsymmetricKeyBuilder {
     type Output = AsymmetricKey;
 
-    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
+    fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
         match self {
             Self::Public(pakb) => Ok(AsymmetricKey::Public(pakb.build(bytes)?)),
             Self::Secret(sakb) => Ok(AsymmetricKey::Secret(sakb.build(bytes)?)),
@@ -420,7 +420,7 @@ impl From<PublicAsymmetricKeyBuilder> for TypeBuilder {
 impl Builder for PublicAsymmetricKeyBuilder {
     type Output = PublicAsymmetricKey;
 
-    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
+    fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
         match self {
             Self::SodiumOxide(sopakb) => Ok(PublicAsymmetricKey::SodiumOxide(sopakb.build(bytes)?)),
         }
@@ -499,7 +499,7 @@ impl From<SecretAsymmetricKeyBuilder> for TypeBuilder {
 impl Builder for SecretAsymmetricKeyBuilder {
     type Output = SecretAsymmetricKey;
 
-    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
+    fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
         match self {
             Self::SodiumOxide(sosakb) => Ok(SecretAsymmetricKey::SodiumOxide(sosakb.build(bytes)?)),
         }

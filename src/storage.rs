@@ -90,11 +90,11 @@ pub trait Storer: Clone + Send + Sync {
             } => {
                 let bytes = unsealable.unseal(self.clone()).await?;
                 let builder = <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(builder))?;
-                builder.build(bytes.get_source().get()?)
+                builder.build(Some(bytes.get_source().get()?))
             }
             States::Unsealed { builder, bytes } => {
                 let builder = <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(builder))?;
-                builder.build(bytes.get()?)
+                builder.build(Some(bytes.get()?))
             }
         }
     }

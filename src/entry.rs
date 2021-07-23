@@ -65,7 +65,7 @@ pub trait HasBuilder {
 pub trait Builder: TryFrom<TypeBuilderContainer, Error = CryptoError> + Into<TypeBuilder> {
     type Output;
 
-    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError>;
+    fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError>;
 }
 
 /// Need this to provide a level an indirection for TryFrom
@@ -116,7 +116,7 @@ impl TryFrom<TypeBuilderContainer> for TypeBuilder {
 impl Builder for TypeBuilder {
     type Output = Type;
 
-    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
+    fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
         match self {
             Self::Key(k) => Ok(Type::Key(k.build(bytes)?)),
             Self::Data(d) => Ok(Type::Data(d.build(bytes)?)),
@@ -174,7 +174,7 @@ mod tests {
     #[test]
     fn test_typebuilder_build_valid() {
         let tb = TypeBuilder::Data(DataBuilder::String(StringDataBuilder {}));
-        let t = tb.build(b"hello, world!").unwrap();
+        let t = tb.build(Some(b"hello, world!")).unwrap();
         match t {
             Type::Data(Data::String(s)) => assert_eq!(s, "hello, world!".to_owned()),
             _ => panic!("Extracted type should have been a data string-type"),
@@ -185,14 +185,14 @@ mod tests {
     #[should_panic]
     fn test_typebuilder_build_invalid() {
         let tb = TypeBuilder::Data(DataBuilder::Bool(BoolDataBuilder {}));
-        tb.build(b"not a bool").unwrap();
+        tb.build(Some(b"not a bool")).unwrap();
     }
 
     #[test]
     fn test_typebuilder_from_typebuildercontainer_valid() {
         let tbc = TypeBuilderContainer(TypeBuilder::Data(DataBuilder::Bool(BoolDataBuilder {})));
         let tb: TypeBuilder = tbc.try_into().unwrap();
-        let t = tb.build(b"true").unwrap();
+        let t = tb.build(Some(b"true")).unwrap();
         match t {
             Type::Data(Data::Bool(b)) => assert_eq!(b, true),
             _ => panic!("Extracted data should have been a bool-type"),

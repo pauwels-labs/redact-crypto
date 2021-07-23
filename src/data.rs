@@ -102,7 +102,7 @@ impl From<DataBuilder> for TypeBuilder {
 impl Builder for DataBuilder {
     type Output = Data;
 
-    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
+    fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
         match self {
             Self::Bool(bdb) => bdb.build(bytes),
             Self::U64(ndb) => ndb.build(bytes),
@@ -136,11 +136,17 @@ impl From<BoolDataBuilder> for TypeBuilder {
 impl Builder for BoolDataBuilder {
     type Output = Data;
 
-    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
-        let s = String::from_utf8(bytes.to_vec())
-            .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
-        let b = bool::from_str(&s).map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
-        Ok(Data::Bool(b))
+    fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
+        match bytes {
+            Some(bytes) => {
+                let s = String::from_utf8(bytes.to_vec())
+                    .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+                let b =
+                    bool::from_str(&s).map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+                Ok(Data::Bool(b))
+            }
+            None => Ok(Data::Bool(false)),
+        }
     }
 }
 
@@ -167,11 +173,17 @@ impl From<U64DataBuilder> for TypeBuilder {
 impl Builder for U64DataBuilder {
     type Output = Data;
 
-    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
-        let s = String::from_utf8(bytes.to_vec())
-            .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
-        let n = u64::from_str(&s).map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
-        Ok(Data::U64(n))
+    fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
+        match bytes {
+            Some(bytes) => {
+                let s = String::from_utf8(bytes.to_vec())
+                    .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+                let n =
+                    u64::from_str(&s).map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+                Ok(Data::U64(n))
+            }
+            None => Ok(Data::U64(0)),
+        }
     }
 }
 
@@ -198,11 +210,17 @@ impl From<I64DataBuilder> for TypeBuilder {
 impl Builder for I64DataBuilder {
     type Output = Data;
 
-    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
-        let s = String::from_utf8(bytes.to_vec())
-            .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
-        let n = i64::from_str(&s).map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
-        Ok(Data::I64(n))
+    fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
+        match bytes {
+            Some(bytes) => {
+                let s = String::from_utf8(bytes.to_vec())
+                    .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+                let n =
+                    i64::from_str(&s).map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+                Ok(Data::I64(n))
+            }
+            None => Ok(Data::I64(0)),
+        }
     }
 }
 
@@ -229,11 +247,17 @@ impl From<F64DataBuilder> for TypeBuilder {
 impl Builder for F64DataBuilder {
     type Output = Data;
 
-    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
-        let s = String::from_utf8(bytes.to_vec())
-            .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
-        let n = f64::from_str(&s).map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
-        Ok(Data::F64(n))
+    fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
+        match bytes {
+            Some(bytes) => {
+                let s = String::from_utf8(bytes.to_vec())
+                    .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+                let n =
+                    f64::from_str(&s).map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+                Ok(Data::F64(n))
+            }
+            None => Ok(Data::F64(0.0)),
+        }
     }
 }
 
@@ -260,10 +284,15 @@ impl From<StringDataBuilder> for TypeBuilder {
 impl Builder for StringDataBuilder {
     type Output = Data;
 
-    fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError> {
-        let s = String::from_utf8(bytes.to_vec())
-            .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
-        Ok(Data::String(s))
+    fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
+        match bytes {
+            Some(bytes) => {
+                let s = String::from_utf8(bytes.to_vec())
+                    .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+                Ok(Data::String(s))
+            }
+            None => Ok(Data::String("".to_owned())),
+        }
     }
 }
 
@@ -353,23 +382,26 @@ mod tests {
         let ds = Data::String("hello, world!".to_owned());
 
         assert_eq!(
-            db.builder().build(b"true").unwrap().to_string(),
+            db.builder().build(Some(b"true")).unwrap().to_string(),
             db.to_string()
         );
         assert_eq!(
-            du.builder().build(b"10").unwrap().to_string(),
+            du.builder().build(Some(b"10")).unwrap().to_string(),
             du.to_string()
         );
         assert_eq!(
-            di.builder().build(b"-10").unwrap().to_string(),
+            di.builder().build(Some(b"-10")).unwrap().to_string(),
             di.to_string()
         );
         assert_eq!(
-            df.builder().build(b"-10.46").unwrap().to_string(),
+            df.builder().build(Some(b"-10.46")).unwrap().to_string(),
             df.to_string()
         );
         assert_eq!(
-            ds.builder().build(b"hello, world!").unwrap().to_string(),
+            ds.builder()
+                .build(Some(b"hello, world!"))
+                .unwrap()
+                .to_string(),
             ds.to_string()
         );
     }
@@ -378,7 +410,7 @@ mod tests {
     fn test_databuilder_from_typebuildercontainer_valid() {
         let tbc = TypeBuilderContainer(TypeBuilder::Data(DataBuilder::Bool(BoolDataBuilder {})));
         let db: DataBuilder = tbc.try_into().unwrap();
-        let d = db.build(b"true").unwrap();
+        let d = db.build(Some(b"true")).unwrap();
         match d {
             Data::Bool(b) => assert_eq!(b, true),
             _ => panic!("Extracted data should have been a bool-type"),
@@ -397,7 +429,7 @@ mod tests {
     #[test]
     fn test_booldatabuilder_build_true() {
         let bdb = BoolDataBuilder {};
-        let d = bdb.build(b"true").unwrap();
+        let d = bdb.build(Some(b"true")).unwrap();
         match d {
             Data::Bool(b) => assert_eq!(b, true),
             _ => panic!("Extracted data should have been a bool-type"),
@@ -407,7 +439,7 @@ mod tests {
     #[test]
     fn test_booldatabuilder_build_false() {
         let bdb = BoolDataBuilder {};
-        let d = bdb.build(b"false").unwrap();
+        let d = bdb.build(Some(b"false")).unwrap();
         match d {
             Data::Bool(b) => assert_eq!(b, false),
             _ => panic!("Extracted data should have been a bool-type"),
@@ -432,7 +464,7 @@ mod tests {
     #[test]
     fn test_u64databuilder_build_valid() {
         let udb = U64DataBuilder {};
-        let d = udb.build(b"10").unwrap();
+        let d = udb.build(Some(b"10")).unwrap();
         match d {
             Data::U64(n) => assert_eq!(n, 10),
             _ => panic!("Extracted data should have been a u64-type"),
@@ -443,7 +475,7 @@ mod tests {
     #[should_panic]
     fn test_u64databuilder_build_invalid() {
         let udb = U64DataBuilder {};
-        udb.build(b"-10").unwrap();
+        udb.build(Some(b"-10")).unwrap();
     }
 
     #[test]
@@ -464,7 +496,7 @@ mod tests {
     #[test]
     fn test_i64databuilder_build_valid() {
         let udb = I64DataBuilder {};
-        let d = udb.build(b"-10").unwrap();
+        let d = udb.build(Some(b"-10")).unwrap();
         match d {
             Data::I64(n) => assert_eq!(n, -10),
             _ => panic!("Extracted data should have been a i64-type"),
@@ -475,7 +507,7 @@ mod tests {
     #[should_panic]
     fn test_i64databuilder_build_invalid() {
         let udb = I64DataBuilder {};
-        udb.build(b"-10.54").unwrap();
+        udb.build(Some(b"-10.54")).unwrap();
     }
 
     #[test]
@@ -496,7 +528,7 @@ mod tests {
     #[test]
     fn test_f64databuilder_build_valid() {
         let udb = F64DataBuilder {};
-        let d = udb.build(b"-10.53").unwrap();
+        let d = udb.build(Some(b"-10.53")).unwrap();
         match d {
             Data::F64(n) => assert!((n + 10.53).abs() < f64::EPSILON),
             _ => panic!("Extracted data should have been a f64-type"),
@@ -507,7 +539,7 @@ mod tests {
     #[should_panic]
     fn test_f64databuilder_build_invalid() {
         let udb = F64DataBuilder {};
-        udb.build(b"somestr").unwrap();
+        udb.build(Some(b"somestr")).unwrap();
     }
 
     #[test]
@@ -528,7 +560,7 @@ mod tests {
     #[test]
     fn test_stringdatabuilder_build_valid() {
         let sdb = StringDataBuilder {};
-        let d = sdb.build(b"hello, world!").unwrap();
+        let d = sdb.build(Some(b"hello, world!")).unwrap();
         match d {
             Data::String(s) => assert_eq!(s, "hello, world!".to_owned()),
             _ => panic!("Extracted data should have been a string-type"),
@@ -539,7 +571,7 @@ mod tests {
     #[should_panic]
     fn test_stringdatabuilder_build_invalid() {
         let udb = StringDataBuilder {};
-        udb.build(vec![0xc3, 0x28].as_ref()).unwrap();
+        udb.build(Some(vec![0xc3, 0x28].as_ref())).unwrap();
     }
 
     #[test]
@@ -547,7 +579,7 @@ mod tests {
         let tbc =
             TypeBuilderContainer(TypeBuilder::Data(DataBuilder::String(StringDataBuilder {})));
         let db: StringDataBuilder = tbc.try_into().unwrap();
-        let d = db.build(b"hello, world!").unwrap();
+        let d = db.build(Some(b"hello, world!")).unwrap();
         match d {
             Data::String(s) => assert_eq!(s, "hello, world!".to_owned()),
             _ => panic!("Extracted data should have been a string-type"),
