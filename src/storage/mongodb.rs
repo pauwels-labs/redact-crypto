@@ -1,3 +1,8 @@
+use std::{
+    error::Error,
+    fmt::{self, Display, Formatter},
+};
+
 use crate::{CryptoError, Entry, EntryPath, HasBuilder, States, Storer};
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -8,6 +13,52 @@ use mongodb::{
     Client, Database,
 };
 use serde::{Deserialize, Serialize};
+
+#[derive(Debug)]
+pub enum MongoStorerError {
+    /// Represents an error which occurred in some internal system
+    InternalError {
+        source: Box<dyn Error + Send + Sync>,
+    },
+
+    /// Requested document was not found
+    NotFound,
+}
+
+impl Error for MongoStorerError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match *self {
+            MongoStorerError::InternalError { ref source } => Some(source.as_ref()),
+            MongoStorerError::NotFound => None,
+        }
+    }
+}
+
+impl Display for MongoStorerError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match *self {
+            MongoStorerError::InternalError { .. } => {
+                write!(f, "Internal error occurred")
+            }
+            MongoStorerError::NotFound => {
+                write!(f, "Requested document not found")
+            }
+        }
+    }
+}
+
+impl From<MongoStorerError> for CryptoError {
+    fn from(mse: MongoStorerError) -> Self {
+        match mse {
+            MongoStorerError::InternalError { .. } => CryptoError::InternalError {
+                source: Box::new(mse),
+            },
+            MongoStorerError::NotFound => CryptoError::NotFound {
+                source: Box::new(mse),
+            },
+        }
+    }
+}
 
 /// Stores an instance of a mongodb-backed key storer
 #[derive(Clone)]
@@ -68,10 +119,11 @@ impl Storer for MongoStorer {
             .await
         {
             Ok(Some(entry)) => Ok(entry),
-            Ok(None) => Err(CryptoError::NotFound),
-            Err(e) => Err(CryptoError::InternalError {
+            Ok(None) => Err(MongoStorerError::NotFound.into()),
+            Err(e) => Err(MongoStorerError::InternalError {
                 source: Box::new(e),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -103,9 +155,10 @@ impl Storer for MongoStorer {
                 })
                 .collect::<Vec<Entry>>()
                 .await),
-            Err(e) => Err(CryptoError::InternalError {
+            Err(e) => Err(MongoStorerError::InternalError {
                 source: Box::new(e),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -123,9 +176,10 @@ impl Storer for MongoStorer {
             .await
         {
             Ok(_) => Ok(true),
-            Err(e) => Err(CryptoError::InternalError {
+            Err(e) => Err(MongoStorerError::InternalError {
                 source: Box::new(e),
-            }),
+            }
+            .into()),
         }
     }
 }

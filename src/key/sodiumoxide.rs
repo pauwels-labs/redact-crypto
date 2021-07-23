@@ -236,7 +236,7 @@ impl Sealable for SodiumOxideSecretAsymmetricKeySealable {
             .resolve::<SodiumOxideSecretAsymmetricKey>(*self.secret_key)
             .await?;
         let public_key = match self.public_key {
-            Some(public_key) => Ok(Some(
+            Some(public_key) => Ok::<_, CryptoError>(Some(
                 storer
                     .resolve::<SodiumOxidePublicAsymmetricKey>(*public_key)
                     .await?,
@@ -268,7 +268,7 @@ impl Unsealable for SodiumOxideSecretAsymmetricKeyUnsealable {
             .resolve::<SodiumOxideSecretAsymmetricKey>(*self.secret_key)
             .await?;
         let public_key = match self.public_key {
-            Some(public_key) => Ok(Some(
+            Some(public_key) => Ok::<_, CryptoError>(Some(
                 storer
                     .resolve::<SodiumOxidePublicAsymmetricKey>(*public_key)
                     .await?,

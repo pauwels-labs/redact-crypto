@@ -1,6 +1,57 @@
+use std::{
+    error::Error,
+    fmt::{self, Display, Formatter},
+};
+
 use crate::{CryptoError, Entry, EntryPath, HasBuilder, States, Storer};
 use async_trait::async_trait;
 use mongodb::bson::Document;
+
+#[derive(Debug)]
+pub enum RedactStorerError {
+    /// Represents an error which occurred in some internal system
+    InternalError {
+        source: Box<dyn Error + Send + Sync>,
+    },
+
+    /// Requested document was not found
+    NotFound,
+}
+
+impl Error for RedactStorerError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match *self {
+            RedactStorerError::InternalError { ref source } => Some(source.as_ref()),
+            RedactStorerError::NotFound => None,
+        }
+    }
+}
+
+impl Display for RedactStorerError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match *self {
+            RedactStorerError::InternalError { .. } => {
+                write!(f, "Internal error occurred")
+            }
+            RedactStorerError::NotFound => {
+                write!(f, "Requested document not found")
+            }
+        }
+    }
+}
+
+impl From<RedactStorerError> for CryptoError {
+    fn from(rse: RedactStorerError) -> Self {
+        match rse {
+            RedactStorerError::InternalError { .. } => CryptoError::InternalError {
+                source: Box::new(rse),
+            },
+            RedactStorerError::NotFound => CryptoError::NotFound {
+                source: Box::new(rse),
+            },
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct RedactStorer {
@@ -31,23 +82,28 @@ impl Storer for RedactStorer {
         match reqwest::get(&req_url).await {
             Ok(r) => Ok(r
                 .error_for_status()
-                .map_err(|source| {
+                .map_err(|source| -> CryptoError {
                     if source.status() == Some(reqwest::StatusCode::NOT_FOUND) {
-                        CryptoError::NotFound
+                        RedactStorerError::NotFound.into()
                     } else {
-                        CryptoError::InternalError {
+                        RedactStorerError::InternalError {
                             source: Box::new(source),
                         }
+                        .into()
                     }
                 })?
                 .json::<Entry>()
                 .await
-                .map_err(|source| CryptoError::InternalError {
-                    source: Box::new(source),
+                .map_err(|source| -> CryptoError {
+                    RedactStorerError::InternalError {
+                        source: Box::new(source),
+                    }
+                    .into()
                 })?),
-            Err(source) => Err(CryptoError::InternalError {
+            Err(source) => Err(RedactStorerError::InternalError {
                 source: Box::new(source),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -68,23 +124,28 @@ impl Storer for RedactStorer {
         match reqwest::get(&req_url).await {
             Ok(r) => Ok(r
                 .error_for_status()
-                .map_err(|source| {
+                .map_err(|source| -> CryptoError {
                     if source.status() == Some(reqwest::StatusCode::NOT_FOUND) {
-                        CryptoError::NotFound
+                        RedactStorerError::NotFound.into()
                     } else {
-                        CryptoError::InternalError {
+                        RedactStorerError::InternalError {
                             source: Box::new(source),
                         }
+                        .into()
                     }
                 })?
                 .json::<Vec<Entry>>()
                 .await
-                .map_err(|source| CryptoError::InternalError {
-                    source: Box::new(source),
+                .map_err(|source| -> CryptoError {
+                    RedactStorerError::InternalError {
+                        source: Box::new(source),
+                    }
+                    .into()
                 })?),
-            Err(source) => Err(CryptoError::InternalError {
+            Err(source) => Err(RedactStorerError::InternalError {
                 source: Box::new(source),
-            }),
+            }
+            .into()),
         }
     }
 
@@ -98,9 +159,10 @@ impl Storer for RedactStorer {
             .await
         {
             Ok(_) => Ok(true),
-            Err(source) => Err(CryptoError::InternalError {
+            Err(source) => Err(RedactStorerError::InternalError {
                 source: Box::new(source),
-            }),
+            }
+            .into()),
         }
     }
 }

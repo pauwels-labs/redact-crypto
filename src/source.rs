@@ -3,12 +3,89 @@
 //! for read/write operations on the set of bytes it covers.
 
 use crate::CryptoError;
+use base64::DecodeError;
 use once_cell::sync::OnceCell;
 use serde::{
     de::{self, Deserializer},
     Deserialize, Serialize, Serializer,
 };
-use std::{convert::Into, io::ErrorKind, path::PathBuf as StdPathBuf, str::FromStr};
+use std::{
+    convert::Into,
+    error::Error,
+    fmt::{self, Display, Formatter},
+    io::{self, ErrorKind},
+    path::PathBuf as StdPathBuf,
+    str::FromStr,
+};
+
+#[derive(Debug)]
+pub enum SourceError {
+    /// Error occurred while performing IO on the filesystem
+    FsIoError { source: io::Error },
+
+    /// File path given was not found
+    FileNotFound { path: String },
+
+    /// File path given has an invalid file name with no stem
+    FilePathHasNoFileStem { path: String },
+
+    /// File path given was invalid UTF-8
+    FilePathIsInvalidUTF8,
+
+    /// Error happened when decoding base64 string
+    Base64Decode { source: DecodeError },
+}
+
+impl Error for SourceError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match *self {
+            SourceError::FsIoError { ref source } => Some(source),
+            SourceError::FileNotFound { .. } => None,
+            SourceError::FilePathHasNoFileStem { .. } => None,
+            SourceError::FilePathIsInvalidUTF8 => None,
+            SourceError::Base64Decode { ref source } => Some(source),
+        }
+    }
+}
+
+impl Display for SourceError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match *self {
+            SourceError::FsIoError { .. } => {
+                write!(f, "Error occured during file system I/O")
+            }
+            SourceError::FileNotFound { ref path } => {
+                write!(f, "Path \"{}\" not found", path)
+            }
+            SourceError::FilePathHasNoFileStem { ref path } => {
+                write!(
+                    f,
+                    "File path \"{}\" was invalid as the file name has no stem",
+                    path
+                )
+            }
+            SourceError::FilePathIsInvalidUTF8 => {
+                write!(f, "Given file path was not valid UTF-8")
+            }
+            SourceError::Base64Decode { .. } => {
+                write!(f, "Error occurred while decoding string from base64")
+            }
+        }
+    }
+}
+
+impl From<SourceError> for CryptoError {
+    fn from(mse: SourceError) -> Self {
+        match mse {
+            SourceError::FileNotFound { .. } => CryptoError::NotFound {
+                source: Box::new(mse),
+            },
+            _ => CryptoError::InternalError {
+                source: Box::new(mse),
+            },
+        }
+    }
+}
 
 /// Enumerates all the different types of sources.
 /// Currently supported:
@@ -32,7 +109,7 @@ pub enum ByteSource {
 
 impl ByteSource {
     /// Sets the bytes of the source to the given value
-    pub fn set(&mut self, key: &[u8]) -> Result<(), CryptoError> {
+    pub fn set(&mut self, key: &[u8]) -> Result<(), SourceError> {
         match self {
             ByteSource::Fs(fsbks) => fsbks.set(key),
             ByteSource::Vector(vbks) => vbks.set(key),
@@ -40,7 +117,7 @@ impl ByteSource {
     }
 
     /// Gets the bytes stored by the source
-    pub fn get(&self) -> Result<&[u8], CryptoError> {
+    pub fn get(&self) -> Result<&[u8], SourceError> {
         match self {
             ByteSource::Fs(fsbks) => fsbks.get(),
             ByteSource::Vector(vbks) => vbks.get(),
@@ -68,13 +145,13 @@ impl<'a> From<&'a Path> for &'a StdPathBuf {
 }
 
 impl FromStr for Path {
-    type Err = CryptoError;
+    type Err = SourceError;
 
     fn from_str(path: &str) -> Result<Self, Self::Err> {
         let path: StdPathBuf = path.into();
         let stem = path
             .file_stem()
-            .ok_or(CryptoError::FilePathHasNoFileStem {
+            .ok_or(SourceError::FilePathHasNoFileStem {
                 path: path
                     .clone()
                     .into_os_string()
@@ -82,7 +159,7 @@ impl FromStr for Path {
                     .unwrap_or_else(|_| "<Invalid UTF8>".to_owned()),
             })?
             .to_str()
-            .ok_or(CryptoError::FilePathIsInvalidUTF8)?
+            .ok_or(SourceError::FilePathIsInvalidUTF8)?
             .to_owned();
 
         Ok(Self { path, stem })
@@ -100,7 +177,7 @@ pub struct FsByteSource {
 }
 
 impl FromStr for FsByteSource {
-    type Err = CryptoError;
+    type Err = SourceError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let path = Path::from_str(s)?;
@@ -116,7 +193,7 @@ impl FsByteSource {
     }
 
     /// Reads a `VectorBytesSource` from a path on the filesystem
-    fn read_from_path(path: &Path) -> Result<VectorByteSource, CryptoError> {
+    fn read_from_path(path: &Path) -> Result<VectorByteSource, SourceError> {
         let path_ref: &StdPathBuf = path.into();
         let path_str = path
             .path
@@ -127,11 +204,11 @@ impl FsByteSource {
 
         // Mock this
         let read_bytes = std::fs::read(path_ref).map_err(|e| match e.kind() {
-            ErrorKind::NotFound => CryptoError::FileNotFound { path: path_str },
-            _ => CryptoError::FsIoError { source: e },
+            ErrorKind::NotFound => SourceError::FileNotFound { path: path_str },
+            _ => SourceError::FsIoError { source: e },
         })?;
         let bytes =
-            base64::decode(read_bytes).map_err(|e| CryptoError::Base64Decode { source: e })?;
+            base64::decode(read_bytes).map_err(|e| SourceError::Base64Decode { source: e })?;
         Ok(VectorByteSource { value: bytes })
     }
 
@@ -143,7 +220,7 @@ impl FsByteSource {
     }
 
     /// Re-writes the file at the path to the given bytes
-    pub fn set(&mut self, value: &[u8]) -> Result<(), CryptoError> {
+    pub fn set(&mut self, value: &[u8]) -> Result<(), SourceError> {
         let path_ref: &StdPathBuf = (&self.path).into();
         let path_str = self
             .path
@@ -157,13 +234,13 @@ impl FsByteSource {
         std::fs::write(path_ref, bytes)
             .map(|_| self.reload())
             .map_err(|source| match source.kind() {
-                std::io::ErrorKind::NotFound => CryptoError::FileNotFound { path: path_str },
-                _ => CryptoError::FsIoError { source },
+                std::io::ErrorKind::NotFound => SourceError::FileNotFound { path: path_str },
+                _ => SourceError::FsIoError { source },
             })
     }
 
     /// Returns the bytes stored at the path
-    pub fn get(&self) -> Result<&[u8], CryptoError> {
+    pub fn get(&self) -> Result<&[u8], SourceError> {
         self.cached
             .get_or_try_init(|| Self::read_from_path(&self.path))?
             .get()
@@ -212,13 +289,13 @@ impl VectorByteSource {
     }
 
     /// Re-writes the source to the given bytes
-    pub fn set(&mut self, key: &[u8]) -> Result<(), CryptoError> {
+    pub fn set(&mut self, key: &[u8]) -> Result<(), SourceError> {
         self.value = key.to_owned();
         Ok(())
     }
 
     /// Returns the stored bytes
-    pub fn get(&self) -> Result<&[u8], CryptoError> {
+    pub fn get(&self) -> Result<&[u8], SourceError> {
         Ok(self.value.as_ref())
     }
 }

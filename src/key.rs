@@ -174,7 +174,7 @@ impl SymmetricSealer for SymmetricKey {
             Self::SodiumOxide(sosk) => {
                 let nonce = match nonce {
                     Some(n) => match n {
-                        SymmetricNonce::SodiumOxide(sosn) => Ok(Some(sosn)),
+                        SymmetricNonce::SodiumOxide(sosn) => Ok::<_, CryptoError>(Some(sosn)),
                     },
                     None => Ok(None),
                 }?;
