@@ -42,10 +42,7 @@ pub struct SodiumOxideSymmetricKeySealable {
 impl Sealable for SodiumOxideSymmetricKeySealable {
     async fn seal<T: Storer>(self, storer: T) -> Result<ByteUnsealable, CryptoError> {
         let stateful_key = *self.key.clone();
-        let key = storer
-            .resolve::<SodiumOxideSymmetricKey>(*self.key)
-            .await
-            .map_err(|e| CryptoError::StorageError { source: e })?;
+        let key = storer.resolve::<SodiumOxideSymmetricKey>(*self.key).await?;
         let mut unsealable = key.seal(self.source, Some(&self.nonce), None)?;
         unsealable.key = Box::new(stateful_key);
         Ok(ByteUnsealable::SodiumOxideSymmetricKey(unsealable))
@@ -69,10 +66,7 @@ impl Unsealable for SodiumOxideSymmetricKeyUnsealable {
             } => Some(path.clone()),
             _ => None,
         };
-        let key = storer
-            .resolve::<SodiumOxideSymmetricKey>(*self.key)
-            .await
-            .map_err(|e| CryptoError::StorageError { source: e })?;
+        let key = storer.resolve::<SodiumOxideSymmetricKey>(*self.key).await?;
         let sosks = key.unseal(self.source, &self.nonce, path)?;
         Ok(ByteSealable::SodiumOxideSymmetricKey(sosks))
     }
@@ -240,14 +234,12 @@ impl Sealable for SodiumOxideSecretAsymmetricKeySealable {
         let stateful_public_key = self.public_key.as_ref().cloned();
         let secret_key = storer
             .resolve::<SodiumOxideSecretAsymmetricKey>(*self.secret_key)
-            .await
-            .map_err(|e| CryptoError::StorageError { source: e })?;
+            .await?;
         let public_key = match self.public_key {
             Some(public_key) => Ok(Some(
                 storer
                     .resolve::<SodiumOxidePublicAsymmetricKey>(*public_key)
-                    .await
-                    .map_err(|e| CryptoError::StorageError { source: e })?,
+                    .await?,
             )),
             None => Ok(None),
         }?;
@@ -274,14 +266,12 @@ impl Unsealable for SodiumOxideSecretAsymmetricKeyUnsealable {
         let stateful_public_key = self.public_key.as_ref().cloned();
         let secret_key = storer
             .resolve::<SodiumOxideSecretAsymmetricKey>(*self.secret_key)
-            .await
-            .map_err(|e| CryptoError::StorageError { source: e })?;
+            .await?;
         let public_key = match self.public_key {
             Some(public_key) => Ok(Some(
                 storer
                     .resolve::<SodiumOxidePublicAsymmetricKey>(*public_key)
-                    .await
-                    .map_err(|e| CryptoError::StorageError { source: e })?,
+                    .await?,
             )),
             None => Ok(None),
         }?;
@@ -500,12 +490,10 @@ impl Sealable for SodiumOxidePublicAsymmetricKeySealable {
         };
         let secret_key = storer
             .resolve::<SodiumOxideSecretAsymmetricKey>(*self.secret_key)
-            .await
-            .map_err(|e| CryptoError::StorageError { source: e })?;
+            .await?;
         let public_key = storer
             .resolve::<SodiumOxidePublicAsymmetricKey>(*self.public_key)
-            .await
-            .map_err(|e| CryptoError::StorageError { source: e })?;
+            .await?;
         let mut unsealable =
             public_key.seal(self.source, &secret_key, Some(&self.nonce), secret_key_path)?;
         unsealable.public_key = Box::new(stateful_public_key);
@@ -529,12 +517,10 @@ impl Unsealable for SodiumOxidePublicAsymmetricKeyUnsealable {
         let stateful_public_key = *self.public_key.clone();
         let secret_key = storer
             .resolve::<SodiumOxideSecretAsymmetricKey>(*self.secret_key)
-            .await
-            .map_err(|e| CryptoError::StorageError { source: e })?;
+            .await?;
         let public_key = storer
             .resolve::<SodiumOxidePublicAsymmetricKey>(*self.public_key)
-            .await
-            .map_err(|e| CryptoError::StorageError { source: e })?;
+            .await?;
         let mut sopaks = public_key.unseal(self.source, &secret_key, &self.nonce, None)?;
         sopaks.secret_key = Box::new(stateful_secret_key);
         sopaks.public_key = Box::new(stateful_public_key);

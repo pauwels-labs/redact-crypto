@@ -2,7 +2,6 @@
 //! every function in this crate returning a Result except those used in the
 //! `Storer` trait.
 
-use crate::StorageError;
 use base64::DecodeError;
 use std::{
     error::Error,
@@ -13,20 +12,25 @@ use std::{
 /// Error that wraps all possible errors out of the redact-crypto crate
 #[derive(Debug)]
 pub enum CryptoError {
+    /// Represents an error which occurred in some internal system
+    InternalError {
+        source: Box<dyn Error + Send + Sync>,
+    },
+
     /// Error occurred while performing IO on the filesystem
     FsIoError { source: io::Error },
 
     /// File path given was not found
     FileNotFound { path: String },
 
+    /// The requested resource was not found
+    NotFound,
+
     /// Ciphertext failed veri fication before decryption
     CiphertextFailedVerification,
 
     /// Provided bytes are not the right length for the
     InvalidKeyLength { expected: usize, actual: usize },
-
-    /// Wraps a StorageError
-    StorageError { source: StorageError },
 
     /// Given value was not of the right type to be downcasted to the requested type
     NotDowncastable,
@@ -50,11 +54,12 @@ pub enum CryptoError {
 impl Error for CryptoError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match *self {
+            CryptoError::InternalError { ref source } => Some(source.as_ref()),
             CryptoError::FsIoError { ref source } => Some(source),
             CryptoError::FileNotFound { .. } => None,
+            CryptoError::NotFound => None,
             CryptoError::CiphertextFailedVerification => None,
             CryptoError::InvalidKeyLength { .. } => None,
-            CryptoError::StorageError { ref source } => Some(source),
             CryptoError::NotDowncastable => None,
             CryptoError::FilePathHasNoFileStem { .. } => None,
             CryptoError::FilePathIsInvalidUTF8 => None,
@@ -68,11 +73,17 @@ impl Error for CryptoError {
 impl Display for CryptoError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
+            CryptoError::InternalError { .. } => {
+                write!(f, "Internal error occurred")
+            }
             CryptoError::FsIoError { .. } => {
                 write!(f, "Error occured during file system IO")
             }
             CryptoError::FileNotFound { ref path } => {
                 write!(f, "Path \"{}\" not found", path)
+            }
+            CryptoError::NotFound => {
+                write!(f, "Requested resource not found")
             }
             CryptoError::CiphertextFailedVerification => {
                 write!(f, "Ciphertext failed verification before decryption")
@@ -86,9 +97,6 @@ impl Display for CryptoError {
                     "Provided key was not the correct length, expected: {}, actual: {}",
                     expected, actual,
                 )
-            }
-            CryptoError::StorageError { .. } => {
-                write!(f, "Error occured while interacting with key storage")
             }
             CryptoError::NotDowncastable => {
                 write!(
@@ -121,12 +129,12 @@ impl Display for CryptoError {
 
 #[cfg(test)]
 mod tests {
-    use crate::StorageError;
+    use super::CryptoError;
 
     #[test]
     fn test_to_string_internal_error() {
-        let s = StorageError::InternalError {
-            source: Box::new(StorageError::NotFound),
+        let s = CryptoError::InternalError {
+            source: Box::new(CryptoError::NotFound),
         }
         .to_string();
         assert_eq!(s, "Internal error occurred");
@@ -134,7 +142,7 @@ mod tests {
 
     #[test]
     fn test_to_string_not_found() {
-        let s = StorageError::NotFound.to_string();
-        assert_eq!(s, "Key not found");
+        let s = CryptoError::NotFound.to_string();
+        assert_eq!(s, "Requested resource not found");
     }
 }

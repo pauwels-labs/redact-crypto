@@ -1,4 +1,4 @@
-use crate::{Entry, EntryPath, HasBuilder, States, StorageError, Storer};
+use crate::{CryptoError, Entry, EntryPath, HasBuilder, States, Storer};
 use async_trait::async_trait;
 use mongodb::bson::Document;
 
@@ -23,7 +23,7 @@ impl Storer for RedactStorer {
         &self,
         path: &str,
         index: &Option<Document>,
-    ) -> Result<Entry, StorageError> {
+    ) -> Result<Entry, CryptoError> {
         let mut req_url = format!("{}/{}?", &self.url, path);
         if let Some(i) = index {
             req_url.push_str(format!("index={}", i).as_ref());
@@ -33,19 +33,19 @@ impl Storer for RedactStorer {
                 .error_for_status()
                 .map_err(|source| {
                     if source.status() == Some(reqwest::StatusCode::NOT_FOUND) {
-                        StorageError::NotFound
+                        CryptoError::NotFound
                     } else {
-                        StorageError::InternalError {
+                        CryptoError::InternalError {
                             source: Box::new(source),
                         }
                     }
                 })?
                 .json::<Entry>()
                 .await
-                .map_err(|source| StorageError::InternalError {
+                .map_err(|source| CryptoError::InternalError {
                     source: Box::new(source),
                 })?),
-            Err(source) => Err(StorageError::InternalError {
+            Err(source) => Err(CryptoError::InternalError {
                 source: Box::new(source),
             }),
         }
@@ -57,7 +57,7 @@ impl Storer for RedactStorer {
         skip: i64,
         page_size: i64,
         index: &Option<Document>,
-    ) -> Result<Vec<Entry>, StorageError> {
+    ) -> Result<Vec<Entry>, CryptoError> {
         let mut req_url = format!(
             "{}/{}?skip={}&page_size={}",
             &self.url, path, skip, page_size
@@ -70,25 +70,25 @@ impl Storer for RedactStorer {
                 .error_for_status()
                 .map_err(|source| {
                     if source.status() == Some(reqwest::StatusCode::NOT_FOUND) {
-                        StorageError::NotFound
+                        CryptoError::NotFound
                     } else {
-                        StorageError::InternalError {
+                        CryptoError::InternalError {
                             source: Box::new(source),
                         }
                     }
                 })?
                 .json::<Vec<Entry>>()
                 .await
-                .map_err(|source| StorageError::InternalError {
+                .map_err(|source| CryptoError::InternalError {
                     source: Box::new(source),
                 })?),
-            Err(source) => Err(StorageError::InternalError {
+            Err(source) => Err(CryptoError::InternalError {
                 source: Box::new(source),
             }),
         }
     }
 
-    async fn create(&self, path: EntryPath, value: States) -> Result<bool, StorageError> {
+    async fn create(&self, path: EntryPath, value: States) -> Result<bool, CryptoError> {
         let entry = Entry { path, value };
         let client = reqwest::Client::new();
         match client
@@ -98,7 +98,7 @@ impl Storer for RedactStorer {
             .await
         {
             Ok(_) => Ok(true),
-            Err(source) => Err(StorageError::InternalError {
+            Err(source) => Err(CryptoError::InternalError {
                 source: Box::new(source),
             }),
         }

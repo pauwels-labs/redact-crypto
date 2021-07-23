@@ -5,14 +5,14 @@
 //! Read operations allow for retrieval of data based on type information and the data's path.
 //!
 
-pub mod error;
 pub mod mongodb;
 pub mod redact;
 
-use crate::{Builder, Entry, EntryPath, HasBuilder, States, TypeBuilderContainer, Unsealable};
+use crate::{
+    Builder, CryptoError, Entry, EntryPath, HasBuilder, States, TypeBuilderContainer, Unsealable,
+};
 use ::mongodb::bson::Document;
 use async_trait::async_trait;
-use error::StorageError;
 use std::{convert::TryFrom, ops::Deref, sync::Arc};
 
 pub trait HasIndex {
@@ -28,7 +28,7 @@ pub trait Storer: Clone + Send + Sync {
     async fn get<T: HasIndex<Index = Document> + HasBuilder + 'static>(
         &self,
         path: &str,
-    ) -> Result<Entry, StorageError> {
+    ) -> Result<Entry, CryptoError> {
         self.get_indexed::<T>(path, &T::get_index()).await
     }
 
@@ -37,7 +37,7 @@ pub trait Storer: Clone + Send + Sync {
         &self,
         path: &str,
         index: &Option<Document>,
-    ) -> Result<Entry, StorageError>;
+    ) -> Result<Entry, CryptoError>;
 
     /// Fetches a list of all the stored keys.
     async fn list<T: HasIndex<Index = Document> + HasBuilder + Send + 'static>(
@@ -45,7 +45,7 @@ pub trait Storer: Clone + Send + Sync {
         path: &str,
         skip: i64,
         page_size: i64,
-    ) -> Result<Vec<Entry>, StorageError> {
+    ) -> Result<Vec<Entry>, CryptoError> {
         self.list_indexed::<T>(path, skip, page_size, &T::get_index())
             .await
     }
@@ -57,16 +57,16 @@ pub trait Storer: Clone + Send + Sync {
         skip: i64,
         page_size: i64,
         index: &Option<Document>,
-    ) -> Result<Vec<Entry>, StorageError>;
+    ) -> Result<Vec<Entry>, CryptoError>;
 
     /// Adds the given `Key` struct to the backing store.
-    async fn create(&self, path: EntryPath, value: States) -> Result<bool, StorageError>;
+    async fn create(&self, path: EntryPath, value: States) -> Result<bool, CryptoError>;
 
     /// Takes an entry and resolves it down into its final unsealed type using this storage
     async fn resolve<T: HasIndex<Index = Document> + HasBuilder + 'static>(
         &self,
         state: States,
-    ) -> Result<T, StorageError> {
+    ) -> Result<T, CryptoError> {
         self.resolve_indexed::<T>(state, &T::get_index()).await
     }
 
@@ -75,7 +75,7 @@ pub trait Storer: Clone + Send + Sync {
         &self,
         state: States,
         index: &Option<Document>,
-    ) -> Result<T, StorageError> {
+    ) -> Result<T, CryptoError> {
         match state {
             States::Referenced {
                 builder: _,
@@ -90,24 +90,24 @@ pub trait Storer: Clone + Send + Sync {
             } => {
                 let bytes = match unsealable.unseal(self.clone()).await {
                     Ok(v) => Ok(v),
-                    Err(e) => Err(StorageError::InternalError {
+                    Err(e) => Err(CryptoError::InternalError {
                         source: Box::new(e),
                     }),
                 }?;
                 let builder =
                     match <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(builder)) {
                         Ok(b) => Ok(b),
-                        Err(e) => Err(StorageError::InternalError {
+                        Err(e) => Err(CryptoError::InternalError {
                             source: Box::new(e),
                         }),
                     }?;
                 match builder.build(bytes.get_source().get().map_err(|e| {
-                    StorageError::InternalError {
+                    CryptoError::InternalError {
                         source: Box::new(e),
                     }
                 })?) {
                     Ok(output) => Ok(output),
-                    Err(e) => Err(StorageError::InternalError {
+                    Err(e) => Err(CryptoError::InternalError {
                         source: Box::new(e),
                     }),
                 }
@@ -116,16 +116,16 @@ pub trait Storer: Clone + Send + Sync {
                 let builder =
                     match <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(builder)) {
                         Ok(b) => Ok(b),
-                        Err(e) => Err(StorageError::InternalError {
+                        Err(e) => Err(CryptoError::InternalError {
                             source: Box::new(e),
                         }),
                     }?;
-                let bytes = bytes.get().map_err(|e| StorageError::InternalError {
+                let bytes = bytes.get().map_err(|e| CryptoError::InternalError {
                     source: Box::new(e),
                 })?;
                 match builder.build(bytes) {
                     Ok(output) => Ok(output),
-                    Err(e) => Err(StorageError::InternalError {
+                    Err(e) => Err(CryptoError::InternalError {
                         source: Box::new(e),
                     }),
                 }
@@ -145,7 +145,7 @@ where
         &self,
         name: &str,
         index: &Option<Document>,
-    ) -> Result<Entry, StorageError> {
+    ) -> Result<Entry, CryptoError> {
         self.deref().get_indexed::<T>(name, index).await
     }
 
@@ -155,13 +155,13 @@ where
         skip: i64,
         page_size: i64,
         index: &Option<Document>,
-    ) -> Result<Vec<Entry>, StorageError> {
+    ) -> Result<Vec<Entry>, CryptoError> {
         self.deref()
             .list_indexed::<T>(name, skip, page_size, index)
             .await
     }
 
-    async fn create(&self, name: EntryPath, key: States) -> Result<bool, StorageError> {
+    async fn create(&self, name: EntryPath, key: States) -> Result<bool, CryptoError> {
         self.deref().create(name, key).await
     }
 }
@@ -169,7 +169,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use super::Storer;
-    use crate::{Entry, EntryPath, HasBuilder, States, StorageError};
+    use crate::{CryptoError, Entry, EntryPath, HasBuilder, States};
     use async_trait::async_trait;
     use mockall::predicate::*;
     use mockall::*;
@@ -183,7 +183,7 @@ pub mod tests {
         &self,
         path: &str,
         index: &Option<Document>,
-    ) -> Result<Entry, StorageError>;
+    ) -> Result<Entry, CryptoError>;
     /// Like list, but doesn't enforce IntoIndex and allows providing a custom index doc
     async fn list_indexed<T: HasBuilder + Send + 'static>(
         &self,
@@ -191,13 +191,13 @@ pub mod tests {
         skip: i64,
         page_size: i64,
         index: &Option<Document>,
-    ) -> Result<Vec<Entry>, StorageError>;
+    ) -> Result<Vec<Entry>, CryptoError>;
     // async fn resolve_indexed<T: HasBuilder + 'static>(
     //     &self,
     //     state: States,
     //     index: &Option<Document>,
-    // ) -> Result<T, StorageError>;
-    async fn create(&self, path: EntryPath, value: States) -> Result<bool, StorageError>;
+    // ) -> Result<T, CryptoError>;
+    async fn create(&self, path: EntryPath, value: States) -> Result<bool, CryptoError>;
     }
     impl Clone for Storer {
         fn clone(&self) -> Self;

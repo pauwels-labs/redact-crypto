@@ -1,4 +1,4 @@
-use crate::{Entry, EntryPath, HasBuilder, States, StorageError, Storer};
+use crate::{CryptoError, Entry, EntryPath, HasBuilder, States, Storer};
 use async_trait::async_trait;
 use futures::StreamExt;
 use mongodb::{
@@ -53,7 +53,7 @@ impl Storer for MongoStorer {
         &self,
         path: &str,
         index: &Option<Document>,
-    ) -> Result<Entry, StorageError> {
+    ) -> Result<Entry, CryptoError> {
         let mut filter = bson::doc! { "path": path };
         if let Some(i) = index {
             filter.insert("value", i);
@@ -68,8 +68,8 @@ impl Storer for MongoStorer {
             .await
         {
             Ok(Some(entry)) => Ok(entry),
-            Ok(None) => Err(StorageError::NotFound),
-            Err(e) => Err(StorageError::InternalError {
+            Ok(None) => Err(CryptoError::NotFound),
+            Err(e) => Err(CryptoError::InternalError {
                 source: Box::new(e),
             }),
         }
@@ -81,7 +81,7 @@ impl Storer for MongoStorer {
         skip: i64,
         page_size: i64,
         index: &Option<Document>,
-    ) -> Result<Vec<Entry>, StorageError> {
+    ) -> Result<Vec<Entry>, CryptoError> {
         let mut filter = bson::doc! { "path": path };
         if let Some(i) = index {
             filter.insert("value", i);
@@ -103,13 +103,13 @@ impl Storer for MongoStorer {
                 })
                 .collect::<Vec<Entry>>()
                 .await),
-            Err(e) => Err(StorageError::InternalError {
+            Err(e) => Err(CryptoError::InternalError {
                 source: Box::new(e),
             }),
         }
     }
 
-    async fn create(&self, path: EntryPath, value: States) -> Result<bool, StorageError> {
+    async fn create(&self, path: EntryPath, value: States) -> Result<bool, CryptoError> {
         let filter = bson::doc! { "path": &path };
         let entry = Entry { path, value };
         let filter_options = mongodb::options::ReplaceOptions::builder()
@@ -123,7 +123,7 @@ impl Storer for MongoStorer {
             .await
         {
             Ok(_) => Ok(true),
-            Err(e) => Err(StorageError::InternalError {
+            Err(e) => Err(CryptoError::InternalError {
                 source: Box::new(e),
             }),
         }
