@@ -143,6 +143,12 @@ impl TryFrom<TypeBuilderContainer> for KeyBuilder {
     }
 }
 
+impl From<KeyBuilder> for TypeBuilder {
+    fn from(kb: KeyBuilder) -> TypeBuilder {
+        TypeBuilder::Key(kb)
+    }
+}
+
 impl Builder for KeyBuilder {
     type Output = Key;
 
@@ -230,6 +236,12 @@ impl TryFrom<TypeBuilderContainer> for SymmetricKeyBuilder {
     }
 }
 
+impl From<SymmetricKeyBuilder> for TypeBuilder {
+    fn from(skb: SymmetricKeyBuilder) -> TypeBuilder {
+        TypeBuilder::Key(KeyBuilder::Symmetric(skb))
+    }
+}
+
 impl Builder for SymmetricKeyBuilder {
     type Output = SymmetricKey;
 
@@ -290,6 +302,12 @@ impl TryFrom<TypeBuilderContainer> for AsymmetricKeyBuilder {
             TypeBuilder::Key(KeyBuilder::Asymmetric(akb)) => Ok(akb),
             _ => Err(CryptoError::NotDowncastable),
         }
+    }
+}
+
+impl From<AsymmetricKeyBuilder> for TypeBuilder {
+    fn from(akb: AsymmetricKeyBuilder) -> TypeBuilder {
+        TypeBuilder::Key(KeyBuilder::Asymmetric(akb))
     }
 }
 
@@ -359,6 +377,12 @@ impl TryFrom<TypeBuilderContainer> for PublicAsymmetricKeyBuilder {
     }
 }
 
+impl From<PublicAsymmetricKeyBuilder> for TypeBuilder {
+    fn from(pakb: PublicAsymmetricKeyBuilder) -> TypeBuilder {
+        TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Public(pakb)))
+    }
+}
+
 impl Builder for PublicAsymmetricKeyBuilder {
     type Output = PublicAsymmetricKey;
 
@@ -421,6 +445,12 @@ impl TryFrom<TypeBuilderContainer> for SecretAsymmetricKeyBuilder {
             }
             _ => Err(CryptoError::NotDowncastable),
         }
+    }
+}
+
+impl From<SecretAsymmetricKeyBuilder> for TypeBuilder {
+    fn from(sakb: SecretAsymmetricKeyBuilder) -> TypeBuilder {
+        TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(sakb)))
     }
 }
 

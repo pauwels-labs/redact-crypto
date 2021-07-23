@@ -87,6 +87,10 @@ impl From<SourceError> for CryptoError {
     }
 }
 
+pub trait HasByteSource {
+    fn byte_source(&self) -> &ByteSource;
+}
+
 /// Enumerates all the different types of sources.
 /// Currently supported:
 /// - Bytes: sources that are represented as a byte array

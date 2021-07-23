@@ -87,6 +87,12 @@ impl TryFrom<TypeBuilderContainer> for DataBuilder {
     }
 }
 
+impl From<DataBuilder> for TypeBuilder {
+    fn from(db: DataBuilder) -> TypeBuilder {
+        TypeBuilder::Data(db)
+    }
+}
+
 impl Builder for DataBuilder {
     type Output = Data;
 
@@ -115,6 +121,12 @@ impl TryFrom<TypeBuilderContainer> for BoolDataBuilder {
     }
 }
 
+impl From<BoolDataBuilder> for TypeBuilder {
+    fn from(bdb: BoolDataBuilder) -> TypeBuilder {
+        TypeBuilder::Data(DataBuilder::Bool(bdb))
+    }
+}
+
 impl Builder for BoolDataBuilder {
     type Output = Data;
 
@@ -137,6 +149,12 @@ impl TryFrom<TypeBuilderContainer> for U64DataBuilder {
             TypeBuilder::Data(DataBuilder::U64(ndb)) => Ok(ndb),
             _ => Err(CryptoError::NotDowncastable),
         }
+    }
+}
+
+impl From<U64DataBuilder> for TypeBuilder {
+    fn from(ndb: U64DataBuilder) -> TypeBuilder {
+        TypeBuilder::Data(DataBuilder::U64(ndb))
     }
 }
 
@@ -165,6 +183,12 @@ impl TryFrom<TypeBuilderContainer> for I64DataBuilder {
     }
 }
 
+impl From<I64DataBuilder> for TypeBuilder {
+    fn from(ndb: I64DataBuilder) -> TypeBuilder {
+        TypeBuilder::Data(DataBuilder::I64(ndb))
+    }
+}
+
 impl Builder for I64DataBuilder {
     type Output = Data;
 
@@ -190,6 +214,12 @@ impl TryFrom<TypeBuilderContainer> for F64DataBuilder {
     }
 }
 
+impl From<F64DataBuilder> for TypeBuilder {
+    fn from(ndb: F64DataBuilder) -> TypeBuilder {
+        TypeBuilder::Data(DataBuilder::F64(ndb))
+    }
+}
+
 impl Builder for F64DataBuilder {
     type Output = Data;
 
@@ -212,6 +242,12 @@ impl TryFrom<TypeBuilderContainer> for StringDataBuilder {
             TypeBuilder::Data(DataBuilder::String(sdb)) => Ok(sdb),
             _ => Err(CryptoError::NotDowncastable),
         }
+    }
+}
+
+impl From<StringDataBuilder> for TypeBuilder {
+    fn from(sdb: StringDataBuilder) -> TypeBuilder {
+        TypeBuilder::Data(DataBuilder::String(sdb))
     }
 }
 

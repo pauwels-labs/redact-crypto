@@ -1,5 +1,6 @@
 use crate::{
-    ByteSource, ByteUnsealable, CryptoError, Data, DataBuilder, HasIndex, Key, KeyBuilder,
+    ByteSource, ByteUnsealable, CryptoError, Data, DataBuilder, HasByteSource, HasIndex, Key,
+    KeyBuilder,
 };
 use mongodb::bson::Document;
 use serde::{Deserialize, Serialize};
@@ -29,6 +30,15 @@ impl Entry {
     }
 }
 
+impl<T: HasBuilder + HasByteSource> From<T> for States {
+    fn from(value: T) -> Self {
+        States::Unsealed {
+            builder: value.builder().into(),
+            bytes: value.byte_source().clone(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "t", content = "c")]
 pub enum States {
@@ -52,7 +62,7 @@ pub trait HasBuilder {
     fn builder(&self) -> Self::Builder;
 }
 
-pub trait Builder: TryFrom<TypeBuilderContainer, Error = CryptoError> {
+pub trait Builder: TryFrom<TypeBuilderContainer, Error = CryptoError> + Into<TypeBuilder> {
     type Output;
 
     fn build(&self, bytes: &[u8]) -> Result<Self::Output, CryptoError>;
