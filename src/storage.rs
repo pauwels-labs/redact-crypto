@@ -88,47 +88,13 @@ pub trait Storer: Clone + Send + Sync {
                 builder,
                 unsealable,
             } => {
-                let bytes = match unsealable.unseal(self.clone()).await {
-                    Ok(v) => Ok(v),
-                    Err(e) => Err(CryptoError::InternalError {
-                        source: Box::new(e),
-                    }),
-                }?;
-                let builder =
-                    match <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(builder)) {
-                        Ok(b) => Ok(b),
-                        Err(e) => Err(CryptoError::InternalError {
-                            source: Box::new(e),
-                        }),
-                    }?;
-                match builder.build(bytes.get_source().get().map_err(|e| {
-                    CryptoError::InternalError {
-                        source: Box::new(e),
-                    }
-                })?) {
-                    Ok(output) => Ok(output),
-                    Err(e) => Err(CryptoError::InternalError {
-                        source: Box::new(e),
-                    }),
-                }
+                let bytes = unsealable.unseal(self.clone()).await?;
+                let builder = <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(builder))?;
+                builder.build(bytes.get_source().get()?)
             }
             States::Unsealed { builder, bytes } => {
-                let builder =
-                    match <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(builder)) {
-                        Ok(b) => Ok(b),
-                        Err(e) => Err(CryptoError::InternalError {
-                            source: Box::new(e),
-                        }),
-                    }?;
-                let bytes = bytes.get().map_err(|e| CryptoError::InternalError {
-                    source: Box::new(e),
-                })?;
-                match builder.build(bytes) {
-                    Ok(output) => Ok(output),
-                    Err(e) => Err(CryptoError::InternalError {
-                        source: Box::new(e),
-                    }),
-                }
+                let builder = <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(builder))?;
+                builder.build(bytes.get()?)
             }
         }
     }
