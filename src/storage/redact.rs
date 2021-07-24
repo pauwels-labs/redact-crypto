@@ -6,6 +6,7 @@ use std::{
 use crate::{CryptoError, Entry, EntryPath, HasBuilder, States, Storer};
 use async_trait::async_trait;
 use mongodb::bson::Document;
+use reqwest::StatusCode;
 
 #[derive(Debug)]
 pub enum RedactStorerError {
@@ -152,17 +153,28 @@ impl Storer for RedactStorer {
     async fn create(&self, path: EntryPath, value: States) -> Result<bool, CryptoError> {
         let entry = Entry { path, value };
         let client = reqwest::Client::new();
-        match client
+        client
             .post(&format!("{}/", self.url))
             .json(&entry)
             .send()
             .await
-        {
-            Ok(_) => Ok(true),
-            Err(source) => Err(RedactStorerError::InternalError {
-                source: Box::new(source),
-            }
-            .into()),
-        }
+            .and_then(|res| res.error_for_status().map(|_| true))
+            .map_err(|e| {
+                if let Some(status) = e.status() {
+                    if status == StatusCode::NOT_FOUND {
+                        RedactStorerError::NotFound.into()
+                    } else {
+                        RedactStorerError::InternalError {
+                            source: Box::new(e),
+                        }
+                        .into()
+                    }
+                } else {
+                    RedactStorerError::InternalError {
+                        source: Box::new(e),
+                    }
+                    .into()
+                }
+            })
     }
 }
