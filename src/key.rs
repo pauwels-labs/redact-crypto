@@ -1,17 +1,34 @@
+pub mod ring;
 pub mod sodiumoxide;
 
-use self::sodiumoxide::{
-    SodiumOxidePublicAsymmetricKey, SodiumOxidePublicAsymmetricKeyBuilder,
-    SodiumOxideSecretAsymmetricKey, SodiumOxideSecretAsymmetricKeyBuilder, SodiumOxideSymmetricKey,
-    SodiumOxideSymmetricKeyBuilder,
+use self::{
+    ring::{
+        RingEd25519PublicAsymmetricKey, RingEd25519PublicAsymmetricKeyBuilder,
+        RingEd25519SecretAsymmetricKey, RingEd25519SecretAsymmetricKeyBuilder,
+    },
+    sodiumoxide::{
+        SodiumOxideCurve25519PublicAsymmetricKey, SodiumOxideCurve25519PublicAsymmetricKeyBuilder,
+        SodiumOxideCurve25519SecretAsymmetricKey, SodiumOxideCurve25519SecretAsymmetricKeyBuilder,
+        SodiumOxideEd25519PublicAsymmetricKey, SodiumOxideEd25519PublicAsymmetricKeyBuilder,
+        SodiumOxideEd25519SecretAsymmetricKey, SodiumOxideEd25519SecretAsymmetricKeyBuilder,
+        SodiumOxideSymmetricKey, SodiumOxideSymmetricKeyBuilder,
+    },
 };
 use crate::{
-    Builder, ByteSource, ByteUnsealable, CryptoError, EntryPath, HasBuilder, HasByteSource,
-    HasIndex, SymmetricNonce, TypeBuilder, TypeBuilderContainer,
+    Builder, ByteSource, CryptoError, HasBuilder, HasByteSource, HasIndex, SymmetricNonce,
+    TypeBuilder, TypeBuilderContainer,
 };
 use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
+
+pub trait Signer {
+    fn sign(&self, bytes: ByteSource) -> Result<ByteSource, CryptoError>;
+}
+
+pub trait Verifier {
+    fn verify(&self, msg: ByteSource, signature: ByteSource) -> Result<(), CryptoError>;
+}
 
 pub trait SymmetricSealer {
     type SealedOutput;
@@ -21,7 +38,6 @@ pub trait SymmetricSealer {
         &self,
         plaintext: ByteSource,
         nonce: Option<&Self::Nonce>,
-        key_path: Option<EntryPath>,
     ) -> Result<Self::SealedOutput, CryptoError>;
 }
 
@@ -31,9 +47,8 @@ pub trait SymmetricUnsealer {
 
     fn unseal(
         &self,
-        ciphertext: ByteSource,
+        ciphertext: &ByteSource,
         nonce: &Self::Nonce,
-        key_path: Option<EntryPath>,
     ) -> Result<Self::UnsealedOutput, CryptoError>;
 }
 
@@ -44,10 +59,9 @@ pub trait SecretAsymmetricSealer {
 
     fn seal(
         &self,
-        plaintext: ByteSource,
+        plaintext: &ByteSource,
         public_key: Option<&Self::PublicKey>,
         nonce: Option<&Self::Nonce>,
-        key_path: Option<EntryPath>,
     ) -> Result<Self::SealedOutput, CryptoError>;
 }
 
@@ -58,10 +72,9 @@ pub trait SecretAsymmetricUnsealer {
 
     fn unseal(
         &self,
-        ciphertext: ByteSource,
+        ciphertext: &ByteSource,
         public_key: Option<&Self::PublicKey>,
         nonce: &Self::Nonce,
-        key_path: Option<EntryPath>,
     ) -> Result<Self::UnsealedOutput, CryptoError>;
 }
 
@@ -72,10 +85,9 @@ pub trait PublicAsymmetricSealer {
 
     fn seal(
         &self,
-        plaintext: ByteSource,
+        plaintext: &ByteSource,
         secret_key: &Self::SecretKey,
         nonce: Option<&Self::Nonce>,
-        key_path: Option<EntryPath>,
     ) -> Result<Self::SealedOutput, CryptoError>;
 }
 
@@ -86,15 +98,18 @@ pub trait PublicAsymmetricUnsealer {
 
     fn unseal(
         &self,
-        ciphertext: ByteSource,
+        ciphertext: &ByteSource,
         secret_key: &Self::SecretKey,
         nonce: &Self::Nonce,
-        key_path: Option<EntryPath>,
     ) -> Result<Self::UnsealedOutput, CryptoError>;
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "t", content = "c")]
+pub trait HasPublicKey {
+    fn public_key(&self) -> PublicAsymmetricKey;
+}
+
+// #[derive(Serialize, Deserialize, Debug, Clone)]
+// #[serde(tag = "t", content = "c")]
 pub enum Key {
     Symmetric(SymmetricKey),
     Asymmetric(AsymmetricKey),
@@ -169,21 +184,20 @@ impl Builder for KeyBuilder {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "t", content = "c")]
+// #[derive(Serialize, Deserialize, Debug, Clone)]
+// #[serde(tag = "t", content = "c")]
 pub enum SymmetricKey {
     SodiumOxide(SodiumOxideSymmetricKey),
 }
 
 impl SymmetricSealer for SymmetricKey {
-    type SealedOutput = ByteUnsealable;
+    type SealedOutput = ByteSource;
     type Nonce = SymmetricNonce;
 
     fn seal(
         &self,
         plaintext: ByteSource,
         nonce: Option<&Self::Nonce>,
-        path: Option<EntryPath>,
     ) -> Result<Self::SealedOutput, CryptoError> {
         match self {
             Self::SodiumOxide(sosk) => {
@@ -193,9 +207,7 @@ impl SymmetricSealer for SymmetricKey {
                     },
                     None => Ok(None),
                 }?;
-                Ok(ByteUnsealable::SodiumOxideSymmetricKey(
-                    sosk.seal(plaintext, nonce, path)?,
-                ))
+                sosk.seal(plaintext, nonce)
             }
         }
     }
@@ -269,8 +281,8 @@ impl Builder for SymmetricKeyBuilder {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "t", content = "c")]
+// #[derive(Serialize, Deserialize, Debug, Clone)]
+// #[serde(tag = "t", content = "c")]
 pub enum AsymmetricKey {
     Public(PublicAsymmetricKey),
     Secret(SecretAsymmetricKey),
@@ -348,10 +360,12 @@ impl Builder for AsymmetricKeyBuilder {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "t", content = "c")]
+// #[derive(Serialize, Deserialize, Debug, Clone)]
+// #[serde(tag = "t", content = "c")]
 pub enum PublicAsymmetricKey {
-    SodiumOxide(SodiumOxidePublicAsymmetricKey),
+    SodiumOxideCurve25519(SodiumOxideCurve25519PublicAsymmetricKey),
+    SodiumOxideEd25519(SodiumOxideEd25519PublicAsymmetricKey),
+    RingEd25519(RingEd25519PublicAsymmetricKey),
 }
 
 impl HasIndex for PublicAsymmetricKey {
@@ -379,7 +393,15 @@ impl HasBuilder for PublicAsymmetricKey {
 
     fn builder(&self) -> Self::Builder {
         match self {
-            Self::SodiumOxide(sopak) => PublicAsymmetricKeyBuilder::SodiumOxide(sopak.builder()),
+            PublicAsymmetricKey::SodiumOxideCurve25519(sopak) => {
+                PublicAsymmetricKeyBuilder::SodiumOxideCurve25519(sopak.builder())
+            }
+            PublicAsymmetricKey::SodiumOxideEd25519(sopak) => {
+                PublicAsymmetricKeyBuilder::SodiumOxideEd25519(sopak.builder())
+            }
+            PublicAsymmetricKey::RingEd25519(rpak) => {
+                PublicAsymmetricKeyBuilder::RingEd25519(rpak.builder())
+            }
         }
     }
 }
@@ -387,7 +409,9 @@ impl HasBuilder for PublicAsymmetricKey {
 impl HasByteSource for PublicAsymmetricKey {
     fn byte_source(&self) -> ByteSource {
         match self {
-            Self::SodiumOxide(sopak) => sopak.byte_source(),
+            PublicAsymmetricKey::SodiumOxideCurve25519(sopak) => sopak.byte_source(),
+            PublicAsymmetricKey::SodiumOxideEd25519(sopak) => sopak.byte_source(),
+            PublicAsymmetricKey::RingEd25519(rpak) => rpak.byte_source(),
         }
     }
 }
@@ -395,7 +419,9 @@ impl HasByteSource for PublicAsymmetricKey {
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 #[serde(tag = "t", content = "c")]
 pub enum PublicAsymmetricKeyBuilder {
-    SodiumOxide(SodiumOxidePublicAsymmetricKeyBuilder),
+    SodiumOxideCurve25519(SodiumOxideCurve25519PublicAsymmetricKeyBuilder),
+    SodiumOxideEd25519(SodiumOxideEd25519PublicAsymmetricKeyBuilder),
+    RingEd25519(RingEd25519PublicAsymmetricKeyBuilder),
 }
 
 impl TryFrom<TypeBuilderContainer> for PublicAsymmetricKeyBuilder {
@@ -422,15 +448,25 @@ impl Builder for PublicAsymmetricKeyBuilder {
 
     fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
         match self {
-            Self::SodiumOxide(sopakb) => Ok(PublicAsymmetricKey::SodiumOxide(sopakb.build(bytes)?)),
+            PublicAsymmetricKeyBuilder::SodiumOxideCurve25519(sopakb) => Ok(
+                PublicAsymmetricKey::SodiumOxideCurve25519(sopakb.build(bytes)?),
+            ),
+            PublicAsymmetricKeyBuilder::SodiumOxideEd25519(sopakb) => Ok(
+                PublicAsymmetricKey::SodiumOxideEd25519(sopakb.build(bytes)?),
+            ),
+            PublicAsymmetricKeyBuilder::RingEd25519(rpakb) => {
+                Ok(PublicAsymmetricKey::RingEd25519(rpakb.build(bytes)?))
+            }
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "t", content = "c")]
+// #[derive(Serialize, Deserialize, Debug, Clone)]
+// #[serde(tag = "t", content = "c")]
 pub enum SecretAsymmetricKey {
-    SodiumOxide(SodiumOxideSecretAsymmetricKey),
+    SodiumOxideCurve25519(SodiumOxideCurve25519SecretAsymmetricKey),
+    SodiumOxideEd25519(SodiumOxideEd25519SecretAsymmetricKey),
+    RingEd25519(RingEd25519SecretAsymmetricKey),
 }
 
 impl HasIndex for SecretAsymmetricKey {
@@ -458,7 +494,15 @@ impl HasBuilder for SecretAsymmetricKey {
 
     fn builder(&self) -> Self::Builder {
         match self {
-            Self::SodiumOxide(sosak) => SecretAsymmetricKeyBuilder::SodiumOxide(sosak.builder()),
+            SecretAsymmetricKey::SodiumOxideCurve25519(sosak) => {
+                SecretAsymmetricKeyBuilder::SodiumOxideCurve25519(sosak.builder())
+            }
+            SecretAsymmetricKey::SodiumOxideEd25519(sosak) => {
+                SecretAsymmetricKeyBuilder::SodiumOxideEd25519(sosak.builder())
+            }
+            SecretAsymmetricKey::RingEd25519(rsak) => {
+                SecretAsymmetricKeyBuilder::RingEd25519(rsak.builder())
+            }
         }
     }
 }
@@ -466,7 +510,9 @@ impl HasBuilder for SecretAsymmetricKey {
 impl HasByteSource for SecretAsymmetricKey {
     fn byte_source(&self) -> ByteSource {
         match self {
-            Self::SodiumOxide(sosak) => sosak.byte_source(),
+            SecretAsymmetricKey::SodiumOxideCurve25519(sosak) => sosak.byte_source(),
+            SecretAsymmetricKey::SodiumOxideEd25519(sosak) => sosak.byte_source(),
+            SecretAsymmetricKey::RingEd25519(rsak) => rsak.byte_source(),
         }
     }
 }
@@ -474,7 +520,9 @@ impl HasByteSource for SecretAsymmetricKey {
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 #[serde(tag = "t", content = "c")]
 pub enum SecretAsymmetricKeyBuilder {
-    SodiumOxide(SodiumOxideSecretAsymmetricKeyBuilder),
+    SodiumOxideCurve25519(SodiumOxideCurve25519SecretAsymmetricKeyBuilder),
+    SodiumOxideEd25519(SodiumOxideEd25519SecretAsymmetricKeyBuilder),
+    RingEd25519(RingEd25519SecretAsymmetricKeyBuilder),
 }
 
 impl TryFrom<TypeBuilderContainer> for SecretAsymmetricKeyBuilder {
@@ -501,7 +549,15 @@ impl Builder for SecretAsymmetricKeyBuilder {
 
     fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
         match self {
-            Self::SodiumOxide(sosakb) => Ok(SecretAsymmetricKey::SodiumOxide(sosakb.build(bytes)?)),
+            SecretAsymmetricKeyBuilder::SodiumOxideCurve25519(sosakb) => Ok(
+                SecretAsymmetricKey::SodiumOxideCurve25519(sosakb.build(bytes)?),
+            ),
+            SecretAsymmetricKeyBuilder::SodiumOxideEd25519(sosakb) => Ok(
+                SecretAsymmetricKey::SodiumOxideEd25519(sosakb.build(bytes)?),
+            ),
+            SecretAsymmetricKeyBuilder::RingEd25519(rsakb) => {
+                Ok(SecretAsymmetricKey::RingEd25519(rsakb.build(bytes)?))
+            }
         }
     }
 }

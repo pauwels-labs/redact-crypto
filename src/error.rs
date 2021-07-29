@@ -23,8 +23,11 @@ pub enum CryptoError {
     /// Ciphertext failed veri fication before decryption
     CiphertextFailedVerification,
 
-    /// Provided bytes are not the right length for the
+    /// Provided bytes are not the right length for the key
     InvalidKeyLength { expected: usize, actual: usize },
+
+    /// Provided bytes are not the right length for the seed
+    InvalidSeedLength { expected: usize, actual: usize },
 
     /// Given value was not of the right type to be downcasted to the requested type
     NotDowncastable,
@@ -43,6 +46,7 @@ impl Error for CryptoError {
             CryptoError::NotFound { ref source } => Some(source.as_ref()),
             CryptoError::CiphertextFailedVerification => None,
             CryptoError::InvalidKeyLength { .. } => None,
+            CryptoError::InvalidSeedLength { .. } => None,
             CryptoError::NotDowncastable => None,
             CryptoError::NotDeserializableToBaseDataType => None,
             CryptoError::WrongNonceType => None,
@@ -69,6 +73,16 @@ impl Display for CryptoError {
                 write!(
                     f,
                     "Provided key was not the correct length, expected: {}, actual: {}",
+                    expected, actual,
+                )
+            }
+            CryptoError::InvalidSeedLength {
+                ref expected,
+                ref actual,
+            } => {
+                write!(
+                    f,
+                    "Provided seed was not the correct length, expected: {}, actual: {}",
                     expected, actual,
                 )
             }

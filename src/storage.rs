@@ -9,7 +9,7 @@ pub mod mongodb;
 pub mod redact;
 
 use crate::{
-    Builder, CryptoError, Entry, EntryPath, HasBuilder, States, TypeBuilderContainer, Unsealable,
+    Builder, CryptoError, Entry, EntryPath, HasBuilder, State, TypeBuilderContainer, Unsealable,
 };
 use ::mongodb::bson::Document;
 use async_trait::async_trait;
@@ -60,12 +60,12 @@ pub trait Storer: Clone + Send + Sync {
     ) -> Result<Vec<Entry>, CryptoError>;
 
     /// Adds the given `Key` struct to the backing store.
-    async fn create(&self, path: EntryPath, value: States) -> Result<bool, CryptoError>;
+    async fn create(&self, path: EntryPath, value: State) -> Result<bool, CryptoError>;
 
     /// Takes an entry and resolves it down into its final unsealed type using this storage
     async fn resolve<T: HasIndex<Index = Document> + HasBuilder + 'static>(
         &self,
-        state: States,
+        state: State,
     ) -> Result<T, CryptoError> {
         self.resolve_indexed::<T>(state, &T::get_index()).await
     }
@@ -73,27 +73,30 @@ pub trait Storer: Clone + Send + Sync {
     /// Takes an entry and resolves it down into its final unsealed type using this storage
     async fn resolve_indexed<T: HasBuilder + 'static>(
         &self,
-        state: States,
+        state: State,
         index: &Option<Document>,
     ) -> Result<T, CryptoError> {
         match state {
-            States::Referenced {
+            State::Referenced {
                 builder: _,
                 ref path,
             } => match self.get_indexed::<T>(path, index).await {
                 Ok(output) => Ok(self.resolve_indexed::<T>(output.value, index).await?),
                 Err(e) => Err(e),
             },
-            States::Sealed {
-                builder,
+            State::Sealed {
+                ref builder,
                 unsealable,
             } => {
-                let bytes = unsealable.unseal(self.clone()).await?;
-                let builder = <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(builder))?;
-                builder.build(Some(bytes.get_source().get()?))
+                let bytes = unsealable.unseal(self).await?;
+                let builder = <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(*builder))?;
+                builder.build(Some(bytes.get()?))
             }
-            States::Unsealed { builder, bytes } => {
-                let builder = <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(builder))?;
+            State::Unsealed {
+                ref builder,
+                ref bytes,
+            } => {
+                let builder = <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(*builder))?;
                 builder.build(Some(bytes.get()?))
             }
         }
@@ -127,7 +130,7 @@ where
             .await
     }
 
-    async fn create(&self, name: EntryPath, key: States) -> Result<bool, CryptoError> {
+    async fn create(&self, name: EntryPath, key: State) -> Result<bool, CryptoError> {
         self.deref().create(name, key).await
     }
 }
@@ -135,7 +138,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use super::Storer;
-    use crate::{CryptoError, Entry, EntryPath, HasBuilder, States};
+    use crate::{CryptoError, Entry, EntryPath, HasBuilder, State};
     use async_trait::async_trait;
     use mockall::predicate::*;
     use mockall::*;

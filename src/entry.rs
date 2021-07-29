@@ -8,40 +8,40 @@ use std::convert::TryFrom;
 
 pub type EntryPath = String;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Entry {
     pub path: EntryPath,
-    pub value: States,
+    pub value: State,
 }
 
 impl Entry {
-    pub fn into_ref(self) -> States {
-        States::Referenced {
+    pub fn into_ref(self) -> State {
+        State::Referenced {
             builder: match self.value {
-                States::Referenced { builder, path: _ } => builder,
-                States::Sealed {
+                State::Referenced { builder, path: _ } => builder,
+                State::Sealed {
                     builder,
                     unsealable: _,
                 } => builder,
-                States::Unsealed { builder, bytes: _ } => builder,
+                State::Unsealed { builder, bytes: _ } => builder,
             },
             path: self.path,
         }
     }
 }
 
-impl<T: HasBuilder + HasByteSource> From<T> for States {
+impl<T: HasBuilder + HasByteSource> From<T> for State {
     fn from(value: T) -> Self {
-        States::Unsealed {
+        State::Unsealed {
             builder: value.builder().into(),
             bytes: value.byte_source(),
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "t", content = "c")]
-pub enum States {
+pub enum State {
     Referenced {
         builder: TypeBuilder,
         path: EntryPath,
@@ -72,8 +72,8 @@ pub trait Builder: TryFrom<TypeBuilderContainer, Error = CryptoError> + Into<Typ
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 pub struct TypeBuilderContainer(pub TypeBuilder);
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "t", content = "c")]
+//#[derive(Serialize, Deserialize, Debug)]
+//#[serde(tag = "t", content = "c")]
 pub enum Type {
     Key(Key),
     Data(Data),
@@ -135,7 +135,7 @@ impl Builder for TypeBuilder {
 
 #[cfg(test)]
 mod tests {
-    use super::{Entry, States, Type, TypeBuilder, TypeBuilderContainer};
+    use super::{Entry, State, Type, TypeBuilder, TypeBuilderContainer};
     use crate::{
         BoolDataBuilder, Builder, ByteSource, Data, DataBuilder, HasBuilder, HasIndex,
         StringDataBuilder, VectorByteSource,
@@ -144,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_entry_into_ref() {
-        let s = States::Unsealed {
+        let s = State::Unsealed {
             builder: TypeBuilder::Data(DataBuilder::String(StringDataBuilder {})),
             bytes: ByteSource::Vector(VectorByteSource::new(b"hello, world!")),
         };
@@ -154,7 +154,7 @@ mod tests {
         };
         let s_ref = e.into_ref();
         match s_ref {
-            States::Referenced { builder, path } => {
+            State::Referenced { builder, path } => {
                 match builder {
                     TypeBuilder::Data(DataBuilder::String(_)) => (),
                     _ => panic!("Referenced builder should have been a StringDataBuilder"),

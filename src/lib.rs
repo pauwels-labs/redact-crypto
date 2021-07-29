@@ -52,7 +52,6 @@ mod entry;
 mod error;
 pub mod key;
 pub mod nonce;
-mod sealable;
 mod source;
 pub mod storage;
 mod unsealable;
@@ -62,18 +61,17 @@ pub use data::{
     U64DataBuilder,
 };
 pub use entry::{
-    Builder, Entry, EntryPath, HasBuilder, States, Type, TypeBuilder, TypeBuilderContainer,
+    Builder, Entry, EntryPath, HasBuilder, State, Type, TypeBuilder, TypeBuilderContainer,
 };
 pub use error::CryptoError;
 pub use key::{
-    AsymmetricKey, AsymmetricKeyBuilder, Key, KeyBuilder, PublicAsymmetricKey,
+    AsymmetricKey, AsymmetricKeyBuilder, HasPublicKey, Key, KeyBuilder, PublicAsymmetricKey,
     PublicAsymmetricKeyBuilder, PublicAsymmetricSealer, PublicAsymmetricUnsealer,
     SecretAsymmetricKey, SecretAsymmetricKeyBuilder, SecretAsymmetricSealer,
-    SecretAsymmetricUnsealer, SymmetricKey, SymmetricKeyBuilder, SymmetricSealer,
-    SymmetricUnsealer,
+    SecretAsymmetricUnsealer, Signer, SymmetricKey, SymmetricKeyBuilder, SymmetricSealer,
+    SymmetricUnsealer, Verifier,
 };
 pub use nonce::{AsymmetricNonce, Nonce, SymmetricNonce};
-pub use sealable::{ByteSealable, Sealable};
 pub use source::{
     ByteSource, FsByteSource, HasByteSource, Path, Source, SourceError, VectorByteSource,
 };

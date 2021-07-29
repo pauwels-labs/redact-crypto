@@ -3,7 +3,7 @@ use std::{
     fmt::{self, Display, Formatter},
 };
 
-use crate::{CryptoError, Entry, EntryPath, HasBuilder, States, Storer};
+use crate::{CryptoError, Entry, EntryPath, HasBuilder, State, Storer};
 use async_trait::async_trait;
 use mongodb::bson::Document;
 use reqwest::StatusCode;
@@ -150,7 +150,7 @@ impl Storer for RedactStorer {
         }
     }
 
-    async fn create(&self, path: EntryPath, value: States) -> Result<bool, CryptoError> {
+    async fn create(&self, path: EntryPath, value: State) -> Result<bool, CryptoError> {
         let entry = Entry { path, value };
         let client = reqwest::Client::new();
         client
