@@ -1,12 +1,11 @@
 use crate::{
-    entry::ToState,
     nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce},
     AsymmetricKeyBuilder, Builder, ByteSource, ByteUnsealable, CryptoError, HasBuilder,
     HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKey,
     PublicAsymmetricKeyBuilder, PublicAsymmetricSealer, PublicAsymmetricUnsealer,
     SecretAsymmetricKey, SecretAsymmetricKeyBuilder, SecretAsymmetricSealer,
     SecretAsymmetricUnsealer, Signer, State, Storer, SymmetricKey, SymmetricKeyBuilder,
-    SymmetricSealer, SymmetricUnsealer, TypeBuilder, TypeBuilderContainer, Unsealable,
+    SymmetricSealer, SymmetricUnsealer, ToState, TypeBuilder, TypeBuilderContainer, Unsealable,
     VectorByteSource,
 };
 use async_trait::async_trait;
