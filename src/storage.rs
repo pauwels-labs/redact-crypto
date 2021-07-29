@@ -166,7 +166,7 @@ pub mod tests {
     //     state: States,
     //     index: &Option<Document>,
     // ) -> Result<T, CryptoError>;
-    async fn create(&self, path: EntryPath, value: States) -> Result<bool, CryptoError>;
+    async fn create(&self, path: EntryPath, value: State) -> Result<bool, CryptoError>;
     }
     impl Clone for Storer {
         fn clone(&self) -> Self;
