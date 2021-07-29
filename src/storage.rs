@@ -65,7 +65,7 @@ pub trait Storer: Clone + Send + Sync {
     /// Takes an entry and resolves it down into its final unsealed type using this storage
     async fn resolve<T: HasIndex<Index = Document> + HasBuilder + 'static>(
         &self,
-        state: State,
+        state: &State,
     ) -> Result<T, CryptoError> {
         self.resolve_indexed::<T>(state, &T::get_index()).await
     }
@@ -73,7 +73,7 @@ pub trait Storer: Clone + Send + Sync {
     /// Takes an entry and resolves it down into its final unsealed type using this storage
     async fn resolve_indexed<T: HasBuilder + 'static>(
         &self,
-        state: State,
+        state: &State,
         index: &Option<Document>,
     ) -> Result<T, CryptoError> {
         match state {
@@ -81,7 +81,7 @@ pub trait Storer: Clone + Send + Sync {
                 builder: _,
                 ref path,
             } => match self.get_indexed::<T>(path, index).await {
-                Ok(output) => Ok(self.resolve_indexed::<T>(output.value, index).await?),
+                Ok(output) => Ok(self.resolve_indexed::<T>(&output.value, index).await?),
                 Err(e) => Err(e),
             },
             State::Sealed {

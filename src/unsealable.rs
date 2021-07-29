@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 #[async_trait]
 pub trait Unsealable {
-    async fn unseal<S: Storer>(self, storer: &S) -> Result<ByteSource, CryptoError>;
+    async fn unseal<S: Storer>(&self, storer: &S) -> Result<ByteSource, CryptoError>;
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -23,7 +23,7 @@ pub enum ByteUnsealable {
 
 #[async_trait]
 impl Unsealable for ByteUnsealable {
-    async fn unseal<S: Storer>(self, storer: &S) -> Result<ByteSource, CryptoError> {
+    async fn unseal<S: Storer>(&self, storer: &S) -> Result<ByteSource, CryptoError> {
         match self {
             Self::SodiumOxideSymmetricKey(sosku) => sosku.unseal(storer).await,
             Self::SodiumOxideSecretAsymmetricKey(sosaku) => sosaku.unseal(storer).await,
