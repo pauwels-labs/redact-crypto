@@ -1,9 +1,11 @@
 use crate::{
+    entry::ToState,
     nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce},
-    AsymmetricKeyBuilder, Builder, ByteSource, CryptoError, HasBuilder, HasByteSource, HasIndex,
-    HasPublicKey, KeyBuilder, PublicAsymmetricKey, PublicAsymmetricKeyBuilder,
-    PublicAsymmetricSealer, PublicAsymmetricUnsealer, SecretAsymmetricKeyBuilder,
-    SecretAsymmetricSealer, SecretAsymmetricUnsealer, Signer, State, Storer, SymmetricKeyBuilder,
+    AsymmetricKeyBuilder, Builder, ByteSource, ByteUnsealable, CryptoError, HasBuilder,
+    HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKey,
+    PublicAsymmetricKeyBuilder, PublicAsymmetricSealer, PublicAsymmetricUnsealer,
+    SecretAsymmetricKey, SecretAsymmetricKeyBuilder, SecretAsymmetricSealer,
+    SecretAsymmetricUnsealer, Signer, State, Storer, SymmetricKey, SymmetricKeyBuilder,
     SymmetricSealer, SymmetricUnsealer, TypeBuilder, TypeBuilderContainer, Unsealable,
     VectorByteSource,
 };
@@ -141,20 +143,34 @@ impl SymmetricSealer for SodiumOxideSymmetricKey {
 
     fn seal(
         &self,
-        plaintext: ByteSource,
+        plaintext: &ByteSource,
         nonce: Option<&Self::Nonce>,
     ) -> Result<(Self::SealedOutput, Self::Nonce), CryptoError> {
+        let new_nonce = SodiumOxideSymmetricNonce {
+            nonce: secretbox::gen_nonce(),
+        };
         let nonce = match nonce {
-            Some(n) => n.clone(),
-            None => SodiumOxideSymmetricNonce {
-                nonce: secretbox::gen_nonce(),
-            },
+            Some(n) => n,
+            None => &new_nonce,
         };
         let plaintext = plaintext.get()?;
         let ciphertext = secretbox::seal(plaintext, &nonce.nonce, &self.key);
         Ok((
             ByteSource::Vector(VectorByteSource::new(ciphertext.as_ref())),
-            nonce,
+            nonce.to_owned(),
+        ))
+    }
+
+    fn take_seal<F: FnOnce(SymmetricKey) -> Result<State, CryptoError>>(
+        self,
+        plaintext: ByteSource,
+        nonce: Option<Self::Nonce>,
+        key_conversion_fn: F,
+    ) -> Result<ByteUnsealable, CryptoError> {
+        let (source, nonce) = self.seal(&plaintext, nonce.as_ref())?;
+        let key = Box::new(key_conversion_fn(SymmetricKey::SodiumOxide(self))?);
+        Ok(ByteUnsealable::SodiumOxideSymmetricKey(
+            SodiumOxideSymmetricKeyUnsealable { source, key, nonce },
         ))
     }
 }
@@ -344,11 +360,12 @@ impl SecretAsymmetricSealer for SodiumOxideCurve25519SecretAsymmetricKey {
         public_key: Option<&Self::PublicKey>,
         nonce: Option<&Self::Nonce>,
     ) -> Result<(Self::SealedOutput, Self::Nonce), CryptoError> {
+        let new_nonce = SodiumOxideAsymmetricNonce {
+            nonce: box_::gen_nonce(),
+        };
         let nonce = match nonce {
-            Some(n) => n.clone(),
-            None => SodiumOxideAsymmetricNonce {
-                nonce: box_::gen_nonce(),
-            },
+            Some(n) => n,
+            None => &new_nonce,
         };
         let plaintext = plaintext.get()?;
         let self_public_key = SodiumOxideCurve25519PublicAsymmetricKey {
@@ -362,7 +379,34 @@ impl SecretAsymmetricSealer for SodiumOxideCurve25519SecretAsymmetricKey {
         let ciphertext = box_::seal_precomputed(plaintext, &nonce.nonce, &precomputed_key);
         Ok((
             ByteSource::Vector(VectorByteSource::new(ciphertext.as_ref())),
-            nonce,
+            nonce.to_owned(),
+        ))
+    }
+
+    fn take_seal<F: FnOnce(SecretAsymmetricKey) -> Result<State, CryptoError>>(
+        self,
+        plaintext: ByteSource,
+        public_key: Option<Self::PublicKey>,
+        nonce: Option<Self::Nonce>,
+        key_conversion_fn: F,
+    ) -> Result<ByteUnsealable, CryptoError> {
+        let (source, nonce) = self.seal(&plaintext, public_key.as_ref(), nonce.as_ref())?;
+        let public_key = match public_key {
+            Some(public_key) => Some(Box::new(
+                public_key.to_unsealed_state(ByteSource::Vector(VectorByteSource::new(b"")))?,
+            )),
+            None => None,
+        };
+        let secret_key = Box::new(key_conversion_fn(
+            SecretAsymmetricKey::SodiumOxideCurve25519(self),
+        )?);
+        Ok(ByteUnsealable::SodiumOxideSecretAsymmetricKey(
+            SodiumOxideSecretAsymmetricKeyUnsealable {
+                source,
+                secret_key,
+                nonce,
+                public_key,
+            },
         ))
     }
 }
@@ -583,18 +627,42 @@ impl PublicAsymmetricSealer for SodiumOxideCurve25519PublicAsymmetricKey {
         secret_key: &Self::SecretKey,
         nonce: Option<&Self::Nonce>,
     ) -> Result<(Self::SealedOutput, Self::Nonce), CryptoError> {
+        let new_nonce = SodiumOxideAsymmetricNonce {
+            nonce: box_::gen_nonce(),
+        };
         let nonce = match nonce {
-            Some(n) => n.clone(),
-            None => SodiumOxideAsymmetricNonce {
-                nonce: box_::gen_nonce(),
-            },
+            Some(n) => n,
+            None => &new_nonce,
         };
         let plaintext = plaintext.get()?;
         let precomputed_key = box_::precompute(&self.public_key, &secret_key.secret_key);
         let ciphertext = box_::seal_precomputed(plaintext, &nonce.nonce, &precomputed_key);
         Ok((
             ByteSource::Vector(VectorByteSource::new(ciphertext.as_ref())),
-            nonce,
+            nonce.to_owned(),
+        ))
+    }
+
+    fn take_seal<F: FnOnce(SecretAsymmetricKey) -> Result<State, CryptoError>>(
+        self,
+        plaintext: ByteSource,
+        secret_key: Self::SecretKey,
+        nonce: Option<Self::Nonce>,
+        key_conversion_fn: F,
+    ) -> Result<ByteUnsealable, CryptoError> {
+        let (source, nonce) = self.seal(&plaintext, &secret_key, nonce.as_ref())?;
+        let secret_key = Box::new(key_conversion_fn(
+            SecretAsymmetricKey::SodiumOxideCurve25519(secret_key),
+        )?);
+        let public_key =
+            Box::new(self.to_unsealed_state(ByteSource::Vector(VectorByteSource::new(b"")))?);
+        Ok(ByteUnsealable::SodiumOxidePublicAsymmetricKey(
+            SodiumOxidePublicAsymmetricKeyUnsealable {
+                source,
+                secret_key,
+                nonce,
+                public_key,
+            },
         ))
     }
 }
@@ -1496,7 +1564,7 @@ mod tests {
     fn test_seal_symmetrickey() {
         let plaintext = ByteSource::Vector(VectorByteSource::new(b"hello, world!"));
         let sosk = get_sosk();
-        let cipher_source = sosk.seal(plaintext, Some(&get_sosn())).unwrap();
+        let (cipher_source, _) = sosk.seal(&plaintext, Some(&get_sosn())).unwrap();
         assert_eq!(
             get_sosk_ciphertext(b"hello, world!"),
             cipher_source.get().unwrap().to_vec(),
@@ -1691,7 +1759,7 @@ mod tests {
     fn test_seal_secretasymmetrickey_with_non_referenced_key() {
         let plaintext = ByteSource::Vector(VectorByteSource::new(b"hello, world!"));
         let sosak = get_sosak();
-        let cipher_source = sosak.seal(&plaintext, None, Some(&get_soan())).unwrap();
+        let (cipher_source, _) = sosak.seal(&plaintext, None, Some(&get_soan())).unwrap();
         assert_eq!(
             get_sosak_ciphertext(b"hello, world!", &None),
             cipher_source.get().unwrap().to_vec(),
@@ -1889,7 +1957,7 @@ mod tests {
     fn test_seal_publicasymmetrickey_with_non_referenced_key() {
         let plaintext = ByteSource::Vector(VectorByteSource::new(b"hello, world!"));
         let (sopak, sosak) = get_sopak();
-        let cipher_source = sopak.seal(&plaintext, &sosak, Some(&get_soan())).unwrap();
+        let (cipher_source, _) = sopak.seal(&plaintext, &sosak, Some(&get_soan())).unwrap();
         assert_eq!(
             get_sopak_ciphertext(b"hello, world!", None),
             cipher_source.get().unwrap().to_vec(),
