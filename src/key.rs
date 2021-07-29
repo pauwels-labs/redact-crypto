@@ -38,7 +38,7 @@ pub trait SymmetricSealer {
         &self,
         plaintext: ByteSource,
         nonce: Option<&Self::Nonce>,
-    ) -> Result<Self::SealedOutput, CryptoError>;
+    ) -> Result<(Self::SealedOutput, Self::Nonce), CryptoError>;
 }
 
 pub trait SymmetricUnsealer {
@@ -62,7 +62,7 @@ pub trait SecretAsymmetricSealer {
         plaintext: &ByteSource,
         public_key: Option<&Self::PublicKey>,
         nonce: Option<&Self::Nonce>,
-    ) -> Result<Self::SealedOutput, CryptoError>;
+    ) -> Result<(Self::SealedOutput, Self::Nonce), CryptoError>;
 }
 
 pub trait SecretAsymmetricUnsealer {
@@ -88,7 +88,7 @@ pub trait PublicAsymmetricSealer {
         plaintext: &ByteSource,
         secret_key: &Self::SecretKey,
         nonce: Option<&Self::Nonce>,
-    ) -> Result<Self::SealedOutput, CryptoError>;
+    ) -> Result<(Self::SealedOutput, Self::Nonce), CryptoError>;
 }
 
 pub trait PublicAsymmetricUnsealer {
@@ -108,8 +108,6 @@ pub trait HasPublicKey {
     fn public_key(&self) -> PublicAsymmetricKey;
 }
 
-// #[derive(Serialize, Deserialize, Debug, Clone)]
-// #[serde(tag = "t", content = "c")]
 pub enum Key {
     Symmetric(SymmetricKey),
     Asymmetric(AsymmetricKey),
@@ -184,8 +182,6 @@ impl Builder for KeyBuilder {
     }
 }
 
-// #[derive(Serialize, Deserialize, Debug, Clone)]
-// #[serde(tag = "t", content = "c")]
 pub enum SymmetricKey {
     SodiumOxide(SodiumOxideSymmetricKey),
 }
@@ -198,7 +194,7 @@ impl SymmetricSealer for SymmetricKey {
         &self,
         plaintext: ByteSource,
         nonce: Option<&Self::Nonce>,
-    ) -> Result<Self::SealedOutput, CryptoError> {
+    ) -> Result<(Self::SealedOutput, Self::Nonce), CryptoError> {
         match self {
             Self::SodiumOxide(sosk) => {
                 let nonce = match nonce {
@@ -207,7 +203,8 @@ impl SymmetricSealer for SymmetricKey {
                     },
                     None => Ok(None),
                 }?;
-                sosk.seal(plaintext, nonce)
+                let (output, nonce) = sosk.seal(plaintext, nonce)?;
+                Ok((output, SymmetricNonce::SodiumOxide(nonce)))
             }
         }
     }
@@ -281,8 +278,6 @@ impl Builder for SymmetricKeyBuilder {
     }
 }
 
-// #[derive(Serialize, Deserialize, Debug, Clone)]
-// #[serde(tag = "t", content = "c")]
 pub enum AsymmetricKey {
     Public(PublicAsymmetricKey),
     Secret(SecretAsymmetricKey),
@@ -360,8 +355,6 @@ impl Builder for AsymmetricKeyBuilder {
     }
 }
 
-// #[derive(Serialize, Deserialize, Debug, Clone)]
-// #[serde(tag = "t", content = "c")]
 pub enum PublicAsymmetricKey {
     SodiumOxideCurve25519(SodiumOxideCurve25519PublicAsymmetricKey),
     SodiumOxideEd25519(SodiumOxideEd25519PublicAsymmetricKey),
@@ -461,8 +454,6 @@ impl Builder for PublicAsymmetricKeyBuilder {
     }
 }
 
-// #[derive(Serialize, Deserialize, Debug, Clone)]
-// #[serde(tag = "t", content = "c")]
 pub enum SecretAsymmetricKey {
     SodiumOxideCurve25519(SodiumOxideCurve25519SecretAsymmetricKey),
     SodiumOxideEd25519(SodiumOxideEd25519SecretAsymmetricKey),

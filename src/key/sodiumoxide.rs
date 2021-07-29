@@ -143,7 +143,7 @@ impl SymmetricSealer for SodiumOxideSymmetricKey {
         &self,
         plaintext: ByteSource,
         nonce: Option<&Self::Nonce>,
-    ) -> Result<Self::SealedOutput, CryptoError> {
+    ) -> Result<(Self::SealedOutput, Self::Nonce), CryptoError> {
         let nonce = match nonce {
             Some(n) => n.clone(),
             None => SodiumOxideSymmetricNonce {
@@ -152,9 +152,10 @@ impl SymmetricSealer for SodiumOxideSymmetricKey {
         };
         let plaintext = plaintext.get()?;
         let ciphertext = secretbox::seal(plaintext, &nonce.nonce, &self.key);
-        Ok(ByteSource::Vector(VectorByteSource::new(
-            ciphertext.as_ref(),
-        )))
+        Ok((
+            ByteSource::Vector(VectorByteSource::new(ciphertext.as_ref())),
+            nonce,
+        ))
     }
 }
 
@@ -328,7 +329,6 @@ impl From<SodiumOxideCurve25519SecretAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
-//#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxideCurve25519SecretAsymmetricKey {
     pub secret_key: ExternalSodiumOxideCurve25519SecretAsymmetricKey,
 }
@@ -343,7 +343,7 @@ impl SecretAsymmetricSealer for SodiumOxideCurve25519SecretAsymmetricKey {
         plaintext: &ByteSource,
         public_key: Option<&Self::PublicKey>,
         nonce: Option<&Self::Nonce>,
-    ) -> Result<Self::SealedOutput, CryptoError> {
+    ) -> Result<(Self::SealedOutput, Self::Nonce), CryptoError> {
         let nonce = match nonce {
             Some(n) => n.clone(),
             None => SodiumOxideAsymmetricNonce {
@@ -360,9 +360,10 @@ impl SecretAsymmetricSealer for SodiumOxideCurve25519SecretAsymmetricKey {
         };
         let precomputed_key = box_::precompute(&public_key.public_key, &self.secret_key);
         let ciphertext = box_::seal_precomputed(plaintext, &nonce.nonce, &precomputed_key);
-        Ok(ByteSource::Vector(VectorByteSource::new(
-            ciphertext.as_ref(),
-        )))
+        Ok((
+            ByteSource::Vector(VectorByteSource::new(ciphertext.as_ref())),
+            nonce,
+        ))
     }
 }
 
@@ -567,7 +568,6 @@ impl From<SodiumOxideCurve25519PublicAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
-//#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxideCurve25519PublicAsymmetricKey {
     pub public_key: ExternalSodiumOxideCurve25519PublicAsymmetricKey,
 }
@@ -582,7 +582,7 @@ impl PublicAsymmetricSealer for SodiumOxideCurve25519PublicAsymmetricKey {
         plaintext: &ByteSource,
         secret_key: &Self::SecretKey,
         nonce: Option<&Self::Nonce>,
-    ) -> Result<Self::SealedOutput, CryptoError> {
+    ) -> Result<(Self::SealedOutput, Self::Nonce), CryptoError> {
         let nonce = match nonce {
             Some(n) => n.clone(),
             None => SodiumOxideAsymmetricNonce {
@@ -592,9 +592,10 @@ impl PublicAsymmetricSealer for SodiumOxideCurve25519PublicAsymmetricKey {
         let plaintext = plaintext.get()?;
         let precomputed_key = box_::precompute(&self.public_key, &secret_key.secret_key);
         let ciphertext = box_::seal_precomputed(plaintext, &nonce.nonce, &precomputed_key);
-        Ok(ByteSource::Vector(VectorByteSource::new(
-            ciphertext.as_ref(),
-        )))
+        Ok((
+            ByteSource::Vector(VectorByteSource::new(ciphertext.as_ref())),
+            nonce,
+        ))
     }
 }
 
@@ -721,7 +722,6 @@ impl From<SodiumOxideEd25519SecretAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
-//#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxideEd25519SecretAsymmetricKey {
     pub secret_key: ExternalSodiumOxideEd25519SecretAsymmetricKey,
 }
@@ -831,7 +831,6 @@ impl From<SodiumOxideEd25519PublicAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
-//#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SodiumOxideEd25519PublicAsymmetricKey {
     pub public_key: ExternalSodiumOxideEd25519PublicAsymmetricKey,
 }

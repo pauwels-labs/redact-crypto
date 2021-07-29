@@ -68,6 +68,32 @@ pub trait Builder: TryFrom<TypeBuilderContainer, Error = CryptoError> + Into<Typ
     fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError>;
 }
 
+pub trait ToState: HasBuilder + HasByteSource {
+    fn to_ref_state(&self, path: EntryPath) -> Result<State, CryptoError> {
+        Ok(State::Referenced {
+            builder: self.builder().into(),
+            path,
+        })
+    }
+
+    fn to_sealed_state(&self, unsealable: ByteUnsealable) -> Result<State, CryptoError> {
+        Ok(State::Sealed {
+            builder: self.builder().into(),
+            unsealable,
+        })
+    }
+
+    fn to_unsealed_state(&self, mut bytes: ByteSource) -> Result<State, CryptoError> {
+        bytes.set(self.byte_source().get()?)?;
+        Ok(State::Unsealed {
+            builder: self.builder().into(),
+            bytes,
+        })
+    }
+}
+
+impl<T: HasBuilder + HasByteSource> ToState for T {}
+
 /// Need this to provide a level an indirection for TryFrom
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 pub struct TypeBuilderContainer(pub TypeBuilder);
