@@ -163,8 +163,7 @@ impl Builder for TypeBuilder {
 mod tests {
     use super::{Entry, State, Type, TypeBuilder, TypeBuilderContainer};
     use crate::{
-        BoolDataBuilder, Builder, ByteSource, Data, DataBuilder, HasBuilder, HasIndex,
-        StringDataBuilder, VectorByteSource,
+        BoolDataBuilder, Builder, Data, DataBuilder, HasBuilder, HasIndex, StringDataBuilder,
     };
     use std::convert::TryInto;
 
@@ -172,7 +171,7 @@ mod tests {
     fn test_entry_into_ref() {
         let s = State::Unsealed {
             builder: TypeBuilder::Data(DataBuilder::String(StringDataBuilder {})),
-            bytes: ByteSource::Vector(VectorByteSource::new(b"hello, world!")),
+            bytes: "hello, world!".into(),
         };
         let e = Entry {
             path: ".somePath.".to_owned(),

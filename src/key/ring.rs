@@ -1,7 +1,7 @@
 use crate::{
     AsymmetricKeyBuilder, Builder, ByteSource, CryptoError, HasBuilder, HasByteSource, HasIndex,
     HasPublicKey, KeyBuilder, PublicAsymmetricKey, PublicAsymmetricKeyBuilder,
-    SecretAsymmetricKeyBuilder, Signer, TypeBuilder, TypeBuilderContainer, VectorByteSource,
+    SecretAsymmetricKeyBuilder, Signer, TypeBuilder, TypeBuilderContainer,
 };
 use mongodb::bson::{self, Document};
 use ring::{
@@ -39,7 +39,7 @@ impl Builder for RingEd25519SecretAsymmetricKeyBuilder {
                         source: Box::new(e),
                     }
                 })?,
-                pkcs8_doc: ByteSource::Vector(VectorByteSource::new(bytes)),
+                pkcs8_doc: bytes.into(),
             }),
             None => RingEd25519SecretAsymmetricKey::new(),
         }
@@ -54,7 +54,6 @@ impl From<RingEd25519SecretAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
-//#[derive(Serialize, Deserialize)]
 pub struct RingEd25519SecretAsymmetricKey {
     pub secret_key: ExternalEd25519KeyPair,
     pkcs8_doc: ByteSource,
@@ -62,9 +61,7 @@ pub struct RingEd25519SecretAsymmetricKey {
 
 impl Signer for RingEd25519SecretAsymmetricKey {
     fn sign(&self, bytes: ByteSource) -> Result<ByteSource, CryptoError> {
-        Ok(ByteSource::Vector(VectorByteSource::new(
-            self.secret_key.sign(bytes.get()?).as_ref(),
-        )))
+        Ok(self.secret_key.sign(bytes.get()?).as_ref().into())
     }
 }
 
@@ -120,7 +117,7 @@ impl RingEd25519SecretAsymmetricKey {
         })?;
         Ok(RingEd25519SecretAsymmetricKey {
             secret_key,
-            pkcs8_doc: ByteSource::Vector(VectorByteSource::new(pkcs8_doc.as_ref())),
+            pkcs8_doc: pkcs8_doc.as_ref().into(),
         })
     }
 }
@@ -166,7 +163,6 @@ impl From<RingEd25519PublicAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
-//#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RingEd25519PublicAsymmetricKey {
     pub public_key: Vec<u8>,
 }
@@ -204,7 +200,7 @@ impl HasBuilder for RingEd25519PublicAsymmetricKey {
 
 impl HasByteSource for RingEd25519PublicAsymmetricKey {
     fn byte_source(&self) -> ByteSource {
-        ByteSource::Vector(VectorByteSource::new(self.public_key.as_ref()))
+        self.public_key.as_slice().into()
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::{
     Builder, ByteSource, CryptoError, HasBuilder, HasByteSource, HasIndex, TypeBuilder,
-    TypeBuilderContainer, VectorByteSource,
+    TypeBuilderContainer,
 };
 use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
@@ -33,7 +33,7 @@ impl Display for Data {
 
 impl From<Data> for ByteSource {
     fn from(d: Data) -> ByteSource {
-        ByteSource::Vector(VectorByteSource::new(d.to_string().as_ref()))
+        d.to_string().as_str().into()
     }
 }
 

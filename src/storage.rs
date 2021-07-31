@@ -153,7 +153,6 @@ pub mod tests {
         path: &str,
         index: &Option<Document>,
     ) -> Result<Entry, CryptoError>;
-    /// Like list, but doesn't enforce IntoIndex and allows providing a custom index doc
     async fn list_indexed<T: HasBuilder + Send + 'static>(
         &self,
         path: &str,
@@ -161,11 +160,6 @@ pub mod tests {
         page_size: i64,
         index: &Option<Document>,
     ) -> Result<Vec<Entry>, CryptoError>;
-    // async fn resolve_indexed<T: HasBuilder + 'static>(
-    //     &self,
-    //     state: States,
-    //     index: &Option<Document>,
-    // ) -> Result<T, CryptoError>;
     async fn create(&self, path: EntryPath, value: State) -> Result<bool, CryptoError>;
     }
     impl Clone for Storer {

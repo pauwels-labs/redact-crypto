@@ -19,12 +19,18 @@ use std::{
 };
 
 #[derive(Debug)]
+pub enum NotFoundKind {
+    File(String),
+    Vector,
+}
+
+#[derive(Debug)]
 pub enum SourceError {
     /// Error occurred while performing IO on the filesystem
     FsIoError { source: io::Error },
 
-    /// File path given was not found
-    FileNotFound { path: String },
+    /// Requested bytes were not found
+    NotFound { kind: NotFoundKind },
 
     /// File path given has an invalid file name with no stem
     FilePathHasNoFileStem { path: String },
@@ -40,7 +46,7 @@ impl Error for SourceError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match *self {
             SourceError::FsIoError { ref source } => Some(source),
-            SourceError::FileNotFound { .. } => None,
+            SourceError::NotFound { .. } => None,
             SourceError::FilePathHasNoFileStem { .. } => None,
             SourceError::FilePathIsInvalidUTF8 => None,
             SourceError::Base64Decode { ref source } => Some(source),
@@ -54,9 +60,10 @@ impl Display for SourceError {
             SourceError::FsIoError { .. } => {
                 write!(f, "Error occured during file system I/O")
             }
-            SourceError::FileNotFound { ref path } => {
-                write!(f, "Path \"{}\" not found", path)
-            }
+            SourceError::NotFound { ref kind } => match kind {
+                NotFoundKind::File(path) => write!(f, "Path \"{}\" not found", path),
+                NotFoundKind::Vector => write!(f, "Vector byte source contains no bytes"),
+            },
             SourceError::FilePathHasNoFileStem { ref path } => {
                 write!(
                     f,
@@ -77,7 +84,7 @@ impl Display for SourceError {
 impl From<SourceError> for CryptoError {
     fn from(mse: SourceError) -> Self {
         match mse {
-            SourceError::FileNotFound { .. } => CryptoError::NotFound {
+            SourceError::NotFound { .. } => CryptoError::NotFound {
                 source: Box::new(mse),
             },
             _ => CryptoError::InternalError {
@@ -126,6 +133,18 @@ impl ByteSource {
             ByteSource::Fs(fsbks) => fsbks.get(),
             ByteSource::Vector(vbks) => vbks.get(),
         }
+    }
+}
+
+impl From<&[u8]> for ByteSource {
+    fn from(value: &[u8]) -> Self {
+        ByteSource::Vector(value.into())
+    }
+}
+
+impl From<&str> for ByteSource {
+    fn from(value: &str) -> Self {
+        ByteSource::Vector(value.into())
     }
 }
 
@@ -208,12 +227,14 @@ impl FsByteSource {
 
         // Mock this
         let read_bytes = std::fs::read(path_ref).map_err(|e| match e.kind() {
-            ErrorKind::NotFound => SourceError::FileNotFound { path: path_str },
+            ErrorKind::NotFound => SourceError::NotFound {
+                kind: NotFoundKind::File(path_str),
+            },
             _ => SourceError::FsIoError { source: e },
         })?;
         let bytes =
             base64::decode(read_bytes).map_err(|e| SourceError::Base64Decode { source: e })?;
-        Ok(VectorByteSource { value: bytes })
+        Ok(VectorByteSource { value: Some(bytes) })
     }
 
     /// Empties the cache, triggering a reload of the file on the next
@@ -238,7 +259,9 @@ impl FsByteSource {
         std::fs::write(path_ref, bytes)
             .map(|_| self.reload())
             .map_err(|source| match source.kind() {
-                std::io::ErrorKind::NotFound => SourceError::FileNotFound { path: path_str },
+                std::io::ErrorKind::NotFound => SourceError::NotFound {
+                    kind: NotFoundKind::File(path_str),
+                },
                 _ => SourceError::FsIoError { source },
             })
     }
@@ -263,43 +286,71 @@ pub struct VectorByteSource {
         serialize_with = "byte_vector_serialize",
         deserialize_with = "byte_vector_deserialize"
     )]
-    value: Vec<u8>,
+    value: Option<Vec<u8>>,
 }
 
 /// Custom serialization function base64-encodes the bytes before storage
-fn byte_vector_serialize<S>(bytes: &[u8], s: S) -> Result<S::Ok, S::Error>
+fn byte_vector_serialize<S>(bytes: &Option<Vec<u8>>, s: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    let bytes = base64::encode(bytes);
-    s.serialize_str(&bytes)
+    match bytes {
+        Some(bytes) => {
+            let b64_encoded = base64::encode(bytes);
+            s.serialize_some(&Some(b64_encoded))
+        }
+        None => s.serialize_none(),
+    }
 }
 
 /// Custom deserialization function base64-decodes the bytes before passing them back
-fn byte_vector_deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+fn byte_vector_deserialize<'de, D>(deserializer: D) -> Result<Option<Vec<u8>>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    let s: String = de::Deserialize::deserialize(deserializer)?;
-    base64::decode(s).map_err(de::Error::custom)
+    let b64_encoded: Option<String> = de::Deserialize::deserialize(deserializer)?;
+    match b64_encoded {
+        Some(bytes) => Ok(Some(base64::decode(bytes).map_err(de::Error::custom)?)),
+        None => Ok(None),
+    }
 }
 
 impl VectorByteSource {
     /// Creates a new `VectorBytesSource` from the given byte array
-    pub fn new(bytes: &[u8]) -> Self {
-        VectorByteSource {
-            value: bytes.to_owned(),
+    pub fn new(value: Option<&[u8]>) -> Self {
+        match value {
+            Some(value) => VectorByteSource {
+                value: Some(value.to_vec()),
+            },
+            None => VectorByteSource { value: None },
         }
     }
 
     /// Re-writes the source to the given bytes
     pub fn set(&mut self, key: &[u8]) -> Result<(), SourceError> {
-        self.value = key.to_owned();
+        self.value = Some(key.to_owned());
         Ok(())
     }
 
     /// Returns the stored bytes
     pub fn get(&self) -> Result<&[u8], SourceError> {
-        Ok(self.value.as_ref())
+        match self.value {
+            Some(ref bytes) => Ok(bytes.as_ref()),
+            None => Err(SourceError::NotFound {
+                kind: NotFoundKind::Vector,
+            }),
+        }
+    }
+}
+
+impl From<&[u8]> for VectorByteSource {
+    fn from(value: &[u8]) -> Self {
+        Self::new(Some(value))
+    }
+}
+
+impl From<&str> for VectorByteSource {
+    fn from(value: &str) -> Self {
+        Self::new(Some(value.as_ref()))
     }
 }
