@@ -5,6 +5,11 @@ pub mod sodiumoxide;
 use self::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce};
 use serde::{Deserialize, Serialize};
 
+/// Trait indicating a type has a nonce
+pub trait HasNonce {
+    fn nonce(&self) -> Nonce;
+}
+
 /// Highest-level nonce enum splits nonces into symmetric and asymmetric categories
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Nonce {

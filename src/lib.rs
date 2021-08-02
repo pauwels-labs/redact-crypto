@@ -80,4 +80,4 @@ pub use storage::{
     redact::{RedactStorer, RedactStorerError},
     HasIndex, Storer,
 };
-pub use unsealable::{ByteUnsealable, Unsealable};
+pub use unsealable::{ByteAlgorithm, Algorithm};

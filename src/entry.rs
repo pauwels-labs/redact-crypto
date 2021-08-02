@@ -1,5 +1,5 @@
 use crate::{
-    ByteSource, ByteUnsealable, CryptoError, Data, DataBuilder, HasByteSource, HasIndex, Key,
+    ByteAlgorithm, ByteSource, CryptoError, Data, DataBuilder, HasByteSource, HasIndex, Key,
     KeyBuilder,
 };
 use mongodb::bson::Document;
@@ -8,51 +8,72 @@ use std::convert::TryFrom;
 
 pub type EntryPath = String;
 
+// #[derive(Serialize, Deserialize, Debug)]
+// pub struct Entry {
+//     pub path: Option<EntryPath>,
+//     pub value: State,
+// }
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Entry {
-    pub path: EntryPath,
+    pub path: Option<EntryPath>,
+    pub builder: TypeBuilder,
     pub value: State,
 }
 
-impl Entry {
-    pub fn into_ref(self) -> State {
-        State::Referenced {
-            builder: match self.value {
-                State::Referenced { builder, path: _ } => builder,
-                State::Sealed {
-                    builder,
-                    unsealable: _,
-                } => builder,
-                State::Unsealed { builder, bytes: _ } => builder,
-            },
-            path: self.path,
-        }
-    }
-}
+// impl Entry {
+//     pub fn into_ref(self) -> State {
+//         State::Referenced {
+//             builder: match self.value {
+//                 State::Referenced { builder, path: _ } => builder,
+//                 State::Sealed {
+//                     builder,
+//                     unsealable: _,
+//                 } => builder,
+//                 State::Unsealed { builder, bytes: _ } => builder,
+//             },
+//             path: self.path,
+//         }
+//     }
+// }
 
-impl<T: HasBuilder + HasByteSource> From<T> for State {
-    fn from(value: T) -> Self {
-        State::Unsealed {
-            builder: value.builder().into(),
-            bytes: value.byte_source(),
-        }
-    }
-}
+// impl<T: HasBuilder + HasByteSource> From<T> for State {
+//     fn from(value: T) -> Self {
+//         State::Unsealed {
+//             builder: value.builder().into(),
+//             bytes: value.byte_source(),
+//         }
+//     }
+// }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "t", content = "c")]
+// pub enum State {
+//     Referenced {
+//         builder: TypeBuilder,
+//         path: EntryPath,
+//     },
+//     Sealed {
+//         builder: TypeBuilder,
+//         unsealable: ByteAlgorithm,
+//     },
+//     Unsealed {
+//         builder: TypeBuilder,
+//         bytes: ByteSource,
+//     },
+// }
+
 pub enum State {
     Referenced {
-        builder: TypeBuilder,
         path: EntryPath,
     },
     Sealed {
-        builder: TypeBuilder,
-        unsealable: ByteUnsealable,
+        ciphertext: ByteSource,
+        algorithm: ByteAlgorithm,
     },
     Unsealed {
-        builder: TypeBuilder,
-        bytes: ByteSource,
+        plaintext: ByteSource,
+        algorithm: Option<ByteAlgorithm>,
     },
 }
 
@@ -68,31 +89,31 @@ pub trait Builder: TryFrom<TypeBuilderContainer, Error = CryptoError> + Into<Typ
     fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError>;
 }
 
-pub trait ToState: HasBuilder + HasByteSource {
-    fn to_ref_state(&self, path: EntryPath) -> Result<State, CryptoError> {
-        Ok(State::Referenced {
-            builder: self.builder().into(),
-            path,
-        })
-    }
+// pub trait ToState: HasBuilder + HasByteSource {
+//     fn to_ref_state(&self, path: EntryPath) -> Result<State, CryptoError> {
+//         Ok(State::Referenced {
+//             builder: self.builder().into(),
+//             path,
+//         })
+//     }
 
-    fn to_sealed_state(&self, unsealable: ByteUnsealable) -> Result<State, CryptoError> {
-        Ok(State::Sealed {
-            builder: self.builder().into(),
-            unsealable,
-        })
-    }
+//     fn to_sealed_state(&self, unsealable: ByteAlgorithm) -> Result<State, CryptoError> {
+//         Ok(State::Sealed {
+//             builder: self.builder().into(),
+//             unsealable,
+//         })
+//     }
 
-    fn to_unsealed_state(&self, mut bytes: ByteSource) -> Result<State, CryptoError> {
-        bytes.set(self.byte_source().get()?)?;
-        Ok(State::Unsealed {
-            builder: self.builder().into(),
-            bytes,
-        })
-    }
-}
+//     fn to_unsealed_state(&self, mut bytes: ByteSource) -> Result<State, CryptoError> {
+//         bytes.set(self.byte_source().get()?)?;
+//         Ok(State::Unsealed {
+//             builder: self.builder().into(),
+//             bytes,
+//         })
+//     }
+// }
 
-impl<T: HasBuilder + HasByteSource> ToState for T {}
+// impl<T: HasBuilder + HasByteSource> ToState for T {}
 
 /// Need this to provide a level an indirection for TryFrom
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]

@@ -9,7 +9,7 @@ pub mod mongodb;
 pub mod redact;
 
 use crate::{
-    Builder, CryptoError, Entry, EntryPath, HasBuilder, State, TypeBuilderContainer, Unsealable,
+    Algorithm, Builder, CryptoError, Entry, EntryPath, HasBuilder, State, TypeBuilderContainer,
 };
 use ::mongodb::bson::Document;
 use async_trait::async_trait;
@@ -65,38 +65,34 @@ pub trait Storer: Clone + Send + Sync {
     /// Takes an entry and resolves it down into its final unsealed type using this storage
     async fn resolve<T: HasIndex<Index = Document> + HasBuilder + 'static>(
         &self,
-        state: &State,
-    ) -> Result<T, CryptoError> {
-        self.resolve_indexed::<T>(state, &T::get_index()).await
+        entry: &Entry,
+    ) -> Result<&T, CryptoError> {
+        self.resolve_indexed::<T>(entry, &T::get_index()).await
     }
 
     /// Takes an entry and resolves it down into its final unsealed type using this storage
     async fn resolve_indexed<T: HasBuilder + 'static>(
         &self,
-        state: &State,
+        entry: &Entry,
         index: &Option<Document>,
-    ) -> Result<T, CryptoError> {
-        match state {
-            State::Referenced {
-                builder: _,
-                ref path,
-            } => match self.get_indexed::<T>(path, index).await {
-                Ok(output) => Ok(self.resolve_indexed::<T>(&output.value, index).await?),
+    ) -> Result<&T, CryptoError> {
+        match entry.value {
+            State::Referenced { ref path } => match self.get_indexed::<T>(path, index).await {
+                Ok(output) => Ok(self.resolve_indexed::<T>(&output, index).await?),
                 Err(e) => Err(e),
             },
             State::Sealed {
-                ref builder,
-                unsealable,
+                ref ciphertext,
+                ref algorithm,
             } => {
-                let bytes = unsealable.unseal(self).await?;
-                let builder = <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(*builder))?;
-                builder.build(Some(bytes.get()?))
+                let plaintext = algorithm.unseal(ciphertext, self).await?;
+                let builder =
+                    <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(entry.builder))?;
+                builder.build(Some(plaintext.get()?))
             }
-            State::Unsealed {
-                ref builder,
-                ref bytes,
-            } => {
-                let builder = <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(*builder))?;
+            State::Unsealed { ref bytes } => {
+                let builder =
+                    <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(entry.builder))?;
                 builder.build(Some(bytes.get()?))
             }
         }

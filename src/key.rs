@@ -15,7 +15,7 @@ use self::{
     },
 };
 use crate::{
-    Builder, ByteSource, ByteUnsealable, CryptoError, HasBuilder, HasByteSource, HasIndex, State,
+    Builder, ByteSource, ByteAlgorithm, CryptoError, HasBuilder, HasByteSource, HasIndex, State,
     SymmetricNonce, TypeBuilder, TypeBuilderContainer,
 };
 use mongodb::bson::{self, Document};
@@ -44,7 +44,7 @@ pub trait SymmetricSealer {
         plaintext: ByteSource,
         nonce: Option<Self::Nonce>,
         key_conversion_fn: F,
-    ) -> Result<ByteUnsealable, CryptoError>;
+    ) -> Result<ByteAlgorithm, CryptoError>;
 }
 
 pub trait SymmetricUnsealer {
@@ -75,7 +75,7 @@ pub trait SecretAsymmetricSealer {
         public_key: Option<Self::PublicKey>,
         nonce: Option<Self::Nonce>,
         key_conversion_fn: F,
-    ) -> Result<ByteUnsealable, CryptoError>;
+    ) -> Result<ByteAlgorithm, CryptoError>;
 }
 
 pub trait SecretAsymmetricUnsealer {
@@ -108,7 +108,7 @@ pub trait PublicAsymmetricSealer {
         secret_key: Self::SecretKey,
         nonce: Option<Self::Nonce>,
         key_conversion_fn: F,
-    ) -> Result<ByteUnsealable, CryptoError>;
+    ) -> Result<ByteAlgorithm, CryptoError>;
 }
 
 pub trait PublicAsymmetricUnsealer {
@@ -124,8 +124,13 @@ pub trait PublicAsymmetricUnsealer {
     ) -> Result<Self::UnsealedOutput, CryptoError>;
 }
 
+/// Allows for retr
 pub trait HasPublicKey {
     fn public_key(&self) -> PublicAsymmetricKey;
+}
+
+pub trait HasSecretKey {
+    fn secret_key(self) -> PublicAsymmetricKey;
 }
 
 pub enum Key {
@@ -231,7 +236,7 @@ impl SymmetricSealer for SymmetricKey {
         plaintext: ByteSource,
         nonce: Option<Self::Nonce>,
         key_conversion_fn: F,
-    ) -> Result<ByteUnsealable, CryptoError> {
+    ) -> Result<ByteAlgorithm, CryptoError> {
         match self {
             Self::SodiumOxide(sosk) => {
                 let nonce = match nonce {

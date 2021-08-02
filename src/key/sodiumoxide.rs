@@ -1,11 +1,11 @@
 use crate::{
     nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce},
-    AsymmetricKeyBuilder, Builder, ByteSource, ByteUnsealable, CryptoError, HasBuilder,
+    Algorithm, AsymmetricKeyBuilder, Builder, ByteAlgorithm, ByteSource, CryptoError, HasBuilder,
     HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKey,
     PublicAsymmetricKeyBuilder, PublicAsymmetricSealer, PublicAsymmetricUnsealer,
     SecretAsymmetricKey, SecretAsymmetricKeyBuilder, SecretAsymmetricSealer,
     SecretAsymmetricUnsealer, Signer, State, Storer, SymmetricKey, SymmetricKeyBuilder,
-    SymmetricSealer, SymmetricUnsealer, ToState, TypeBuilder, TypeBuilderContainer, Unsealable,
+    SymmetricSealer, SymmetricUnsealer, ToState, TypeBuilder, TypeBuilderContainer,
 };
 use async_trait::async_trait;
 use mongodb::bson::{self, Document};
@@ -64,17 +64,32 @@ use std::{boxed::Box, convert::TryFrom};
 // }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct SodiumOxideSymmetricKeyUnsealable {
-    pub source: ByteSource,
+pub struct SodiumOxideSymmetricKeyAlgorithm {
     pub key: Box<State>,
     pub nonce: SodiumOxideSymmetricNonce,
 }
 
 #[async_trait]
-impl Unsealable for SodiumOxideSymmetricKeyUnsealable {
-    async fn unseal<S: Storer>(&self, storer: &S) -> Result<ByteSource, CryptoError> {
+impl Algorithm for SodiumOxideSymmetricKeyAlgorithm {
+    type Source = ByteSource;
+    type Output = ByteSource;
+
+    async fn unseal<S: Storer>(
+        &self,
+        source: Self::Source,
+        storer: &S,
+    ) -> Result<Self::Output, CryptoError> {
         let key = storer.resolve::<SodiumOxideSymmetricKey>(&self.key).await?;
-        let source = key.unseal(&self.source, &self.nonce)?;
+        Ok(key.unseal(&source, &self.nonce)?)
+    }
+
+    async fn seal<S: Storer>(
+        &self,
+        source: Self::Source,
+        storer: &S,
+    ) -> Result<Self::Output, CryptoError> {
+        let key = storer.resolve::<SodiumOxideSymmetricKey>(&self.key).await?;
+        let (source, _) = key.seal(&source, Some(&self.nonce))?;
         Ok(source)
     }
 }
@@ -150,11 +165,11 @@ impl SymmetricSealer for SodiumOxideSymmetricKey {
         plaintext: ByteSource,
         nonce: Option<Self::Nonce>,
         key_conversion_fn: F,
-    ) -> Result<ByteUnsealable, CryptoError> {
+    ) -> Result<ByteAlgorithm, CryptoError> {
         let (source, nonce) = self.seal(&plaintext, nonce.as_ref())?;
         let key = Box::new(key_conversion_fn(SymmetricKey::SodiumOxide(self))?);
-        Ok(ByteUnsealable::SodiumOxideSymmetricKey(
-            SodiumOxideSymmetricKeyUnsealable { source, key, nonce },
+        Ok(ByteAlgorithm::SodiumOxideSymmetricKey(
+            SodiumOxideSymmetricKeyAlgorithm { key, nonce },
         ))
     }
 }
@@ -253,16 +268,22 @@ impl SodiumOxideSymmetricKey {
 // }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct SodiumOxideSecretAsymmetricKeyUnsealable {
-    pub source: ByteSource,
+pub struct SodiumOxideSecretAsymmetricKeyAlgorithm {
     pub secret_key: Box<State>,
     pub nonce: SodiumOxideAsymmetricNonce,
     pub public_key: Option<Box<State>>,
 }
 
 #[async_trait]
-impl Unsealable for SodiumOxideSecretAsymmetricKeyUnsealable {
-    async fn unseal<S: Storer>(&self, storer: &S) -> Result<ByteSource, CryptoError> {
+impl Algorithm for SodiumOxideSecretAsymmetricKeyAlgorithm {
+    type Source = ByteSource;
+    type Output = ByteSource;
+
+    async fn unseal<S: Storer>(
+        &self,
+        source: Self::Source,
+        storer: &S,
+    ) -> Result<Self::Output, CryptoError> {
         let secret_key = storer
             .resolve::<SodiumOxideCurve25519SecretAsymmetricKey>(&self.secret_key)
             .await?;
@@ -274,7 +295,26 @@ impl Unsealable for SodiumOxideSecretAsymmetricKeyUnsealable {
             )),
             None => Ok(None),
         }?;
-        let source = secret_key.unseal(&self.source, public_key.as_ref(), &self.nonce)?;
+        Ok(secret_key.unseal(&source, public_key.as_ref(), &self.nonce)?)
+    }
+
+    async fn seal<S: Storer>(
+        &self,
+        source: Self::Source,
+        storer: &S,
+    ) -> Result<Self::Output, CryptoError> {
+        let secret_key = storer
+            .resolve::<SodiumOxideCurve25519SecretAsymmetricKey>(&self.secret_key)
+            .await?;
+        let public_key = match self.public_key {
+            Some(ref public_key) => Ok::<_, CryptoError>(Some(
+                storer
+                    .resolve::<SodiumOxideCurve25519PublicAsymmetricKey>(public_key)
+                    .await?,
+            )),
+            None => Ok(None),
+        }?;
+        let (source, _) = secret_key.seal(&source, public_key.as_ref(), Some(&self.nonce))?;
         Ok(source)
     }
 }
@@ -361,7 +401,7 @@ impl SecretAsymmetricSealer for SodiumOxideCurve25519SecretAsymmetricKey {
         public_key: Option<Self::PublicKey>,
         nonce: Option<Self::Nonce>,
         key_conversion_fn: F,
-    ) -> Result<ByteUnsealable, CryptoError> {
+    ) -> Result<ByteAlgorithm, CryptoError> {
         let (source, nonce) = self.seal(&plaintext, public_key.as_ref(), nonce.as_ref())?;
         let public_key = match public_key {
             Some(public_key) => Some(Box::new(public_key.to_unsealed_state("".into())?)),
@@ -370,9 +410,8 @@ impl SecretAsymmetricSealer for SodiumOxideCurve25519SecretAsymmetricKey {
         let secret_key = Box::new(key_conversion_fn(
             SecretAsymmetricKey::SodiumOxideCurve25519(self),
         )?);
-        Ok(ByteUnsealable::SodiumOxideSecretAsymmetricKey(
-            SodiumOxideSecretAsymmetricKeyUnsealable {
-                source,
+        Ok(ByteAlgorithm::SodiumOxideSecretAsymmetricKey(
+            SodiumOxideSecretAsymmetricKeyAlgorithm {
                 secret_key,
                 nonce,
                 public_key,
@@ -508,23 +547,43 @@ impl SodiumOxideCurve25519SecretAsymmetricKey {
 // }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct SodiumOxidePublicAsymmetricKeyUnsealable {
-    pub source: ByteSource,
+pub struct SodiumOxidePublicAsymmetricKeyAlgorithm {
     pub public_key: Box<State>,
     pub nonce: SodiumOxideAsymmetricNonce,
     pub secret_key: Box<State>,
 }
 
 #[async_trait]
-impl Unsealable for SodiumOxidePublicAsymmetricKeyUnsealable {
-    async fn unseal<S: Storer>(&self, storer: &S) -> Result<ByteSource, CryptoError> {
+impl Algorithm for SodiumOxidePublicAsymmetricKeyAlgorithm {
+    type Source = ByteSource;
+    type Output = ByteSource;
+
+    async fn unseal<S: Storer>(
+        &self,
+        source: Self::Source,
+        storer: &S,
+    ) -> Result<Self::Output, CryptoError> {
         let secret_key = storer
             .resolve::<SodiumOxideCurve25519SecretAsymmetricKey>(&self.secret_key)
             .await?;
         let public_key = storer
             .resolve::<SodiumOxideCurve25519PublicAsymmetricKey>(&self.public_key)
             .await?;
-        let source = public_key.unseal(&self.source, &secret_key, &self.nonce)?;
+        Ok(public_key.unseal(&source, &secret_key, &self.nonce)?)
+    }
+
+    async fn seal<S: Storer>(
+        &self,
+        source: Self::Source,
+        storer: &S,
+    ) -> Result<Self::Output, CryptoError> {
+        let secret_key = storer
+            .resolve::<SodiumOxideCurve25519SecretAsymmetricKey>(&self.secret_key)
+            .await?;
+        let public_key = storer
+            .resolve::<SodiumOxideCurve25519PublicAsymmetricKey>(&self.public_key)
+            .await?;
+        let (source, _) = public_key.seal(&source, &secret_key, Some(&self.nonce))?;
         Ok(source)
     }
 }
@@ -607,15 +666,14 @@ impl PublicAsymmetricSealer for SodiumOxideCurve25519PublicAsymmetricKey {
         secret_key: Self::SecretKey,
         nonce: Option<Self::Nonce>,
         key_conversion_fn: F,
-    ) -> Result<ByteUnsealable, CryptoError> {
+    ) -> Result<ByteAlgorithm, CryptoError> {
         let (source, nonce) = self.seal(&plaintext, &secret_key, nonce.as_ref())?;
         let secret_key = Box::new(key_conversion_fn(
             SecretAsymmetricKey::SodiumOxideCurve25519(secret_key),
         )?);
         let public_key = Box::new(self.to_unsealed_state("".into())?);
-        Ok(ByteUnsealable::SodiumOxidePublicAsymmetricKey(
-            SodiumOxidePublicAsymmetricKeyUnsealable {
-                source,
+        Ok(ByteAlgorithm::SodiumOxidePublicAsymmetricKey(
+            SodiumOxidePublicAsymmetricKeyAlgorithm {
                 secret_key,
                 nonce,
                 public_key,
@@ -918,17 +976,17 @@ mod tests {
     use super::{
         SodiumOxideCurve25519PublicAsymmetricKey, SodiumOxideCurve25519PublicAsymmetricKeyBuilder,
         SodiumOxideCurve25519SecretAsymmetricKey, SodiumOxideCurve25519SecretAsymmetricKeyBuilder,
-        SodiumOxidePublicAsymmetricKeyUnsealable, SodiumOxideSecretAsymmetricKeyUnsealable,
-        SodiumOxideSymmetricKey, SodiumOxideSymmetricKeyBuilder, SodiumOxideSymmetricKeyUnsealable,
+        SodiumOxidePublicAsymmetricKeyAlgorithm, SodiumOxideSecretAsymmetricKeyAlgorithm,
+        SodiumOxideSymmetricKey, SodiumOxideSymmetricKeyAlgorithm, SodiumOxideSymmetricKeyBuilder,
     };
     use crate::{
         nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce},
         storage::tests::MockStorer,
-        AsymmetricKeyBuilder, BoolDataBuilder, Builder, ByteUnsealable, DataBuilder, Entry,
-        HasBuilder, HasIndex, KeyBuilder, PublicAsymmetricKeyBuilder, PublicAsymmetricSealer,
-        PublicAsymmetricUnsealer, SecretAsymmetricKeyBuilder, SecretAsymmetricSealer,
-        SecretAsymmetricUnsealer, State, StringDataBuilder, SymmetricKeyBuilder, SymmetricSealer,
-        SymmetricUnsealer, TypeBuilder, TypeBuilderContainer, Unsealable,
+        Algorithm, AsymmetricKeyBuilder, BoolDataBuilder, Builder, ByteAlgorithm, DataBuilder,
+        Entry, HasBuilder, HasIndex, KeyBuilder, PublicAsymmetricKeyBuilder,
+        PublicAsymmetricSealer, PublicAsymmetricUnsealer, SecretAsymmetricKeyBuilder,
+        SecretAsymmetricSealer, SecretAsymmetricUnsealer, State, StringDataBuilder,
+        SymmetricKeyBuilder, SymmetricSealer, SymmetricUnsealer, TypeBuilder, TypeBuilderContainer,
     };
     use mongodb::bson::{self, Document};
     use sodiumoxide::crypto::{
@@ -1065,7 +1123,7 @@ mod tests {
     fn get_sopaku_with_unsealed_key(
         plaintext: &[u8],
         secret_key: Option<&SodiumOxideCurve25519SecretAsymmetricKey>,
-    ) -> SodiumOxidePublicAsymmetricKeyUnsealable {
+    ) -> SodiumOxidePublicAsymmetricKeyAlgorithm {
         let ciphertext = get_sopak_ciphertext(plaintext, secret_key);
         let secret_key = match secret_key {
             Some(sk) => Box::new(State::Unsealed {
@@ -1079,7 +1137,7 @@ mod tests {
             None => Box::new(get_unsealed_sosak()),
         };
         let source = ciphertext.as_slice().into();
-        SodiumOxidePublicAsymmetricKeyUnsealable {
+        SodiumOxidePublicAsymmetricKeyAlgorithm {
             source,
             secret_key,
             nonce: get_soan(),
@@ -1091,7 +1149,7 @@ mod tests {
         plaintext: &[u8],
         secret_key: Option<&SodiumOxideCurve25519SecretAsymmetricKey>,
         path: &str,
-    ) -> SodiumOxidePublicAsymmetricKeyUnsealable {
+    ) -> SodiumOxidePublicAsymmetricKeyAlgorithm {
         let ciphertext = get_sopak_ciphertext(plaintext, secret_key);
         let secret_key = match secret_key {
             Some(sk) => Box::new(State::Unsealed {
@@ -1105,7 +1163,7 @@ mod tests {
             None => Box::new(get_unsealed_sosak()),
         };
         let source = ciphertext.as_slice().into();
-        SodiumOxidePublicAsymmetricKeyUnsealable {
+        SodiumOxidePublicAsymmetricKeyAlgorithm {
             source,
             secret_key,
             nonce: get_soan(),
@@ -1179,7 +1237,7 @@ mod tests {
                     SodiumOxideCurve25519SecretAsymmetricKeyBuilder {},
                 ),
             ))),
-            unsealable: ByteUnsealable::SodiumOxideSecretAsymmetricKey(
+            unsealable: ByteAlgorithm::SodiumOxideSecretAsymmetricKey(
                 get_sosaku_with_unsealed_key(get_sosak().secret_key.as_ref(), None),
             ),
         }
@@ -1192,7 +1250,7 @@ mod tests {
                     SodiumOxideCurve25519SecretAsymmetricKeyBuilder {},
                 ),
             ))),
-            unsealable: ByteUnsealable::SodiumOxideSecretAsymmetricKey(
+            unsealable: ByteAlgorithm::SodiumOxideSecretAsymmetricKey(
                 get_sosaku_with_referenced_key(get_sosak().secret_key.as_ref(), None, path),
             ),
         }
@@ -1250,7 +1308,7 @@ mod tests {
     fn get_sosaku_with_unsealed_key(
         plaintext: &[u8],
         public_key: Option<SodiumOxideCurve25519PublicAsymmetricKey>,
-    ) -> SodiumOxideSecretAsymmetricKeyUnsealable {
+    ) -> SodiumOxideSecretAsymmetricKeyAlgorithm {
         let ciphertext = get_sosak_ciphertext(plaintext, &public_key);
         let public_key = match public_key {
             Some(pk) => Some(Box::new(State::Unsealed {
@@ -1264,7 +1322,7 @@ mod tests {
             None => None,
         };
         let source = ciphertext.as_slice().into();
-        SodiumOxideSecretAsymmetricKeyUnsealable {
+        SodiumOxideSecretAsymmetricKeyAlgorithm {
             source,
             secret_key: Box::new(get_unsealed_sosak()),
             nonce: get_soan(),
@@ -1276,7 +1334,7 @@ mod tests {
         plaintext: &[u8],
         public_key: Option<SodiumOxideCurve25519PublicAsymmetricKey>,
         path: &str,
-    ) -> SodiumOxideSecretAsymmetricKeyUnsealable {
+    ) -> SodiumOxideSecretAsymmetricKeyAlgorithm {
         let ciphertext = get_sosak_ciphertext(plaintext, &public_key);
         let public_key = match public_key {
             Some(pk) => Some(Box::new(State::Unsealed {
@@ -1290,7 +1348,7 @@ mod tests {
             None => None,
         };
         let source = ciphertext.as_slice().into();
-        SodiumOxideSecretAsymmetricKeyUnsealable {
+        SodiumOxideSecretAsymmetricKeyAlgorithm {
             source,
             secret_key: Box::new(get_referenced_sosak(path)),
             nonce: get_soan(),
@@ -1358,7 +1416,7 @@ mod tests {
             builder: TypeBuilder::Key(KeyBuilder::Symmetric(SymmetricKeyBuilder::SodiumOxide(
                 SodiumOxideSymmetricKeyBuilder {},
             ))),
-            unsealable: ByteUnsealable::SodiumOxideSymmetricKey(get_sosku_with_unsealed_key(
+            unsealable: ByteAlgorithm::SodiumOxideSymmetricKey(get_sosku_with_unsealed_key(
                 get_sosk().key.as_ref(),
             )),
         }
@@ -1371,7 +1429,7 @@ mod tests {
             builder: TypeBuilder::Key(KeyBuilder::Symmetric(SymmetricKeyBuilder::SodiumOxide(
                 SodiumOxideSymmetricKeyBuilder {},
             ))),
-            unsealable: ByteUnsealable::SodiumOxideSymmetricKey(get_sosku_with_referenced_key(
+            unsealable: ByteAlgorithm::SodiumOxideSymmetricKey(get_sosku_with_referenced_key(
                 get_sosk().key.as_ref(),
                 path,
             )),
@@ -1401,10 +1459,10 @@ mod tests {
     //     }
     // }
 
-    fn get_sosku_with_unsealed_key(plaintext: &[u8]) -> SodiumOxideSymmetricKeyUnsealable {
+    fn get_sosku_with_unsealed_key(plaintext: &[u8]) -> SodiumOxideSymmetricKeyAlgorithm {
         let sealed_bytes = get_sosk_ciphertext(plaintext);
         let source = sealed_bytes.as_slice().into();
-        SodiumOxideSymmetricKeyUnsealable {
+        SodiumOxideSymmetricKeyAlgorithm {
             source,
             key: Box::new(get_unsealed_sosk()),
             nonce: get_sosn(),
@@ -1414,10 +1472,10 @@ mod tests {
     fn get_sosku_with_referenced_key(
         plaintext: &[u8],
         path: &str,
-    ) -> SodiumOxideSymmetricKeyUnsealable {
+    ) -> SodiumOxideSymmetricKeyAlgorithm {
         let sealed_bytes = get_sosk_ciphertext(plaintext);
         let source = sealed_bytes.as_slice().into();
-        SodiumOxideSymmetricKeyUnsealable {
+        SodiumOxideSymmetricKeyAlgorithm {
             source,
             key: Box::new(get_referenced_sosk(path)),
             nonce: get_sosn(),
