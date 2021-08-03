@@ -15,8 +15,8 @@ use self::{
     },
 };
 use crate::{
-    Builder, ByteSource, CryptoError, HasBuilder, HasByteSource, HasIndex, SymmetricNonce,
-    TypeBuilder, TypeBuilderContainer,
+    Builder, ByteSource, CryptoError, HasBuilder, HasByteSource, HasIndex, StorableType,
+    SymmetricNonce, TypeBuilder, TypeBuilderContainer,
 };
 use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
@@ -126,17 +126,16 @@ pub trait PublicAsymmetricUnsealer {
 
 /// Allows for retr
 pub trait HasPublicKey {
-    fn public_key(&self) -> PublicAsymmetricKey;
+    fn public_key(&self) -> Result<PublicAsymmetricKey, CryptoError>;
 }
 
-pub trait HasSecretKey {
-    fn secret_key(self) -> PublicAsymmetricKey;
-}
-
+#[derive(Serialize, Deserialize, Debug)]
 pub enum Key {
     Symmetric(SymmetricKey),
     Asymmetric(AsymmetricKey),
 }
+
+impl StorableType for Key {}
 
 impl HasIndex for Key {
     type Index = Document;
@@ -207,9 +206,12 @@ impl Builder for KeyBuilder {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub enum SymmetricKey {
     SodiumOxide(SodiumOxideSymmetricKey),
 }
+
+impl StorableType for SymmetricKey {}
 
 impl SymmetricSealer for SymmetricKey {
     type SealedOutput = ByteSource;
@@ -319,10 +321,13 @@ impl Builder for SymmetricKeyBuilder {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub enum AsymmetricKey {
     Public(PublicAsymmetricKey),
     Secret(SecretAsymmetricKey),
 }
+
+impl StorableType for AsymmetricKey {}
 
 impl HasIndex for AsymmetricKey {
     type Index = Document;
@@ -396,11 +401,14 @@ impl Builder for AsymmetricKeyBuilder {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub enum PublicAsymmetricKey {
     SodiumOxideCurve25519(SodiumOxideCurve25519PublicAsymmetricKey),
     SodiumOxideEd25519(SodiumOxideEd25519PublicAsymmetricKey),
     RingEd25519(RingEd25519PublicAsymmetricKey),
 }
+
+impl StorableType for PublicAsymmetricKey {}
 
 impl HasIndex for PublicAsymmetricKey {
     type Index = Document;
@@ -495,11 +503,14 @@ impl Builder for PublicAsymmetricKeyBuilder {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub enum SecretAsymmetricKey {
     SodiumOxideCurve25519(SodiumOxideCurve25519SecretAsymmetricKey),
     SodiumOxideEd25519(SodiumOxideEd25519SecretAsymmetricKey),
     RingEd25519(RingEd25519SecretAsymmetricKey),
 }
+
+impl StorableType for SecretAsymmetricKey {}
 
 impl HasIndex for SecretAsymmetricKey {
     type Index = Document;

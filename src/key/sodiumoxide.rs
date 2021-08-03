@@ -562,10 +562,12 @@ impl SodiumOxideCurve25519PublicAsymmetricKey {
 }
 
 impl HasPublicKey for SodiumOxideCurve25519SecretAsymmetricKey {
-    fn public_key(&self) -> PublicAsymmetricKey {
-        PublicAsymmetricKey::SodiumOxideCurve25519(SodiumOxideCurve25519PublicAsymmetricKey {
-            public_key: self.secret_key.public_key(),
-        })
+    fn public_key(&self) -> Result<PublicAsymmetricKey, CryptoError> {
+        Ok(PublicAsymmetricKey::SodiumOxideCurve25519(
+            SodiumOxideCurve25519PublicAsymmetricKey {
+                public_key: self.secret_key.public_key(),
+            },
+        ))
     }
 }
 
@@ -614,9 +616,12 @@ impl From<SodiumOxideEd25519SecretAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SodiumOxideEd25519SecretAsymmetricKey {
     pub secret_key: ExternalSodiumOxideEd25519SecretAsymmetricKey,
 }
+
+impl StorableType for SodiumOxideEd25519SecretAsymmetricKey {}
 
 impl Signer for SodiumOxideEd25519SecretAsymmetricKey {
     fn sign(&self, bytes: ByteSource) -> Result<ByteSource, CryptoError> {
@@ -721,9 +726,12 @@ impl From<SodiumOxideEd25519PublicAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SodiumOxideEd25519PublicAsymmetricKey {
     pub public_key: ExternalSodiumOxideEd25519PublicAsymmetricKey,
 }
+
+impl StorableType for SodiumOxideEd25519PublicAsymmetricKey {}
 
 impl HasIndex for SodiumOxideEd25519PublicAsymmetricKey {
     type Index = Document;
@@ -775,10 +783,12 @@ impl SodiumOxideEd25519PublicAsymmetricKey {
 }
 
 impl HasPublicKey for SodiumOxideEd25519SecretAsymmetricKey {
-    fn public_key(&self) -> PublicAsymmetricKey {
-        PublicAsymmetricKey::SodiumOxideEd25519(SodiumOxideEd25519PublicAsymmetricKey {
-            public_key: self.secret_key.public_key(),
-        })
+    fn public_key(&self) -> Result<PublicAsymmetricKey, CryptoError> {
+        Ok(PublicAsymmetricKey::SodiumOxideEd25519(
+            SodiumOxideEd25519PublicAsymmetricKey {
+                public_key: self.secret_key.public_key(),
+            },
+        ))
     }
 }
 

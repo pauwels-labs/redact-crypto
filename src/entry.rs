@@ -157,10 +157,13 @@ pub trait Builder:
 #[derive(Serialize, Deserialize, Copy, Clone)]
 pub struct TypeBuilderContainer(pub TypeBuilder);
 
+#[derive(Serialize, Deserialize, Debug)]
 pub enum Type {
     Key(Key),
     Data(Data),
 }
+
+impl StorableType for Type {}
 
 impl HasIndex for Type {
     type Index = Document;
