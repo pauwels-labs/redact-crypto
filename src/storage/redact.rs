@@ -1,12 +1,12 @@
+use crate::{CryptoError, Entry, StorableType, Storer};
+use async_trait::async_trait;
+use mongodb::bson::Document;
+use reqwest::StatusCode;
+use serde::{Deserialize, Serialize};
 use std::{
     error::Error,
     fmt::{self, Display, Formatter},
 };
-
-use crate::{CryptoError, Entry, EntryPath, HasBuilder, State, Storer};
-use async_trait::async_trait;
-use mongodb::bson::Document;
-use reqwest::StatusCode;
 
 #[derive(Debug)]
 pub enum RedactStorerError {
@@ -54,7 +54,7 @@ impl From<RedactStorerError> for CryptoError {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct RedactStorer {
     url: String,
 }
@@ -71,11 +71,11 @@ impl RedactStorer {
 
 #[async_trait]
 impl Storer for RedactStorer {
-    async fn get_indexed<T: HasBuilder>(
+    async fn get_indexed<T: StorableType>(
         &self,
         path: &str,
         index: &Option<Document>,
-    ) -> Result<Entry, CryptoError> {
+    ) -> Result<Entry<T>, CryptoError> {
         let mut req_url = format!("{}/{}?", &self.url, path);
         if let Some(i) = index {
             req_url.push_str(format!("index={}", i).as_ref());
@@ -93,7 +93,7 @@ impl Storer for RedactStorer {
                         .into()
                     }
                 })?
-                .json::<Entry>()
+                .json::<Entry<T>>()
                 .await
                 .map_err(|source| -> CryptoError {
                     RedactStorerError::InternalError {
@@ -108,13 +108,13 @@ impl Storer for RedactStorer {
         }
     }
 
-    async fn list_indexed<T: HasBuilder + Send>(
+    async fn list_indexed<T: StorableType>(
         &self,
         path: &str,
         skip: i64,
         page_size: i64,
         index: &Option<Document>,
-    ) -> Result<Vec<Entry>, CryptoError> {
+    ) -> Result<Vec<Entry<T>>, CryptoError> {
         let mut req_url = format!(
             "{}/{}?skip={}&page_size={}",
             &self.url, path, skip, page_size
@@ -135,7 +135,7 @@ impl Storer for RedactStorer {
                         .into()
                     }
                 })?
-                .json::<Vec<Entry>>()
+                .json::<Vec<Entry<T>>>()
                 .await
                 .map_err(|source| -> CryptoError {
                     RedactStorerError::InternalError {
@@ -150,12 +150,15 @@ impl Storer for RedactStorer {
         }
     }
 
-    async fn create(&self, path: EntryPath, value: State) -> Result<bool, CryptoError> {
-        let entry = Entry { path, value };
+    async fn create<T: StorableType>(&self, entry: Entry<T>) -> Result<bool, CryptoError> {
         let client = reqwest::Client::new();
+        let stringified_entry =
+            serde_json::to_string(&entry).map_err(|e| RedactStorerError::InternalError {
+                source: Box::new(e),
+            })?;
         client
             .post(&format!("{}/", self.url))
-            .json(&entry)
+            .json(&stringified_entry)
             .send()
             .await
             .and_then(|res| res.error_for_status().map(|_| true))

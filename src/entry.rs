@@ -1,79 +1,115 @@
 use crate::{
-    ByteAlgorithm, ByteSource, CryptoError, Data, DataBuilder, HasByteSource, HasIndex, Key,
-    KeyBuilder,
+    Algorithm, ByteAlgorithm, ByteSource, CryptoError, Data, DataBuilder, HasByteSource, HasIndex,
+    Key, KeyBuilder, Storer, TypeStorer,
 };
+use async_recursion::async_recursion;
 use mongodb::bson::Document;
-use serde::{Deserialize, Serialize};
+use once_cell::sync::OnceCell;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::convert::TryFrom;
 
 pub type EntryPath = String;
 
-// #[derive(Serialize, Deserialize, Debug)]
-// pub struct Entry {
-//     pub path: Option<EntryPath>,
-//     pub value: State,
-// }
-
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Entry {
-    pub path: Option<EntryPath>,
+#[serde(bound = "T: StorableType")]
+pub struct Entry<T> {
+    pub path: EntryPath,
     pub builder: TypeBuilder,
     pub value: State,
+    #[serde(skip)]
+    resolved_value: OnceCell<T>,
 }
 
-// impl Entry {
-//     pub fn into_ref(self) -> State {
-//         State::Referenced {
-//             builder: match self.value {
-//                 State::Referenced { builder, path: _ } => builder,
-//                 State::Sealed {
-//                     builder,
-//                     unsealable: _,
-//                 } => builder,
-//                 State::Unsealed { builder, bytes: _ } => builder,
-//             },
-//             path: self.path,
-//         }
-//     }
-// }
+pub trait StorableType:
+    DeserializeOwned
+    + Serialize
+    + HasByteSource
+    + HasBuilder
+    + HasIndex<Index = Document>
+    + Unpin
+    + Send
+    + std::fmt::Debug
+    + 'static
+{
+}
 
-// impl<T: HasBuilder + HasByteSource> From<T> for State {
-//     fn from(value: T) -> Self {
-//         State::Unsealed {
-//             builder: value.builder().into(),
-//             bytes: value.byte_source(),
-//         }
-//     }
-// }
+impl<T: StorableType> Entry<T> {
+    #[async_recursion]
+    pub async fn take_resolve(mut self) -> Result<T, CryptoError> {
+        match self.resolved_value.take() {
+            None => match self.value {
+                State::Referenced {
+                    ref path,
+                    ref storer,
+                } => {
+                    let entry = storer.get::<T>(path).await?;
+                    Ok(entry.take_resolve().await?)
+                }
+                State::Sealed {
+                    ref ciphertext,
+                    ref algorithm,
+                } => {
+                    let builder =
+                        <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(self.builder))?;
+                    let plaintext = algorithm.unseal(ciphertext).await?;
+                    builder.build(Some(plaintext.get()?))
+                }
+                State::Unsealed { bytes, .. } => {
+                    let builder =
+                        <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(self.builder))?;
+                    builder.build(Some(bytes.get()?))
+                }
+            },
+            Some(value) => Ok(value),
+        }
+    }
+
+    pub async fn resolve(&self) -> Result<&T, CryptoError> {
+        match self.resolved_value.get() {
+            None => match self.value {
+                State::Referenced {
+                    ref path,
+                    ref storer,
+                } => {
+                    let entry = storer.get::<T>(path).await?;
+                    let value = entry.take_resolve().await?;
+                    Ok(self.resolved_value.get_or_init(|| value))
+                }
+                State::Sealed {
+                    ref ciphertext,
+                    ref algorithm,
+                } => {
+                    let builder =
+                        <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(self.builder))?;
+                    let plaintext = algorithm.unseal(ciphertext).await?;
+                    self.resolved_value
+                        .get_or_try_init(|| builder.build(Some(plaintext.get()?)))
+                }
+                State::Unsealed { ref bytes, .. } => {
+                    let builder =
+                        <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(self.builder))?;
+                    self.resolved_value
+                        .get_or_try_init(|| builder.build(Some(bytes.get()?)))
+                }
+            },
+            Some(value) => Ok(value),
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "t", content = "c")]
-// pub enum State {
-//     Referenced {
-//         builder: TypeBuilder,
-//         path: EntryPath,
-//     },
-//     Sealed {
-//         builder: TypeBuilder,
-//         unsealable: ByteAlgorithm,
-//     },
-//     Unsealed {
-//         builder: TypeBuilder,
-//         bytes: ByteSource,
-//     },
-// }
-
 pub enum State {
     Referenced {
         path: EntryPath,
+        storer: TypeStorer,
     },
     Sealed {
         ciphertext: ByteSource,
         algorithm: ByteAlgorithm,
     },
     Unsealed {
-        plaintext: ByteSource,
-        algorithm: Option<ByteAlgorithm>,
+        bytes: ByteSource,
     },
 }
 
@@ -83,7 +119,9 @@ pub trait HasBuilder {
     fn builder(&self) -> Self::Builder;
 }
 
-pub trait Builder: TryFrom<TypeBuilderContainer, Error = CryptoError> + Into<TypeBuilder> {
+pub trait Builder:
+    TryFrom<TypeBuilderContainer, Error = CryptoError> + Into<TypeBuilder> + Send
+{
     type Output;
 
     fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError>;
@@ -116,11 +154,9 @@ pub trait Builder: TryFrom<TypeBuilderContainer, Error = CryptoError> + Into<Typ
 // impl<T: HasBuilder + HasByteSource> ToState for T {}
 
 /// Need this to provide a level an indirection for TryFrom
-#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone)]
 pub struct TypeBuilderContainer(pub TypeBuilder);
 
-//#[derive(Serialize, Deserialize, Debug)]
-//#[serde(tag = "t", content = "c")]
 pub enum Type {
     Key(Key),
     Data(Data),
@@ -154,7 +190,7 @@ impl HasByteSource for Type {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 #[serde(tag = "t", content = "c")]
 pub enum TypeBuilder {
     Data(DataBuilder),
@@ -188,28 +224,28 @@ mod tests {
     };
     use std::convert::TryInto;
 
-    #[test]
-    fn test_entry_into_ref() {
-        let s = State::Unsealed {
-            builder: TypeBuilder::Data(DataBuilder::String(StringDataBuilder {})),
-            bytes: "hello, world!".into(),
-        };
-        let e = Entry {
-            path: ".somePath.".to_owned(),
-            value: s,
-        };
-        let s_ref = e.into_ref();
-        match s_ref {
-            State::Referenced { builder, path } => {
-                match builder {
-                    TypeBuilder::Data(DataBuilder::String(_)) => (),
-                    _ => panic!("Referenced builder should have been a StringDataBuilder"),
-                };
-                assert_eq!(path, ".somePath.".to_owned());
-            }
-            _ => panic!("Outputted state should have been a Referenced"),
-        }
-    }
+    // #[test]
+    // fn test_entry_into_ref() {
+    //     let s = State::Unsealed {
+    //         builder: TypeBuilder::Data(DataBuilder::String(StringDataBuilder {})),
+    //         bytes: "hello, world!".into(),
+    //     };
+    //     let e = Entry {
+    //         path: ".somePath.".to_owned(),
+    //         value: s,
+    //     };
+    //     let s_ref = e.into_ref();
+    //     match s_ref {
+    //         State::Referenced { builder, path } => {
+    //             match builder {
+    //                 TypeBuilder::Data(DataBuilder::String(_)) => (),
+    //                 _ => panic!("Referenced builder should have been a StringDataBuilder"),
+    //             };
+    //             assert_eq!(path, ".somePath.".to_owned());
+    //         }
+    //         _ => panic!("Outputted state should have been a Referenced"),
+    //     }
+    // }
 
     #[test]
     fn test_type_to_index() {

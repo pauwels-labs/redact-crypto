@@ -15,8 +15,8 @@ use self::{
     },
 };
 use crate::{
-    Builder, ByteSource, ByteAlgorithm, CryptoError, HasBuilder, HasByteSource, HasIndex, State,
-    SymmetricNonce, TypeBuilder, TypeBuilderContainer,
+    Builder, ByteSource, CryptoError, HasBuilder, HasByteSource, HasIndex, SymmetricNonce,
+    TypeBuilder, TypeBuilderContainer,
 };
 use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
@@ -39,12 +39,12 @@ pub trait SymmetricSealer {
         plaintext: &ByteSource,
         nonce: Option<&Self::Nonce>,
     ) -> Result<(Self::SealedOutput, Self::Nonce), CryptoError>;
-    fn take_seal<F: FnOnce(SymmetricKey) -> Result<State, CryptoError>>(
-        self,
-        plaintext: ByteSource,
-        nonce: Option<Self::Nonce>,
-        key_conversion_fn: F,
-    ) -> Result<ByteAlgorithm, CryptoError>;
+    // fn take_seal<F: FnOnce(SymmetricKey) -> Result<State, CryptoError>>(
+    //     self,
+    //     plaintext: ByteSource,
+    //     nonce: Option<Self::Nonce>,
+    //     key_conversion_fn: F,
+    // ) -> Result<ByteAlgorithm, CryptoError>;
 }
 
 pub trait SymmetricUnsealer {
@@ -69,13 +69,13 @@ pub trait SecretAsymmetricSealer {
         public_key: Option<&Self::PublicKey>,
         nonce: Option<&Self::Nonce>,
     ) -> Result<(Self::SealedOutput, Self::Nonce), CryptoError>;
-    fn take_seal<F: FnOnce(SecretAsymmetricKey) -> Result<State, CryptoError>>(
-        self,
-        plaintext: ByteSource,
-        public_key: Option<Self::PublicKey>,
-        nonce: Option<Self::Nonce>,
-        key_conversion_fn: F,
-    ) -> Result<ByteAlgorithm, CryptoError>;
+    // fn take_seal<F: FnOnce(SecretAsymmetricKey) -> Result<State, CryptoError>>(
+    //     self,
+    //     plaintext: ByteSource,
+    //     public_key: Option<Self::PublicKey>,
+    //     nonce: Option<Self::Nonce>,
+    //     key_conversion_fn: F,
+    // ) -> Result<ByteAlgorithm, CryptoError>;
 }
 
 pub trait SecretAsymmetricUnsealer {
@@ -102,13 +102,13 @@ pub trait PublicAsymmetricSealer {
         secret_key: &Self::SecretKey,
         nonce: Option<&Self::Nonce>,
     ) -> Result<(Self::SealedOutput, Self::Nonce), CryptoError>;
-    fn take_seal<F: FnOnce(SecretAsymmetricKey) -> Result<State, CryptoError>>(
-        self,
-        plaintext: ByteSource,
-        secret_key: Self::SecretKey,
-        nonce: Option<Self::Nonce>,
-        key_conversion_fn: F,
-    ) -> Result<ByteAlgorithm, CryptoError>;
+    // fn take_seal<F: FnOnce(SecretAsymmetricKey) -> Result<State, CryptoError>>(
+    //     self,
+    //     plaintext: ByteSource,
+    //     secret_key: Self::SecretKey,
+    //     nonce: Option<Self::Nonce>,
+    //     key_conversion_fn: F,
+    // ) -> Result<ByteAlgorithm, CryptoError>;
 }
 
 pub trait PublicAsymmetricUnsealer {
@@ -231,24 +231,24 @@ impl SymmetricSealer for SymmetricKey {
         }
     }
 
-    fn take_seal<F: FnOnce(SymmetricKey) -> Result<State, CryptoError>>(
-        self,
-        plaintext: ByteSource,
-        nonce: Option<Self::Nonce>,
-        key_conversion_fn: F,
-    ) -> Result<ByteAlgorithm, CryptoError> {
-        match self {
-            Self::SodiumOxide(sosk) => {
-                let nonce = match nonce {
-                    Some(n) => match n {
-                        SymmetricNonce::SodiumOxide(sosn) => Ok::<_, CryptoError>(Some(sosn)),
-                    },
-                    None => Ok(None),
-                }?;
-                sosk.take_seal(plaintext, nonce, key_conversion_fn)
-            }
-        }
-    }
+    // fn take_seal<F: FnOnce(SymmetricKey) -> Result<State, CryptoError>>(
+    //     self,
+    //     plaintext: ByteSource,
+    //     nonce: Option<Self::Nonce>,
+    //     key_conversion_fn: F,
+    // ) -> Result<ByteAlgorithm, CryptoError> {
+    //     match self {
+    //         Self::SodiumOxide(sosk) => {
+    //             let nonce = match nonce {
+    //                 Some(n) => match n {
+    //                     SymmetricNonce::SodiumOxide(sosn) => Ok::<_, CryptoError>(Some(sosn)),
+    //                 },
+    //                 None => Ok(None),
+    //             }?;
+    //             sosk.take_seal(plaintext, nonce, key_conversion_fn)
+    //         }
+    //     }
+    // }
 }
 
 impl HasIndex for SymmetricKey {

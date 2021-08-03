@@ -47,6 +47,7 @@
 //! - storage/mongodb.rs: storage implentation for mongodb
 //! - storage/redact.rs: storage implementation for a redact-store server
 
+mod algorithm;
 mod data;
 mod entry;
 mod error;
@@ -54,14 +55,15 @@ pub mod key;
 pub mod nonce;
 mod source;
 pub mod storage;
-mod unsealable;
 
+pub use algorithm::{Algorithm, ByteAlgorithm};
 pub use data::{
     BoolDataBuilder, Data, DataBuilder, F64DataBuilder, I64DataBuilder, StringDataBuilder,
     U64DataBuilder,
 };
 pub use entry::{
-    Builder, Entry, EntryPath, HasBuilder, State, ToState, Type, TypeBuilder, TypeBuilderContainer,
+    Builder, Entry, EntryPath, HasBuilder, State, StorableType, Type, TypeBuilder,
+    TypeBuilderContainer,
 };
 pub use error::CryptoError;
 pub use key::{
@@ -78,6 +80,5 @@ pub use source::{
 pub use storage::{
     mongodb::{MongoStorer, MongoStorerError},
     redact::{RedactStorer, RedactStorerError},
-    HasIndex, Storer,
+    HasIndex, Storer, TypeStorer,
 };
-pub use unsealable::{ByteAlgorithm, Algorithm};
