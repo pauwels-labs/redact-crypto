@@ -1,13 +1,15 @@
 use crate::{
     nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce},
-    Algorithm, AsymmetricKeyBuilder, Builder, ByteSource, CryptoError, Entry, HasBuilder,
-    HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKey,
+    Algorithm, AsymmetricKeyBuilder, Builder, ByteAlgorithm, ByteSource, CryptoError, Entry,
+    HasBuilder, HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKey,
     PublicAsymmetricKeyBuilder, PublicAsymmetricSealer, PublicAsymmetricUnsealer,
     SecretAsymmetricKeyBuilder, SecretAsymmetricSealer, SecretAsymmetricUnsealer, Signer,
-    StorableType, SymmetricKeyBuilder, SymmetricSealer, SymmetricUnsealer, TypeBuilder,
-    TypeBuilderContainer,
+    StorableType, SymmetricKeyBuilder, SymmetricSealer, SymmetricUnsealer,
+    ToPublicAsymmetricByteAlgorithm, ToSecretAsymmetricByteAlgorithm, ToSymmetricByteAlgorithm,
+    TypeBuilder, TypeBuilderContainer,
 };
 use async_trait::async_trait;
+use futures::Future;
 use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
 use sodiumoxide::crypto::{
@@ -102,6 +104,36 @@ impl From<SodiumOxideSymmetricKeyBuilder> for TypeBuilder {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SodiumOxideSymmetricKey {
     pub key: ExternalSodiumOxideSymmetricKey,
+}
+
+#[async_trait]
+impl ToSymmetricByteAlgorithm for SodiumOxideSymmetricKey {
+    type Key = Self;
+    type Nonce = SodiumOxideSymmetricNonce;
+
+    async fn to_byte_algorithm<F, Fut>(
+        self,
+        nonce: Option<Self::Nonce>,
+        f: F,
+    ) -> Result<ByteAlgorithm, CryptoError>
+    where
+        F: FnOnce(Self::Key) -> Fut + Send,
+        Fut: Future<Output = Result<Entry<Self::Key>, CryptoError>> + Send,
+    {
+        let nonce = match nonce {
+            Some(nonce) => nonce,
+            None => SodiumOxideSymmetricNonce {
+                nonce: secretbox::gen_nonce(),
+            },
+        };
+        let entry = f(self).await?;
+        Ok(ByteAlgorithm::SodiumOxideSymmetricKey(
+            SodiumOxideSymmetricKeyAlgorithm {
+                key: Box::new(entry),
+                nonce,
+            },
+        ))
+    }
 }
 
 impl StorableType for SodiumOxideSymmetricKey {}
@@ -264,6 +296,38 @@ impl From<SodiumOxideCurve25519SecretAsymmetricKeyBuilder> for TypeBuilder {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SodiumOxideCurve25519SecretAsymmetricKey {
     pub secret_key: ExternalSodiumOxideCurve25519SecretAsymmetricKey,
+}
+
+impl ToSecretAsymmetricByteAlgorithm for SodiumOxideCurve25519SecretAsymmetricKey {
+    type SecretKey = Self;
+    type Nonce = SodiumOxideAsymmetricNonce;
+    type PublicKey = SodiumOxideCurve25519PublicAsymmetricKey;
+
+    fn to_byte_algorithm<F>(
+        self,
+        public_key: Option<Entry<Self::PublicKey>>,
+        nonce: Option<Self::Nonce>,
+        f: F,
+    ) -> Result<ByteAlgorithm, CryptoError>
+    where
+        F: FnOnce(Self::SecretKey) -> Entry<Self::SecretKey>,
+    {
+        let nonce = match nonce {
+            Some(nonce) => nonce,
+            None => SodiumOxideAsymmetricNonce {
+                nonce: box_::gen_nonce(),
+            },
+        };
+        let public_key = public_key.map(Box::new);
+        let secret_key = Box::new(f(self));
+        Ok(ByteAlgorithm::SodiumOxideSecretAsymmetricKey(
+            SodiumOxideSecretAsymmetricKeyAlgorithm {
+                secret_key,
+                nonce,
+                public_key,
+            },
+        ))
+    }
 }
 
 impl StorableType for SodiumOxideCurve25519SecretAsymmetricKey {}
@@ -464,6 +528,38 @@ impl From<SodiumOxideCurve25519PublicAsymmetricKeyBuilder> for TypeBuilder {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SodiumOxideCurve25519PublicAsymmetricKey {
     pub public_key: ExternalSodiumOxideCurve25519PublicAsymmetricKey,
+}
+
+impl ToPublicAsymmetricByteAlgorithm for SodiumOxideCurve25519PublicAsymmetricKey {
+    type SecretKey = SodiumOxideCurve25519SecretAsymmetricKey;
+    type Nonce = SodiumOxideAsymmetricNonce;
+    type PublicKey = Self;
+
+    fn to_byte_algorithm<F>(
+        self,
+        secret_key: Entry<Self::SecretKey>,
+        nonce: Option<Self::Nonce>,
+        f: F,
+    ) -> Result<ByteAlgorithm, CryptoError>
+    where
+        F: FnOnce(Self::PublicKey) -> Entry<Self::PublicKey>,
+    {
+        let nonce = match nonce {
+            Some(nonce) => nonce,
+            None => SodiumOxideAsymmetricNonce {
+                nonce: box_::gen_nonce(),
+            },
+        };
+        let secret_key = Box::new(secret_key);
+        let public_key = Box::new(f(self));
+        Ok(ByteAlgorithm::SodiumOxidePublicAsymmetricKey(
+            SodiumOxidePublicAsymmetricKeyAlgorithm {
+                secret_key,
+                nonce,
+                public_key,
+            },
+        ))
+    }
 }
 
 impl StorableType for SodiumOxideCurve25519PublicAsymmetricKey {}

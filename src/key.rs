@@ -15,9 +15,11 @@ use self::{
     },
 };
 use crate::{
-    Builder, ByteSource, CryptoError, HasBuilder, HasByteSource, HasIndex, StorableType,
-    SymmetricNonce, TypeBuilder, TypeBuilderContainer,
+    Builder, ByteAlgorithm, ByteSource, CryptoError, Entry, HasBuilder, HasByteSource, HasIndex,
+    StorableType, SymmetricNonce, TypeBuilder, TypeBuilderContainer,
 };
+use async_trait::async_trait;
+use futures::Future;
 use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
@@ -30,6 +32,21 @@ pub trait Verifier {
     fn verify(&self, msg: ByteSource, signature: ByteSource) -> Result<(), CryptoError>;
 }
 
+#[async_trait]
+pub trait ToSymmetricByteAlgorithm {
+    type Key: StorableType;
+    type Nonce;
+
+    async fn to_byte_algorithm<F, Fut>(
+        self,
+        nonce: Option<Self::Nonce>,
+        f: F,
+    ) -> Result<ByteAlgorithm, CryptoError>
+    where
+        F: FnOnce(Self::Key) -> Fut + Send,
+        Fut: Future<Output = Result<Entry<Self::Key>, CryptoError>> + Send;
+}
+
 pub trait SymmetricSealer {
     type SealedOutput;
     type Nonce;
@@ -39,12 +56,6 @@ pub trait SymmetricSealer {
         plaintext: &ByteSource,
         nonce: Option<&Self::Nonce>,
     ) -> Result<(Self::SealedOutput, Self::Nonce), CryptoError>;
-    // fn take_seal<F: FnOnce(SymmetricKey) -> Result<State, CryptoError>>(
-    //     self,
-    //     plaintext: ByteSource,
-    //     nonce: Option<Self::Nonce>,
-    //     key_conversion_fn: F,
-    // ) -> Result<ByteAlgorithm, CryptoError>;
 }
 
 pub trait SymmetricUnsealer {
@@ -58,6 +69,21 @@ pub trait SymmetricUnsealer {
     ) -> Result<Self::UnsealedOutput, CryptoError>;
 }
 
+pub trait ToSecretAsymmetricByteAlgorithm {
+    type SecretKey;
+    type Nonce;
+    type PublicKey;
+
+    fn to_byte_algorithm<F>(
+        self,
+        public_key: Option<Entry<Self::PublicKey>>,
+        nonce: Option<Self::Nonce>,
+        f: F,
+    ) -> Result<ByteAlgorithm, CryptoError>
+    where
+        F: FnOnce(Self::SecretKey) -> Entry<Self::SecretKey>;
+}
+
 pub trait SecretAsymmetricSealer {
     type SealedOutput;
     type Nonce;
@@ -69,13 +95,6 @@ pub trait SecretAsymmetricSealer {
         public_key: Option<&Self::PublicKey>,
         nonce: Option<&Self::Nonce>,
     ) -> Result<(Self::SealedOutput, Self::Nonce), CryptoError>;
-    // fn take_seal<F: FnOnce(SecretAsymmetricKey) -> Result<State, CryptoError>>(
-    //     self,
-    //     plaintext: ByteSource,
-    //     public_key: Option<Self::PublicKey>,
-    //     nonce: Option<Self::Nonce>,
-    //     key_conversion_fn: F,
-    // ) -> Result<ByteAlgorithm, CryptoError>;
 }
 
 pub trait SecretAsymmetricUnsealer {
@@ -91,6 +110,21 @@ pub trait SecretAsymmetricUnsealer {
     ) -> Result<Self::UnsealedOutput, CryptoError>;
 }
 
+pub trait ToPublicAsymmetricByteAlgorithm {
+    type SecretKey;
+    type Nonce;
+    type PublicKey;
+
+    fn to_byte_algorithm<F>(
+        self,
+        secret_key: Entry<Self::SecretKey>,
+        nonce: Option<Self::Nonce>,
+        f: F,
+    ) -> Result<ByteAlgorithm, CryptoError>
+    where
+        F: FnOnce(Self::PublicKey) -> Entry<Self::PublicKey>;
+}
+
 pub trait PublicAsymmetricSealer {
     type SealedOutput;
     type Nonce;
@@ -102,13 +136,6 @@ pub trait PublicAsymmetricSealer {
         secret_key: &Self::SecretKey,
         nonce: Option<&Self::Nonce>,
     ) -> Result<(Self::SealedOutput, Self::Nonce), CryptoError>;
-    // fn take_seal<F: FnOnce(SecretAsymmetricKey) -> Result<State, CryptoError>>(
-    //     self,
-    //     plaintext: ByteSource,
-    //     secret_key: Self::SecretKey,
-    //     nonce: Option<Self::Nonce>,
-    //     key_conversion_fn: F,
-    // ) -> Result<ByteAlgorithm, CryptoError>;
 }
 
 pub trait PublicAsymmetricUnsealer {
@@ -211,6 +238,36 @@ pub enum SymmetricKey {
     SodiumOxide(SodiumOxideSymmetricKey),
 }
 
+#[async_trait]
+impl ToSymmetricByteAlgorithm for SymmetricKey {
+    type Key = SymmetricKey;
+    type Nonce = SymmetricNonce;
+
+    async fn to_byte_algorithm<F, Fut>(
+        self,
+        nonce: Option<Self::Nonce>,
+        f: F,
+    ) -> Result<ByteAlgorithm, CryptoError>
+    where
+        F: FnOnce(Self::Key) -> Fut + Send,
+        Fut: Future<Output = Result<Entry<Self::Key>, CryptoError>> + Send,
+    {
+        match self {
+            SymmetricKey::SodiumOxide(sosk) => {
+                let nonce = nonce.map(|n| match n {
+                    SymmetricNonce::SodiumOxide(sosn) => sosn,
+                });
+                sosk.to_byte_algorithm(nonce, |key| async move {
+                    f(SymmetricKey::SodiumOxide(key))
+                        .await?
+                        .cast::<SodiumOxideSymmetricKey>()
+                })
+                .await
+            }
+        }
+    }
+}
+
 impl StorableType for SymmetricKey {}
 
 impl SymmetricSealer for SymmetricKey {
@@ -232,25 +289,6 @@ impl SymmetricSealer for SymmetricKey {
             }
         }
     }
-
-    // fn take_seal<F: FnOnce(SymmetricKey) -> Result<State, CryptoError>>(
-    //     self,
-    //     plaintext: ByteSource,
-    //     nonce: Option<Self::Nonce>,
-    //     key_conversion_fn: F,
-    // ) -> Result<ByteAlgorithm, CryptoError> {
-    //     match self {
-    //         Self::SodiumOxide(sosk) => {
-    //             let nonce = match nonce {
-    //                 Some(n) => match n {
-    //                     SymmetricNonce::SodiumOxide(sosn) => Ok::<_, CryptoError>(Some(sosn)),
-    //                 },
-    //                 None => Ok(None),
-    //             }?;
-    //             sosk.take_seal(plaintext, nonce, key_conversion_fn)
-    //         }
-    //     }
-    // }
 }
 
 impl HasIndex for SymmetricKey {

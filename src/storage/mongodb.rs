@@ -1,4 +1,4 @@
-use crate::{CryptoError, Entry, StorableType, Storer};
+use crate::{CryptoError, Entry, StorableType, Storer, TypeStorer};
 use async_trait::async_trait;
 use futures::StreamExt;
 use mongodb::{
@@ -66,6 +66,12 @@ impl From<MongoStorerError> for CryptoError {
 pub struct MongoStorer {
     db_info: MongoDbInfo,
     client: OnceCell<Client>,
+}
+
+impl From<MongoStorer> for TypeStorer {
+    fn from(ms: MongoStorer) -> Self {
+        TypeStorer::Mongo(ms)
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

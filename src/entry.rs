@@ -1,8 +1,10 @@
 use crate::{
     Algorithm, ByteAlgorithm, ByteSource, CryptoError, Data, DataBuilder, HasByteSource, HasIndex,
-    Key, KeyBuilder, Storer, TypeStorer,
+    Key, KeyBuilder, Storer, ToSymmetricByteAlgorithm, TypeStorer,
 };
 use async_recursion::async_recursion;
+use async_trait::async_trait;
+use futures::Future;
 use mongodb::bson::Document;
 use once_cell::sync::OnceCell;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -33,7 +35,44 @@ pub trait StorableType:
 {
 }
 
+impl<T: ToSymmetricByteAlgorithm + StorableType> Entry<T> {
+    pub async fn to_byte_algorithm<F, Fut>(
+        self,
+        nonce: Option<<T as ToSymmetricByteAlgorithm>::Nonce>,
+    ) -> Result<ByteAlgorithm, CryptoError>
+    where
+        F: FnOnce(<T as ToSymmetricByteAlgorithm>::Key) -> Fut,
+        Fut: Future<Output = Result<Entry<<T as ToSymmetricByteAlgorithm>::Key>, CryptoError>>
+            + Send,
+    {
+        let (key, entry_path, state) = self.take_resolve_all().await?;
+        key.to_byte_algorithm(nonce, |key| async move {
+            match state {
+                State::Referenced { path, storer } => key.to_ref_entry(path, storer),
+                State::Sealed { algorithm, .. } => key.to_sealed_entry(entry_path, algorithm).await,
+                State::Unsealed { .. } => key.to_unsealed_entry(entry_path),
+            }
+        })
+        .await
+    }
+}
+
 impl<T: StorableType> Entry<T> {
+    pub fn cast<U: StorableType>(self) -> Result<Entry<U>, CryptoError> {
+        let builder =
+            <U as HasBuilder>::Builder::try_from(TypeBuilderContainer(self.builder))?.into();
+        Ok(Entry::new(self.path, builder, self.value))
+    }
+
+    pub fn new(path: EntryPath, builder: TypeBuilder, value: State) -> Self {
+        Entry {
+            path,
+            builder,
+            value,
+            resolved_value: OnceCell::new(),
+        }
+    }
+
     #[async_recursion]
     pub async fn take_resolve(mut self) -> Result<T, CryptoError> {
         match self.resolved_value.take() {
@@ -61,6 +100,40 @@ impl<T: StorableType> Entry<T> {
                 }
             },
             Some(value) => Ok(value),
+        }
+    }
+
+    #[async_recursion]
+    pub async fn take_resolve_all(mut self) -> Result<(T, EntryPath, State), CryptoError> {
+        match self.resolved_value.take() {
+            None => match self.value {
+                State::Referenced {
+                    ref path,
+                    ref storer,
+                } => {
+                    let entry = storer.get::<T>(path).await?;
+                    entry.take_resolve_all().await
+                }
+                State::Sealed {
+                    ref ciphertext,
+                    ref algorithm,
+                } => {
+                    let builder =
+                        <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(self.builder))?;
+                    let plaintext = algorithm.unseal(ciphertext).await?;
+                    Ok((
+                        builder.build(Some(plaintext.get()?))?,
+                        self.path,
+                        self.value,
+                    ))
+                }
+                State::Unsealed { ref bytes, .. } => {
+                    let builder =
+                        <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(self.builder))?;
+                    Ok((builder.build(Some(bytes.get()?))?, self.path, self.value))
+                }
+            },
+            Some(value) => Ok((value, self.path, self.value)),
         }
     }
 
@@ -127,31 +200,52 @@ pub trait Builder:
     fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError>;
 }
 
-// pub trait ToState: HasBuilder + HasByteSource {
-//     fn to_ref_state(&self, path: EntryPath) -> Result<State, CryptoError> {
-//         Ok(State::Referenced {
-//             builder: self.builder().into(),
-//             path,
-//         })
-//     }
+#[async_trait]
+pub trait ToEntry: StorableType {
+    fn to_ref_entry<S: Storer + Into<TypeStorer>>(
+        self,
+        path: EntryPath,
+        storer: S,
+    ) -> Result<Entry<Self>, CryptoError> {
+        Ok(Entry::new(
+            path.clone(),
+            self.builder().into(),
+            State::Referenced {
+                storer: storer.into(),
+                path,
+            },
+        ))
+    }
 
-//     fn to_sealed_state(&self, unsealable: ByteAlgorithm) -> Result<State, CryptoError> {
-//         Ok(State::Sealed {
-//             builder: self.builder().into(),
-//             unsealable,
-//         })
-//     }
+    async fn to_sealed_entry(
+        self,
+        path: EntryPath,
+        algorithm: ByteAlgorithm,
+    ) -> Result<Entry<Self>, CryptoError> {
+        let byte_source = self.byte_source();
+        let ciphertext = algorithm.seal(&byte_source).await?;
+        Ok(Entry::new(
+            path,
+            self.builder().into(),
+            State::Sealed {
+                ciphertext,
+                algorithm,
+            },
+        ))
+    }
 
-//     fn to_unsealed_state(&self, mut bytes: ByteSource) -> Result<State, CryptoError> {
-//         bytes.set(self.byte_source().get()?)?;
-//         Ok(State::Unsealed {
-//             builder: self.builder().into(),
-//             bytes,
-//         })
-//     }
-// }
+    fn to_unsealed_entry(self, path: EntryPath) -> Result<Entry<Self>, CryptoError> {
+        Ok(Entry::new(
+            path,
+            self.builder().into(),
+            State::Unsealed {
+                bytes: self.byte_source(),
+            },
+        ))
+    }
+}
 
-// impl<T: HasBuilder + HasByteSource> ToState for T {}
+impl<T: StorableType> ToEntry for T {}
 
 /// Need this to provide a level an indirection for TryFrom
 #[derive(Serialize, Deserialize, Copy, Clone)]

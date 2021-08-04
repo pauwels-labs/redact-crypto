@@ -1,4 +1,4 @@
-use crate::{CryptoError, Entry, StorableType, Storer};
+use crate::{CryptoError, Entry, StorableType, Storer, TypeStorer};
 use async_trait::async_trait;
 use mongodb::bson::Document;
 use reqwest::StatusCode;
@@ -66,6 +66,12 @@ impl RedactStorer {
         Self {
             url: url.to_owned(),
         }
+    }
+}
+
+impl From<RedactStorer> for TypeStorer {
+    fn from(rs: RedactStorer) -> Self {
+        TypeStorer::Redact(rs)
     }
 }
 

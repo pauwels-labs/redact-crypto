@@ -71,7 +71,8 @@ pub use key::{
     PublicAsymmetricKeyBuilder, PublicAsymmetricSealer, PublicAsymmetricUnsealer,
     SecretAsymmetricKey, SecretAsymmetricKeyBuilder, SecretAsymmetricSealer,
     SecretAsymmetricUnsealer, Signer, SymmetricKey, SymmetricKeyBuilder, SymmetricSealer,
-    SymmetricUnsealer, Verifier,
+    SymmetricUnsealer, ToPublicAsymmetricByteAlgorithm, ToSecretAsymmetricByteAlgorithm,
+    ToSymmetricByteAlgorithm, Verifier,
 };
 pub use nonce::{AsymmetricNonce, Nonce, SymmetricNonce};
 pub use source::{
