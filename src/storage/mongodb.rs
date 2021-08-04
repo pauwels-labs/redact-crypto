@@ -218,7 +218,7 @@ impl Storer for MongoStorer {
             .collect::<Vec<Entry<T>>>())
     }
 
-    async fn create<T: StorableType>(&self, entry: Entry<T>) -> Result<bool, CryptoError> {
+    async fn create<T: StorableType>(&self, entry: Entry<T>) -> Result<Entry<T>, CryptoError> {
         let filter = bson::doc! { "path": &entry.path };
         let filter_options = mongodb::options::ReplaceOptions::builder()
             .upsert(true)
@@ -235,7 +235,7 @@ impl Storer for MongoStorer {
             .replace_one(filter, doc.clone(), filter_options)
             .await
         {
-            Ok(_) => Ok(true),
+            Ok(_) => Ok(entry),
             Err(e) => Err(MongoStorerError::InternalError {
                 source: Box::new(e),
             }

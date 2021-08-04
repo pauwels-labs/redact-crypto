@@ -52,7 +52,7 @@ impl Storer for TypeStorer {
         }
     }
 
-    async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<bool, CryptoError> {
+    async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError> {
         match self {
             TypeStorer::Redact(rs) => rs.create(value).await,
             TypeStorer::Mongo(ms) => ms.create(value).await,
@@ -99,43 +99,7 @@ pub trait Storer: Clone + Send + Sync {
     ) -> Result<Vec<Entry<T>>, CryptoError>;
 
     /// Adds the given `Key` struct to the backing store.
-    async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<bool, CryptoError>;
-
-    // /// Takes an entry and resolves it down into its final unsealed type using this storage
-    // async fn resolve<T: HasIndex<Index = Document> + HasByteSource + HasBuilder + 'static>(
-    //     &self,
-    //     entry: &Entry<T>,
-    // ) -> Result<&T, CryptoError> {
-    //     self.resolve_indexed::<T>(entry, &T::get_index()).await
-    // }
-
-    // /// Takes an entry and resolves it down into its final unsealed type using this storage
-    // async fn resolve_indexed<T: HasByteSource + HasBuilder + 'static>(
-    //     &self,
-    //     entry: &Entry<T>,
-    //     index: &Option<Document>,
-    // ) -> Result<&T, CryptoError> {
-    //     match entry.value {
-    //         State::Referenced { ref path } => match self.get_indexed::<T>(path, index).await {
-    //             Ok(output) => Ok(self.resolve_indexed::<T>(&output, index).await?),
-    //             Err(e) => Err(e),
-    //         },
-    //         State::Sealed {
-    //             ref ciphertext,
-    //             ref algorithm,
-    //         } => {
-    //             let plaintext = algorithm.unseal(ciphertext, self).await?;
-    //             let builder =
-    //                 <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(entry.builder))?;
-    //             builder.build(Some(plaintext.get()?))
-    //         }
-    //         State::Unsealed { ref bytes } => {
-    //             let builder =
-    //                 <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(entry.builder))?;
-    //             builder.build(Some(bytes.get()?))
-    //         }
-    //     }
-    // }
+    async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError>;
 }
 
 // Allows an `Arc<Storer>` to act exactly like a `Storer`, dereferencing
@@ -165,7 +129,7 @@ where
             .await
     }
 
-    async fn create<T: StorableType>(&self, key: Entry<T>) -> Result<bool, CryptoError> {
+    async fn create<T: StorableType>(&self, key: Entry<T>) -> Result<Entry<T>, CryptoError> {
         self.deref().create(key).await
     }
 }
@@ -173,7 +137,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use super::Storer;
-    use crate::{CryptoError, Entry, HasBuilder, HasByteSource};
+    use crate::{CryptoError, Entry, StorableType};
     use async_trait::async_trait;
     use mockall::predicate::*;
     use mockall::*;
@@ -183,19 +147,19 @@ pub mod tests {
     pub Storer {}
     #[async_trait]
     impl Storer for Storer {
-    async fn get_indexed<T: HasByteSource + HasBuilder + 'static>(
+    async fn get_indexed<T: StorableType>(
         &self,
         path: &str,
         index: &Option<Document>,
     ) -> Result<Entry<T>, CryptoError>;
-    async fn list_indexed<T: HasByteSource + HasBuilder + Send + 'static>(
+    async fn list_indexed<T: StorableType>(
         &self,
         path: &str,
         skip: i64,
         page_size: i64,
         index: &Option<Document>,
     ) -> Result<Vec<Entry<T>>, CryptoError>;
-    async fn create<T: HasByteSource + HasBuilder + 'static>(&self, value: Entry<T>) -> Result<bool, CryptoError>;
+    async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError>;
     }
     impl Clone for Storer {
         fn clone(&self) -> Self;

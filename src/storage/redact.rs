@@ -156,7 +156,7 @@ impl Storer for RedactStorer {
         }
     }
 
-    async fn create<T: StorableType>(&self, entry: Entry<T>) -> Result<bool, CryptoError> {
+    async fn create<T: StorableType>(&self, entry: Entry<T>) -> Result<Entry<T>, CryptoError> {
         let client = reqwest::Client::new();
         let stringified_entry =
             serde_json::to_string(&entry).map_err(|e| RedactStorerError::InternalError {
@@ -167,7 +167,7 @@ impl Storer for RedactStorer {
             .json(&stringified_entry)
             .send()
             .await
-            .and_then(|res| res.error_for_status().map(|_| true))
+            .and_then(|res| res.error_for_status().map(|_| entry))
             .map_err(|e| {
                 if let Some(status) = e.status() {
                     if status == StatusCode::NOT_FOUND {
