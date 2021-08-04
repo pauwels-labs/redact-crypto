@@ -4,7 +4,6 @@ use crate::{
 };
 use async_recursion::async_recursion;
 use async_trait::async_trait;
-use futures::Future;
 use mongodb::bson::Document;
 use once_cell::sync::OnceCell;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -36,15 +35,10 @@ pub trait StorableType:
 }
 
 impl<T: ToSymmetricByteAlgorithm + StorableType> Entry<T> {
-    pub async fn to_byte_algorithm<F, Fut>(
+    pub async fn to_byte_algorithm(
         self,
         nonce: Option<<T as ToSymmetricByteAlgorithm>::Nonce>,
-    ) -> Result<ByteAlgorithm, CryptoError>
-    where
-        F: FnOnce(<T as ToSymmetricByteAlgorithm>::Key) -> Fut,
-        Fut: Future<Output = Result<Entry<<T as ToSymmetricByteAlgorithm>::Key>, CryptoError>>
-            + Send,
-    {
+    ) -> Result<ByteAlgorithm, CryptoError> {
         let (key, entry_path, state) = self.take_resolve_all().await?;
         key.to_byte_algorithm(nonce, |key| async move {
             match state {
