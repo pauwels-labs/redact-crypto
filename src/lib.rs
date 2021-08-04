@@ -62,7 +62,7 @@ pub use data::{
     U64DataBuilder,
 };
 pub use entry::{
-    Builder, Entry, EntryPath, HasBuilder, State, StorableType, Type, TypeBuilder,
+    Builder, Entry, EntryPath, HasBuilder, State, StorableType, ToEntry, Type, TypeBuilder,
     TypeBuilderContainer,
 };
 pub use error::CryptoError;
