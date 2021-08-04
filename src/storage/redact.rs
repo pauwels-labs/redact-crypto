@@ -158,13 +158,12 @@ impl Storer for RedactStorer {
 
     async fn create<T: StorableType>(&self, entry: Entry<T>) -> Result<Entry<T>, CryptoError> {
         let client = reqwest::Client::new();
-        let stringified_entry =
-            serde_json::to_string(&entry).map_err(|e| RedactStorerError::InternalError {
-                source: Box::new(e),
-            })?;
+        let value = serde_json::to_value(&entry).map_err(|e| RedactStorerError::InternalError {
+            source: Box::new(e),
+        })?;
         client
             .post(&format!("{}/", self.url))
-            .json(&stringified_entry)
+            .json(&value)
             .send()
             .await
             .and_then(|res| res.error_for_status().map(|_| entry))
