@@ -7,12 +7,35 @@ use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt::Display, str::FromStr};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum BinaryType {
+    ImageJPEG
+}
+
+impl Display for BinaryType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f,
+               "{}",
+               match self {
+                   BinaryType::ImageJPEG => "image/jpeg",
+               }
+        )
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct BinaryData {
+    pub binary: Vec<u8>,
+    pub binary_type: BinaryType
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum Data {
     Bool(bool),
     U64(u64),
     I64(i64),
     F64(f64),
     String(String),
+    Binary(Option<BinaryData>)
 }
 
 impl StorableType for Data {}
@@ -28,6 +51,13 @@ impl Display for Data {
                 Data::I64(n) => n.to_string(),
                 Data::F64(n) => n.to_string(),
                 Data::String(s) => s.to_owned(),
+                Data::Binary(b) => {
+                    if let Some(b) = b {
+                        base64::encode(b.clone().binary)
+                    } else {
+                        "".to_owned()
+                    }
+                }
             }
         )
     }
@@ -63,6 +93,7 @@ impl HasBuilder for Data {
             Self::I64(_) => DataBuilder::I64(I64DataBuilder {}),
             Self::F64(_) => DataBuilder::F64(F64DataBuilder {}),
             Self::String(_) => DataBuilder::String(StringDataBuilder {}),
+            Self::Binary(_) => DataBuilder::Binary(BinaryDataBuilder {}),
         }
     }
 }
@@ -81,6 +112,7 @@ pub enum DataBuilder {
     I64(I64DataBuilder),
     F64(F64DataBuilder),
     String(StringDataBuilder),
+    Binary(BinaryDataBuilder),
 }
 
 impl TryFrom<TypeBuilderContainer> for DataBuilder {
@@ -110,6 +142,7 @@ impl Builder for DataBuilder {
             Self::I64(ndb) => ndb.build(bytes),
             Self::F64(ndb) => ndb.build(bytes),
             Self::String(sdb) => sdb.build(bytes),
+            Self::Binary(bdb) => bdb.build(bytes),
         }
     }
 }
@@ -291,6 +324,43 @@ impl Builder for StringDataBuilder {
                 let s = String::from_utf8(bytes.to_vec())
                     .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
                 Ok(Data::String(s))
+            }
+            None => Ok(Data::String("".to_owned())),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct BinaryDataBuilder {}
+
+impl TryFrom<TypeBuilderContainer> for BinaryDataBuilder {
+    type Error = CryptoError;
+
+    fn try_from(builder: TypeBuilderContainer) -> Result<Self, Self::Error> {
+        match builder.0 {
+            TypeBuilder::Data(DataBuilder::Binary(bdb)) => Ok(bdb),
+            _ => Err(CryptoError::NotDowncastable),
+        }
+    }
+}
+
+impl From<BinaryDataBuilder> for TypeBuilder {
+    fn from(bdb: BinaryDataBuilder) -> TypeBuilder {
+        TypeBuilder::Data(DataBuilder::Binary(bdb))
+    }
+}
+
+impl Builder for BinaryDataBuilder {
+    type Output = Data;
+
+    fn build(&self, data: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
+        match data {
+            Some(binary_data_bytes) => {
+                let s = String::from_utf8(binary_data_bytes.to_vec())
+                    .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+                let bd: BinaryData = serde_json::from_str(&s)
+                    .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+                Ok(Data::Binary(Some(bd)))
             }
             None => Ok(Data::String("".to_owned())),
         }
