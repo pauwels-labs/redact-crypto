@@ -11,11 +11,13 @@ pub enum BinaryType {
     ImageJPEG
 }
 
-impl Try_From<String> for BinaryType {
-    fn from(s: String) -> Result<BinaryType, CryptoError> {
+impl TryFrom<&str> for BinaryType {
+    type Error = CryptoError;
+
+    fn try_from(s: &str) -> Result<BinaryType, CryptoError> {
         match s {
-            &"image/jpeg" => Ok(BinaryType::ImageJPEG),
-            _ => Err(CryptoError)
+            "image/jpeg" => Ok(BinaryType::ImageJPEG),
+            _ => Err(CryptoError::NotDeserializableToBaseDataType)
         }
     }
 }
