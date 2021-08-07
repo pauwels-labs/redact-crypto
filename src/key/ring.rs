@@ -1,9 +1,10 @@
 use crate::{
     AsymmetricKeyBuilder, Builder, ByteSource, CryptoError, HasBuilder, HasByteSource, HasIndex,
-    HasPublicKey, KeyBuilder, PublicAsymmetricKey, PublicAsymmetricKeyBuilder,
-    SecretAsymmetricKeyBuilder, Signer, TypeBuilder, TypeBuilderContainer,
+    HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder, SecretAsymmetricKeyBuilder, Signer,
+    StorableType, TypeBuilder, TypeBuilderContainer,
 };
 use mongodb::bson::{self, Document};
+use once_cell::unsync::OnceCell;
 use ring::{
     rand,
     signature::{Ed25519KeyPair as ExternalEd25519KeyPair, KeyPair},
@@ -34,11 +35,7 @@ impl Builder for RingEd25519SecretAsymmetricKeyBuilder {
     fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
         match bytes {
             Some(bytes) => Ok(RingEd25519SecretAsymmetricKey {
-                secret_key: ExternalEd25519KeyPair::from_pkcs8(bytes).map_err(|e| {
-                    CryptoError::InternalError {
-                        source: Box::new(e),
-                    }
-                })?,
+                secret_key: OnceCell::new(),
                 pkcs8_doc: bytes.into(),
             }),
             None => RingEd25519SecretAsymmetricKey::new(),
@@ -54,14 +51,18 @@ impl From<RingEd25519SecretAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct RingEd25519SecretAsymmetricKey {
-    pub secret_key: ExternalEd25519KeyPair,
+    #[serde(skip)]
+    secret_key: OnceCell<ExternalEd25519KeyPair>,
     pkcs8_doc: ByteSource,
 }
 
+impl StorableType for RingEd25519SecretAsymmetricKey {}
+
 impl Signer for RingEd25519SecretAsymmetricKey {
     fn sign(&self, bytes: ByteSource) -> Result<ByteSource, CryptoError> {
-        Ok(self.secret_key.sign(bytes.get()?).as_ref().into())
+        Ok(self.get_secret_key()?.sign(bytes.get()?).as_ref().into())
     }
 }
 
@@ -110,14 +111,22 @@ impl RingEd25519SecretAsymmetricKey {
                 source: Box::new(e),
             }
         })?;
-        let secret_key = ExternalEd25519KeyPair::from_pkcs8(pkcs8_doc.as_ref()).map_err(|e| {
-            CryptoError::InternalError {
-                source: Box::new(e),
-            }
-        })?;
         Ok(RingEd25519SecretAsymmetricKey {
-            secret_key,
+            secret_key: OnceCell::new(),
             pkcs8_doc: pkcs8_doc.as_ref().into(),
+        })
+    }
+
+    fn get_secret_key(&self) -> Result<&ExternalEd25519KeyPair, CryptoError> {
+        self.secret_key.get_or_try_init(|| {
+            ExternalEd25519KeyPair::from_pkcs8(
+                self.pkcs8_doc
+                    .get()
+                    .map_err(|e| -> CryptoError { e.into() })?,
+            )
+            .map_err(|e| CryptoError::InternalError {
+                source: Box::new(e),
+            })
         })
     }
 }
@@ -163,9 +172,12 @@ impl From<RingEd25519PublicAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct RingEd25519PublicAsymmetricKey {
     pub public_key: Vec<u8>,
 }
+
+impl StorableType for RingEd25519PublicAsymmetricKey {}
 
 impl HasIndex for RingEd25519PublicAsymmetricKey {
     type Index = Document;
@@ -207,15 +219,17 @@ impl HasByteSource for RingEd25519PublicAsymmetricKey {
 impl RingEd25519PublicAsymmetricKey {
     pub fn new() -> Result<(Self, RingEd25519SecretAsymmetricKey), CryptoError> {
         let secret_key = RingEd25519SecretAsymmetricKey::new()?;
-        let public_key = secret_key.secret_key.public_key().as_ref().to_vec();
+        let public_key = secret_key.get_secret_key()?.public_key().as_ref().to_vec();
         Ok((RingEd25519PublicAsymmetricKey { public_key }, secret_key))
     }
 }
 
 impl HasPublicKey for RingEd25519SecretAsymmetricKey {
-    fn public_key(&self) -> PublicAsymmetricKey {
-        PublicAsymmetricKey::RingEd25519(RingEd25519PublicAsymmetricKey {
-            public_key: self.secret_key.public_key().as_ref().to_vec(),
+    type PublicKey = RingEd25519PublicAsymmetricKey;
+
+    fn public_key(&self) -> Result<Self::PublicKey, CryptoError> {
+        Ok(RingEd25519PublicAsymmetricKey {
+            public_key: self.get_secret_key()?.public_key().as_ref().to_vec(),
         })
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
-    Builder, ByteSource, CryptoError, HasBuilder, HasByteSource, HasIndex, TypeBuilder,
-    TypeBuilderContainer,
+    Builder, ByteSource, CryptoError, HasBuilder, HasByteSource, HasIndex, StorableType,
+    TypeBuilder, TypeBuilderContainer,
 };
 use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,8 @@ pub enum Data {
     F64(f64),
     String(String),
 }
+
+impl StorableType for Data {}
 
 impl Display for Data {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

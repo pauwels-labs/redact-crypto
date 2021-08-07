@@ -8,12 +8,11 @@
 pub mod mongodb;
 pub mod redact;
 
-use crate::{
-    Builder, CryptoError, Entry, EntryPath, HasBuilder, State, TypeBuilderContainer, Unsealable,
-};
+use crate::{CryptoError, Entry, StorableType};
 use ::mongodb::bson::Document;
 use async_trait::async_trait;
-use std::{convert::TryFrom, ops::Deref, sync::Arc};
+use serde::{Deserialize, Serialize};
+use std::{ops::Deref, sync::Arc};
 
 pub trait HasIndex {
     type Index;
@@ -21,86 +20,90 @@ pub trait HasIndex {
     fn get_index() -> Option<Self::Index>;
 }
 
-/// The operations a storer of `Key` structs must be able to fulfill.
-#[async_trait]
-pub trait Storer: Clone + Send + Sync {
-    /// Fetches the instance of the `Key` with the given name.
-    async fn get<T: HasIndex<Index = Document> + HasBuilder + 'static>(
-        &self,
-        path: &str,
-    ) -> Result<Entry, CryptoError> {
-        self.get_indexed::<T>(path, &T::get_index()).await
-    }
+#[derive(Serialize, Deserialize, Debug)]
+pub enum TypeStorer {
+    Redact(redact::RedactStorer),
+    Mongo(mongodb::MongoStorer),
+    Mock(tests::MockStorer),
+}
 
-    /// Like get, but doesn't enforce IntoIndex and allows providing a custom index doc
-    async fn get_indexed<T: HasBuilder + 'static>(
+#[async_trait]
+impl Storer for TypeStorer {
+    async fn get_indexed<T: StorableType>(
         &self,
         path: &str,
         index: &Option<Document>,
-    ) -> Result<Entry, CryptoError>;
+    ) -> Result<Entry<T>, CryptoError> {
+        match self {
+            TypeStorer::Redact(rs) => rs.get_indexed(path, index).await,
+            TypeStorer::Mongo(ms) => ms.get_indexed(path, index).await,
+            TypeStorer::Mock(ms) => ms.get_indexed(path, index).await,
+        }
+    }
 
-    /// Fetches a list of all the stored keys.
-    async fn list<T: HasIndex<Index = Document> + HasBuilder + Send + 'static>(
+    async fn list_indexed<T: StorableType>(
         &self,
         path: &str,
         skip: i64,
         page_size: i64,
-    ) -> Result<Vec<Entry>, CryptoError> {
+        index: &Option<Document>,
+    ) -> Result<Vec<Entry<T>>, CryptoError> {
+        match self {
+            TypeStorer::Redact(rs) => rs.list_indexed(path, skip, page_size, index).await,
+            TypeStorer::Mongo(ms) => ms.list_indexed(path, skip, page_size, index).await,
+            TypeStorer::Mock(ms) => ms.list_indexed(path, skip, page_size, index).await,
+        }
+    }
+
+    async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError> {
+        match self {
+            TypeStorer::Redact(rs) => rs.create(value).await,
+            TypeStorer::Mongo(ms) => ms.create(value).await,
+            TypeStorer::Mock(ms) => ms.create(value).await,
+        }
+    }
+}
+
+/// The operations a storer of `Key` structs must be able to fulfill.
+#[async_trait]
+pub trait Storer: Send + Sync {
+    /// Fetches the instance of the `Key` with the given name.
+    async fn get<T: HasIndex<Index = Document> + StorableType>(
+        &self,
+        path: &str,
+    ) -> Result<Entry<T>, CryptoError> {
+        self.get_indexed::<T>(path, &T::get_index()).await
+    }
+
+    /// Like get, but doesn't enforce IntoIndex and allows providing a custom index doc
+    async fn get_indexed<T: StorableType>(
+        &self,
+        path: &str,
+        index: &Option<Document>,
+    ) -> Result<Entry<T>, CryptoError>;
+
+    /// Fetches a list of all the stored keys.
+    async fn list<T: HasIndex<Index = Document> + StorableType>(
+        &self,
+        path: &str,
+        skip: i64,
+        page_size: i64,
+    ) -> Result<Vec<Entry<T>>, CryptoError> {
         self.list_indexed::<T>(path, skip, page_size, &T::get_index())
             .await
     }
 
     /// Like list, but doesn't enforce IntoIndex and allows providing a custom index doc
-    async fn list_indexed<T: HasBuilder + Send + 'static>(
+    async fn list_indexed<T: StorableType>(
         &self,
         path: &str,
         skip: i64,
         page_size: i64,
         index: &Option<Document>,
-    ) -> Result<Vec<Entry>, CryptoError>;
+    ) -> Result<Vec<Entry<T>>, CryptoError>;
 
     /// Adds the given `Key` struct to the backing store.
-    async fn create(&self, path: EntryPath, value: State) -> Result<bool, CryptoError>;
-
-    /// Takes an entry and resolves it down into its final unsealed type using this storage
-    async fn resolve<T: HasIndex<Index = Document> + HasBuilder + 'static>(
-        &self,
-        state: &State,
-    ) -> Result<T, CryptoError> {
-        self.resolve_indexed::<T>(state, &T::get_index()).await
-    }
-
-    /// Takes an entry and resolves it down into its final unsealed type using this storage
-    async fn resolve_indexed<T: HasBuilder + 'static>(
-        &self,
-        state: &State,
-        index: &Option<Document>,
-    ) -> Result<T, CryptoError> {
-        match state {
-            State::Referenced {
-                builder: _,
-                ref path,
-            } => match self.get_indexed::<T>(path, index).await {
-                Ok(output) => Ok(self.resolve_indexed::<T>(&output.value, index).await?),
-                Err(e) => Err(e),
-            },
-            State::Sealed {
-                ref builder,
-                unsealable,
-            } => {
-                let bytes = unsealable.unseal(self).await?;
-                let builder = <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(*builder))?;
-                builder.build(Some(bytes.get()?))
-            }
-            State::Unsealed {
-                ref builder,
-                ref bytes,
-            } => {
-                let builder = <T as HasBuilder>::Builder::try_from(TypeBuilderContainer(*builder))?;
-                builder.build(Some(bytes.get()?))
-            }
-        }
-    }
+    async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError>;
 }
 
 // Allows an `Arc<Storer>` to act exactly like a `Storer`, dereferencing
@@ -110,60 +113,100 @@ impl<U> Storer for Arc<U>
 where
     U: Storer,
 {
-    async fn get_indexed<T: HasBuilder + 'static>(
+    async fn get_indexed<T: StorableType>(
         &self,
         name: &str,
         index: &Option<Document>,
-    ) -> Result<Entry, CryptoError> {
+    ) -> Result<Entry<T>, CryptoError> {
         self.deref().get_indexed::<T>(name, index).await
     }
 
-    async fn list_indexed<T: HasBuilder + Send + 'static>(
+    async fn list_indexed<T: StorableType>(
         &self,
         name: &str,
         skip: i64,
         page_size: i64,
         index: &Option<Document>,
-    ) -> Result<Vec<Entry>, CryptoError> {
+    ) -> Result<Vec<Entry<T>>, CryptoError> {
         self.deref()
             .list_indexed::<T>(name, skip, page_size, index)
             .await
     }
 
-    async fn create(&self, name: EntryPath, key: State) -> Result<bool, CryptoError> {
-        self.deref().create(name, key).await
+    async fn create<T: StorableType>(&self, key: Entry<T>) -> Result<Entry<T>, CryptoError> {
+        self.deref().create(key).await
     }
 }
 
-#[cfg(test)]
 pub mod tests {
-    use super::Storer;
-    use crate::{CryptoError, Entry, EntryPath, HasBuilder, State};
+    use super::Storer as StorerTrait;
+    use crate::{CryptoError, Entry, StorableType, TypeStorer};
     use async_trait::async_trait;
     use mockall::predicate::*;
     use mockall::*;
     use mongodb::bson::Document;
+    use serde::{Deserialize, Serialize};
 
     mock! {
-    pub Storer {}
+    pub Storer {
+        pub fn private_deserialize() -> Self;
+        pub fn private_serialize(&self) -> MockStorer;
+    pub fn private_get_indexed<T: StorableType>(&self, path: &str, index: &Option<Document>) -> Result<Entry<T>, CryptoError>;
+    pub fn private_list_indexed<T: StorableType>(&self, path: &str, skip: i64, page_size: i64, index: &Option<Document>) -> Result<Vec<Entry<T>>, CryptoError>;
+    pub fn private_create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError>;
+    }
+    }
+
+    impl core::fmt::Debug for MockStorer {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("MockStorer").finish()
+        }
+    }
+
     #[async_trait]
-    impl Storer for Storer {
-    async fn get_indexed<T: HasBuilder + 'static>(
-        &self,
-        path: &str,
-        index: &Option<Document>,
-    ) -> Result<Entry, CryptoError>;
-    async fn list_indexed<T: HasBuilder + Send + 'static>(
-        &self,
-        path: &str,
-        skip: i64,
-        page_size: i64,
-        index: &Option<Document>,
-    ) -> Result<Vec<Entry>, CryptoError>;
-    async fn create(&self, path: EntryPath, value: State) -> Result<bool, CryptoError>;
+    impl StorerTrait for MockStorer {
+        async fn get_indexed<T: StorableType>(
+            &self,
+            path: &str,
+            index: &Option<Document>,
+        ) -> Result<Entry<T>, CryptoError> {
+            self.private_get_indexed(path, index)
+        }
+        async fn list_indexed<T: StorableType>(
+            &self,
+            path: &str,
+            skip: i64,
+            page_size: i64,
+            index: &Option<Document>,
+        ) -> Result<Vec<Entry<T>>, CryptoError> {
+            self.private_list_indexed(path, skip, page_size, index)
+        }
+        async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError> {
+            self.private_create(value)
+        }
     }
-    impl Clone for Storer {
-        fn clone(&self) -> Self;
+
+    impl Serialize for MockStorer {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            self.private_serialize().serialize(serializer)
+        }
     }
+
+    impl<'de> Deserialize<'de> for MockStorer {
+        fn deserialize<D>(_: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            Ok(MockStorer::private_deserialize())
+        }
+    }
+
+    impl From<MockStorer> for TypeStorer {
+        fn from(ms: MockStorer) -> Self {
+            TypeStorer::Mock(ms)
+        }
     }
 }
