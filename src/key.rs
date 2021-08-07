@@ -69,19 +69,21 @@ pub trait SymmetricUnsealer {
     ) -> Result<Self::UnsealedOutput, CryptoError>;
 }
 
+#[async_trait]
 pub trait ToSecretAsymmetricByteAlgorithm {
-    type SecretKey;
+    type SecretKey: StorableType;
     type Nonce;
     type PublicKey;
 
-    fn to_byte_algorithm<F>(
+    async fn to_byte_algorithm<F, Fut>(
         self,
         public_key: Option<Entry<Self::PublicKey>>,
         nonce: Option<Self::Nonce>,
         f: F,
     ) -> Result<ByteAlgorithm, CryptoError>
     where
-        F: FnOnce(Self::SecretKey) -> Entry<Self::SecretKey>;
+        F: FnOnce(Self::SecretKey) -> Fut + Send,
+        Fut: Future<Output = Result<Entry<Self::SecretKey>, CryptoError>> + Send;
 }
 
 pub trait SecretAsymmetricSealer {
@@ -110,19 +112,21 @@ pub trait SecretAsymmetricUnsealer {
     ) -> Result<Self::UnsealedOutput, CryptoError>;
 }
 
+#[async_trait]
 pub trait ToPublicAsymmetricByteAlgorithm {
     type SecretKey;
     type Nonce;
-    type PublicKey;
+    type PublicKey: StorableType;
 
-    fn to_byte_algorithm<F>(
+    async fn to_byte_algorithm<F, Fut>(
         self,
         secret_key: Entry<Self::SecretKey>,
         nonce: Option<Self::Nonce>,
         f: F,
     ) -> Result<ByteAlgorithm, CryptoError>
     where
-        F: FnOnce(Self::PublicKey) -> Entry<Self::PublicKey>;
+        F: FnOnce(Self::PublicKey) -> Fut + Send,
+        Fut: Future<Output = Result<Entry<Self::PublicKey>, CryptoError>> + Send;
 }
 
 pub trait PublicAsymmetricSealer {
@@ -153,7 +157,9 @@ pub trait PublicAsymmetricUnsealer {
 
 /// Allows for retr
 pub trait HasPublicKey {
-    fn public_key(&self) -> Result<PublicAsymmetricKey, CryptoError>;
+    type PublicKey;
+
+    fn public_key(&self) -> Result<Self::PublicKey, CryptoError>;
 }
 
 #[derive(Serialize, Deserialize, Debug)]

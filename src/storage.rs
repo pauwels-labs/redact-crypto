@@ -20,10 +20,11 @@ pub trait HasIndex {
     fn get_index() -> Option<Self::Index>;
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum TypeStorer {
     Redact(redact::RedactStorer),
     Mongo(mongodb::MongoStorer),
+    Mock(tests::MockStorer),
 }
 
 #[async_trait]
@@ -36,6 +37,7 @@ impl Storer for TypeStorer {
         match self {
             TypeStorer::Redact(rs) => rs.get_indexed(path, index).await,
             TypeStorer::Mongo(ms) => ms.get_indexed(path, index).await,
+            TypeStorer::Mock(ms) => ms.get_indexed(path, index).await,
         }
     }
 
@@ -49,6 +51,7 @@ impl Storer for TypeStorer {
         match self {
             TypeStorer::Redact(rs) => rs.list_indexed(path, skip, page_size, index).await,
             TypeStorer::Mongo(ms) => ms.list_indexed(path, skip, page_size, index).await,
+            TypeStorer::Mock(ms) => ms.list_indexed(path, skip, page_size, index).await,
         }
     }
 
@@ -56,13 +59,14 @@ impl Storer for TypeStorer {
         match self {
             TypeStorer::Redact(rs) => rs.create(value).await,
             TypeStorer::Mongo(ms) => ms.create(value).await,
+            TypeStorer::Mock(ms) => ms.create(value).await,
         }
     }
 }
 
 /// The operations a storer of `Key` structs must be able to fulfill.
 #[async_trait]
-pub trait Storer: Clone + Send + Sync {
+pub trait Storer: Send + Sync {
     /// Fetches the instance of the `Key` with the given name.
     async fn get<T: HasIndex<Index = Document> + StorableType>(
         &self,
@@ -134,35 +138,75 @@ where
     }
 }
 
-#[cfg(test)]
 pub mod tests {
-    use super::Storer;
-    use crate::{CryptoError, Entry, StorableType};
+    use super::Storer as StorerTrait;
+    use crate::{CryptoError, Entry, StorableType, TypeStorer};
     use async_trait::async_trait;
     use mockall::predicate::*;
     use mockall::*;
     use mongodb::bson::Document;
+    use serde::{Deserialize, Serialize};
 
     mock! {
-    pub Storer {}
+    pub Storer {
+        pub fn private_deserialize() -> Self;
+        pub fn private_serialize(&self) -> MockStorer;
+    pub fn private_get_indexed<T: StorableType>(&self, path: &str, index: &Option<Document>) -> Result<Entry<T>, CryptoError>;
+    pub fn private_list_indexed<T: StorableType>(&self, path: &str, skip: i64, page_size: i64, index: &Option<Document>) -> Result<Vec<Entry<T>>, CryptoError>;
+    pub fn private_create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError>;
+    }
+    }
+
+    impl core::fmt::Debug for MockStorer {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("MockStorer").finish()
+        }
+    }
+
     #[async_trait]
-    impl Storer for Storer {
-    async fn get_indexed<T: StorableType>(
-        &self,
-        path: &str,
-        index: &Option<Document>,
-    ) -> Result<Entry<T>, CryptoError>;
-    async fn list_indexed<T: StorableType>(
-        &self,
-        path: &str,
-        skip: i64,
-        page_size: i64,
-        index: &Option<Document>,
-    ) -> Result<Vec<Entry<T>>, CryptoError>;
-    async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError>;
+    impl StorerTrait for MockStorer {
+        async fn get_indexed<T: StorableType>(
+            &self,
+            path: &str,
+            index: &Option<Document>,
+        ) -> Result<Entry<T>, CryptoError> {
+            self.private_get_indexed(path, index)
+        }
+        async fn list_indexed<T: StorableType>(
+            &self,
+            path: &str,
+            skip: i64,
+            page_size: i64,
+            index: &Option<Document>,
+        ) -> Result<Vec<Entry<T>>, CryptoError> {
+            self.private_list_indexed(path, skip, page_size, index)
+        }
+        async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError> {
+            self.private_create(value)
+        }
     }
-    impl Clone for Storer {
-        fn clone(&self) -> Self;
+
+    impl Serialize for MockStorer {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            self.private_serialize().serialize(serializer)
+        }
     }
+
+    impl<'de> Deserialize<'de> for MockStorer {
+        fn deserialize<D>(_: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            Ok(MockStorer::private_deserialize())
+        }
+    }
+
+    impl From<MockStorer> for TypeStorer {
+        fn from(ms: MockStorer) -> Self {
+            TypeStorer::Mock(ms)
+        }
     }
 }

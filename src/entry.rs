@@ -1,6 +1,7 @@
 use crate::{
     Algorithm, ByteAlgorithm, ByteSource, CryptoError, Data, DataBuilder, HasByteSource, HasIndex,
-    Key, KeyBuilder, Storer, ToSymmetricByteAlgorithm, TypeStorer,
+    Key, KeyBuilder, Storer, ToPublicAsymmetricByteAlgorithm, ToSecretAsymmetricByteAlgorithm,
+    ToSymmetricByteAlgorithm, TypeStorer,
 };
 use async_recursion::async_recursion;
 use async_trait::async_trait;
@@ -35,7 +36,7 @@ pub trait StorableType:
 }
 
 impl<T: ToSymmetricByteAlgorithm + StorableType> Entry<T> {
-    pub async fn to_byte_algorithm(
+    pub async fn to_symmetric_byte_algorithm(
         self,
         nonce: Option<<T as ToSymmetricByteAlgorithm>::Nonce>,
     ) -> Result<ByteAlgorithm, CryptoError> {
@@ -48,6 +49,48 @@ impl<T: ToSymmetricByteAlgorithm + StorableType> Entry<T> {
             }
         })
         .await
+    }
+}
+
+impl<T: ToSecretAsymmetricByteAlgorithm + StorableType> Entry<T> {
+    pub async fn to_secret_asymmetric_byte_algorithm(
+        self,
+        public_key: Option<Entry<<T as ToSecretAsymmetricByteAlgorithm>::PublicKey>>,
+        nonce: Option<<T as ToSecretAsymmetricByteAlgorithm>::Nonce>,
+    ) -> Result<ByteAlgorithm, CryptoError> {
+        let (secret_key, entry_path, state) = self.take_resolve_all().await?;
+        secret_key
+            .to_byte_algorithm(public_key, nonce, |key| async move {
+                match state {
+                    State::Referenced { path, storer } => key.to_ref_entry(path, storer),
+                    State::Sealed { algorithm, .. } => {
+                        key.to_sealed_entry(entry_path, algorithm).await
+                    }
+                    State::Unsealed { .. } => key.to_unsealed_entry(entry_path),
+                }
+            })
+            .await
+    }
+}
+
+impl<T: ToPublicAsymmetricByteAlgorithm + StorableType> Entry<T> {
+    pub async fn to_public_asymmetric_byte_algorithm(
+        self,
+        secret_key: Entry<<T as ToPublicAsymmetricByteAlgorithm>::SecretKey>,
+        nonce: Option<<T as ToPublicAsymmetricByteAlgorithm>::Nonce>,
+    ) -> Result<ByteAlgorithm, CryptoError> {
+        let (public_key, entry_path, state) = self.take_resolve_all().await?;
+        public_key
+            .to_byte_algorithm(secret_key, nonce, |key| async move {
+                match state {
+                    State::Referenced { path, storer } => key.to_ref_entry(path, storer),
+                    State::Sealed { algorithm, .. } => {
+                        key.to_sealed_entry(entry_path, algorithm).await
+                    }
+                    State::Unsealed { .. } => key.to_unsealed_entry(entry_path),
+                }
+            })
+            .await
     }
 }
 
@@ -309,34 +352,11 @@ impl Builder for TypeBuilder {
 
 #[cfg(test)]
 mod tests {
-    use super::{Entry, State, Type, TypeBuilder, TypeBuilderContainer};
+    use super::{Type, TypeBuilder, TypeBuilderContainer};
     use crate::{
         BoolDataBuilder, Builder, Data, DataBuilder, HasBuilder, HasIndex, StringDataBuilder,
     };
     use std::convert::TryInto;
-
-    // #[test]
-    // fn test_entry_into_ref() {
-    //     let s = State::Unsealed {
-    //         builder: TypeBuilder::Data(DataBuilder::String(StringDataBuilder {})),
-    //         bytes: "hello, world!".into(),
-    //     };
-    //     let e = Entry {
-    //         path: ".somePath.".to_owned(),
-    //         value: s,
-    //     };
-    //     let s_ref = e.into_ref();
-    //     match s_ref {
-    //         State::Referenced { builder, path } => {
-    //             match builder {
-    //                 TypeBuilder::Data(DataBuilder::String(_)) => (),
-    //                 _ => panic!("Referenced builder should have been a StringDataBuilder"),
-    //             };
-    //             assert_eq!(path, ".somePath.".to_owned());
-    //         }
-    //         _ => panic!("Outputted state should have been a Referenced"),
-    //     }
-    // }
 
     #[test]
     fn test_type_to_index() {

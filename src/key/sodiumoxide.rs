@@ -1,12 +1,11 @@
 use crate::{
     nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce},
     Algorithm, AsymmetricKeyBuilder, Builder, ByteAlgorithm, ByteSource, CryptoError, Entry,
-    HasBuilder, HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKey,
-    PublicAsymmetricKeyBuilder, PublicAsymmetricSealer, PublicAsymmetricUnsealer,
-    SecretAsymmetricKeyBuilder, SecretAsymmetricSealer, SecretAsymmetricUnsealer, Signer,
-    StorableType, SymmetricKeyBuilder, SymmetricSealer, SymmetricUnsealer,
-    ToPublicAsymmetricByteAlgorithm, ToSecretAsymmetricByteAlgorithm, ToSymmetricByteAlgorithm,
-    TypeBuilder, TypeBuilderContainer,
+    HasBuilder, HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder,
+    PublicAsymmetricSealer, PublicAsymmetricUnsealer, SecretAsymmetricKeyBuilder,
+    SecretAsymmetricSealer, SecretAsymmetricUnsealer, Signer, StorableType, SymmetricKeyBuilder,
+    SymmetricSealer, SymmetricUnsealer, ToPublicAsymmetricByteAlgorithm,
+    ToSecretAsymmetricByteAlgorithm, ToSymmetricByteAlgorithm, TypeBuilder, TypeBuilderContainer,
 };
 use async_trait::async_trait;
 use futures::Future;
@@ -298,19 +297,21 @@ pub struct SodiumOxideCurve25519SecretAsymmetricKey {
     pub secret_key: ExternalSodiumOxideCurve25519SecretAsymmetricKey,
 }
 
+#[async_trait]
 impl ToSecretAsymmetricByteAlgorithm for SodiumOxideCurve25519SecretAsymmetricKey {
     type SecretKey = Self;
     type Nonce = SodiumOxideAsymmetricNonce;
     type PublicKey = SodiumOxideCurve25519PublicAsymmetricKey;
 
-    fn to_byte_algorithm<F>(
+    async fn to_byte_algorithm<F, Fut>(
         self,
         public_key: Option<Entry<Self::PublicKey>>,
         nonce: Option<Self::Nonce>,
         f: F,
     ) -> Result<ByteAlgorithm, CryptoError>
     where
-        F: FnOnce(Self::SecretKey) -> Entry<Self::SecretKey>,
+        F: FnOnce(Self::SecretKey) -> Fut + Send,
+        Fut: Future<Output = Result<Entry<Self::SecretKey>, CryptoError>> + Send,
     {
         let nonce = match nonce {
             Some(nonce) => nonce,
@@ -319,7 +320,7 @@ impl ToSecretAsymmetricByteAlgorithm for SodiumOxideCurve25519SecretAsymmetricKe
             },
         };
         let public_key = public_key.map(Box::new);
-        let secret_key = Box::new(f(self));
+        let secret_key = Box::new(f(self).await?);
         Ok(ByteAlgorithm::SodiumOxideSecretAsymmetricKey(
             SodiumOxideSecretAsymmetricKeyAlgorithm {
                 secret_key,
@@ -530,19 +531,21 @@ pub struct SodiumOxideCurve25519PublicAsymmetricKey {
     pub public_key: ExternalSodiumOxideCurve25519PublicAsymmetricKey,
 }
 
+#[async_trait]
 impl ToPublicAsymmetricByteAlgorithm for SodiumOxideCurve25519PublicAsymmetricKey {
     type SecretKey = SodiumOxideCurve25519SecretAsymmetricKey;
     type Nonce = SodiumOxideAsymmetricNonce;
     type PublicKey = Self;
 
-    fn to_byte_algorithm<F>(
+    async fn to_byte_algorithm<F, Fut>(
         self,
         secret_key: Entry<Self::SecretKey>,
         nonce: Option<Self::Nonce>,
         f: F,
     ) -> Result<ByteAlgorithm, CryptoError>
     where
-        F: FnOnce(Self::PublicKey) -> Entry<Self::PublicKey>,
+        F: FnOnce(Self::PublicKey) -> Fut + Send,
+        Fut: Future<Output = Result<Entry<Self::PublicKey>, CryptoError>> + Send,
     {
         let nonce = match nonce {
             Some(nonce) => nonce,
@@ -551,7 +554,7 @@ impl ToPublicAsymmetricByteAlgorithm for SodiumOxideCurve25519PublicAsymmetricKe
             },
         };
         let secret_key = Box::new(secret_key);
-        let public_key = Box::new(f(self));
+        let public_key = Box::new(f(self).await?);
         Ok(ByteAlgorithm::SodiumOxidePublicAsymmetricKey(
             SodiumOxidePublicAsymmetricKeyAlgorithm {
                 secret_key,
@@ -658,12 +661,12 @@ impl SodiumOxideCurve25519PublicAsymmetricKey {
 }
 
 impl HasPublicKey for SodiumOxideCurve25519SecretAsymmetricKey {
-    fn public_key(&self) -> Result<PublicAsymmetricKey, CryptoError> {
-        Ok(PublicAsymmetricKey::SodiumOxideCurve25519(
-            SodiumOxideCurve25519PublicAsymmetricKey {
-                public_key: self.secret_key.public_key(),
-            },
-        ))
+    type PublicKey = SodiumOxideCurve25519PublicAsymmetricKey;
+
+    fn public_key(&self) -> Result<Self::PublicKey, CryptoError> {
+        Ok(SodiumOxideCurve25519PublicAsymmetricKey {
+            public_key: self.secret_key.public_key(),
+        })
     }
 }
 
@@ -879,12 +882,12 @@ impl SodiumOxideEd25519PublicAsymmetricKey {
 }
 
 impl HasPublicKey for SodiumOxideEd25519SecretAsymmetricKey {
-    fn public_key(&self) -> Result<PublicAsymmetricKey, CryptoError> {
-        Ok(PublicAsymmetricKey::SodiumOxideEd25519(
-            SodiumOxideEd25519PublicAsymmetricKey {
-                public_key: self.secret_key.public_key(),
-            },
-        ))
+    type PublicKey = SodiumOxideEd25519PublicAsymmetricKey;
+
+    fn public_key(&self) -> Result<Self::PublicKey, CryptoError> {
+        Ok(SodiumOxideEd25519PublicAsymmetricKey {
+            public_key: self.secret_key.public_key(),
+        })
     }
 }
 
@@ -893,19 +896,18 @@ mod tests {
     use super::{
         SodiumOxideCurve25519PublicAsymmetricKey, SodiumOxideCurve25519PublicAsymmetricKeyBuilder,
         SodiumOxideCurve25519SecretAsymmetricKey, SodiumOxideCurve25519SecretAsymmetricKeyBuilder,
-        SodiumOxidePublicAsymmetricKeyAlgorithm, SodiumOxideSecretAsymmetricKeyAlgorithm,
-        SodiumOxideSymmetricKey, SodiumOxideSymmetricKeyAlgorithm, SodiumOxideSymmetricKeyBuilder,
+        SodiumOxideSymmetricKey, SodiumOxideSymmetricKeyBuilder,
     };
     use crate::{
         nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce},
         storage::tests::MockStorer,
-        Algorithm, AsymmetricKeyBuilder, BoolDataBuilder, Builder, ByteAlgorithm, DataBuilder,
-        Entry, HasBuilder, HasIndex, KeyBuilder, PublicAsymmetricKeyBuilder,
+        Algorithm, AsymmetricKeyBuilder, BoolDataBuilder, Builder, ByteSource, Data, DataBuilder,
+        HasBuilder, HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder,
         PublicAsymmetricSealer, PublicAsymmetricUnsealer, SecretAsymmetricKeyBuilder,
-        SecretAsymmetricSealer, SecretAsymmetricUnsealer, State, StringDataBuilder,
-        SymmetricKeyBuilder, SymmetricSealer, SymmetricUnsealer, TypeBuilder, TypeBuilderContainer,
+        SecretAsymmetricSealer, SecretAsymmetricUnsealer, SymmetricKeyBuilder, SymmetricSealer,
+        SymmetricUnsealer, ToEntry, ToSymmetricByteAlgorithm, TypeBuilder, TypeBuilderContainer,
     };
-    use mongodb::bson::{self, Document};
+    use mongodb::bson;
     use sodiumoxide::crypto::{
         box_,
         secretbox::{self, xsalsa20poly1305::Nonce as ExternalSodiumOxideSymmetricNonce},
@@ -947,143 +949,47 @@ mod tests {
         (public_key, secret_key)
     }
 
-    fn get_unsealed_sopak() -> State {
-        let (public_key, _) = get_sopak();
-        State::Unsealed {
-            bytes: public_key.public_key.as_ref().into(),
-        }
-    }
-
-    fn get_referenced_sopak(path: &str) -> State {
-        State::Referenced {
-            builder: TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Public(
-                PublicAsymmetricKeyBuilder::SodiumOxideCurve25519(
-                    SodiumOxideCurve25519PublicAsymmetricKeyBuilder {},
-                ),
-            ))),
-            path: path.to_owned(),
-        }
-    }
-
-    // fn get_sealed_sopak_with_unsealed_key() -> States {
-    //     let (public_key, secret_key) = get_sopak();
-    //     States::Sealed {
-    //         builder: TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Public(
-    //             PublicAsymmetricKeyBuilder::SodiumOxide(SodiumOxidePublicAsymmetricKeyBuilder {}),
-    //         ))),
-    //         unsealable: ByteUnsealable::SodiumOxidePublicAsymmetricKey(
-    //             get_sopaku_with_unsealed_key(public_key.public_key_key.as_ref(), None),
-    //         ),
-    //     }
+    // fn get_unsealed_sopak(path: EntryPath) -> Entry<SodiumOxideCurve25519PublicAsymmetricKey> {
+    //     let (public_key, _) = get_sopak();
+    //     public_key.to_unsealed_entry(path).unwrap()
     // }
 
-    // fn get_sealed_sopak_with_referenced_key(path: &str) -> States {
-    //     States::Sealed {
-    //         builder: TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(
-    //             SecretAsymmetricKeyBuilder::SodiumOxide(SodiumOxideSecretAsymmetricKeyBuilder {}),
-    //         ))),
-    //         unsealable: ByteUnsealable::SodiumOxideSecretAsymmetricKey(
-    //             get_sopaku_with_referenced_key(get_sopak().secret_key.as_ref(), None, path),
-    //         ),
-    //     }
+    // fn get_referenced_sopak(
+    //     path: EntryPath,
+    //     storer: MockStorer,
+    // ) -> Entry<SodiumOxideCurve25519PublicAsymmetricKey> {
+    //     let (public_key, _) = get_sopak();
+    //     public_key.to_ref_entry(path, storer).unwrap()
     // }
 
-    // fn get_sopaks_with_unsealed_key(
-    //     payload: &[u8],
-    //     secret_key: Option<&SodiumOxideCurve25519SecretAsymmetricKey>,
-    // ) -> SodiumOxidePublicAsymmetricKeySealable {
-    //     let source = ByteSource::Vector(VectorByteSource::new(payload));
-    //     let secret_key = match secret_key {
-    //         Some(sk) => Box::new(State::Unsealed {
-    //             builder: TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(
-    //                 SecretAsymmetricKeyBuilder::SodiumOxideCurve25519(sk.builder()),
-    //             ))),
-    //             bytes: ByteSource::Vector(VectorByteSource::new(sk.secret_key.as_ref())),
-    //         }),
-    //         None => Box::new(get_unsealed_sosak()),
-    //     };
-
-    //     SodiumOxidePublicAsymmetricKeySealable {
-    //         source,
-    //         public_key: Box::new(get_unsealed_sopak()),
-    //         nonce: get_soan(),
-    //         secret_key,
-    //     }
+    // async fn get_sealed_sopak_with_unsealed_key(
+    //     path: EntryPath,
+    // ) -> Entry<SodiumOxideCurve25519PublicAsymmetricKey> {
+    //     let (public_key, _) = get_sopak();
+    //     let encryption_key = get_sosk();
+    //     let algorithm = encryption_key
+    //         .to_byte_algorithm(Some(get_sosn()), |key| async move {
+    //             key.to_unsealed_entry(".encryptionkey.".to_owned())
+    //         })
+    //         .await
+    //         .unwrap();
+    //     public_key.to_sealed_entry(path, algorithm).await.unwrap()
     // }
 
-    // fn get_sopaks_with_referenced_key(
-    //     payload: &[u8],
-    //     secret_key: Option<&SodiumOxideCurve25519SecretAsymmetricKey>,
-    //     path: &str,
-    // ) -> SodiumOxidePublicAsymmetricKeySealable {
-    //     let source = ByteSource::Vector(VectorByteSource::new(payload));
-    //     let secret_key = match secret_key {
-    //         Some(sk) => Box::new(State::Unsealed {
-    //             builder: TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(
-    //                 SecretAsymmetricKeyBuilder::SodiumOxideCurve25519(sk.builder()),
-    //             ))),
-    //             bytes: ByteSource::Vector(VectorByteSource::new(sk.secret_key.as_ref())),
-    //         }),
-    //         None => Box::new(get_unsealed_sosak()),
-    //     };
-    //     SodiumOxidePublicAsymmetricKeySealable {
-    //         source,
-    //         secret_key,
-    //         nonce: get_soan(),
-    //         public_key: Box::new(get_referenced_sopak(path)),
-    //     }
+    // async fn get_sealed_sopak_with_referenced_key(
+    //     path: EntryPath,
+    //     storer: MockStorer,
+    // ) -> Entry<SodiumOxideCurve25519PublicAsymmetricKey> {
+    //     let (public_key, _) = get_sopak();
+    //     let encryption_key = get_sosk();
+    //     let algorithm = encryption_key
+    //         .to_byte_algorithm(Some(get_sosn()), |key| async move {
+    //             key.to_ref_entry(".encryptionkey.".to_owned(), TypeStorer::Mock(storer))
+    //         })
+    //         .await
+    //         .unwrap();
+    //     public_key.to_sealed_entry(path, algorithm).await.unwrap()
     // }
-
-    fn get_sopaku_with_unsealed_key(
-        plaintext: &[u8],
-        secret_key: Option<&SodiumOxideCurve25519SecretAsymmetricKey>,
-    ) -> SodiumOxidePublicAsymmetricKeyAlgorithm {
-        let ciphertext = get_sopak_ciphertext(plaintext, secret_key);
-        let secret_key = match secret_key {
-            Some(sk) => Box::new(State::Unsealed {
-                builder: TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(
-                    SecretAsymmetricKeyBuilder::SodiumOxideCurve25519(
-                        SodiumOxideCurve25519SecretAsymmetricKeyBuilder {},
-                    ),
-                ))),
-                bytes: sk.secret_key.as_ref().into(),
-            }),
-            None => Box::new(get_unsealed_sosak()),
-        };
-        let source = ciphertext.as_slice().into();
-        SodiumOxidePublicAsymmetricKeyAlgorithm {
-            source,
-            secret_key,
-            nonce: get_soan(),
-            public_key: Box::new(get_unsealed_sopak()),
-        }
-    }
-
-    fn get_sopaku_with_referenced_key(
-        plaintext: &[u8],
-        secret_key: Option<&SodiumOxideCurve25519SecretAsymmetricKey>,
-        path: &str,
-    ) -> SodiumOxidePublicAsymmetricKeyAlgorithm {
-        let ciphertext = get_sopak_ciphertext(plaintext, secret_key);
-        let secret_key = match secret_key {
-            Some(sk) => Box::new(State::Unsealed {
-                builder: TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(
-                    SecretAsymmetricKeyBuilder::SodiumOxideCurve25519(
-                        SodiumOxideCurve25519SecretAsymmetricKeyBuilder {},
-                    ),
-                ))),
-                bytes: sk.secret_key.as_ref().into(),
-            }),
-            None => Box::new(get_unsealed_sosak()),
-        };
-        let source = ciphertext.as_slice().into();
-        SodiumOxidePublicAsymmetricKeyAlgorithm {
-            source,
-            secret_key,
-            nonce: get_soan(),
-            public_key: Box::new(get_referenced_sopak(path)),
-        }
-    }
 
     //////////////////////////////////////////////
     /// SECRET ASYMMETRIC KEY HELPER FUNCTIONS ///
@@ -1123,152 +1029,47 @@ mod tests {
         SodiumOxideAsymmetricNonce { nonce }
     }
 
-    fn get_unsealed_sosak() -> State {
-        let key = get_sosak();
-        State::Unsealed {
-            builder: TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(
-                SecretAsymmetricKeyBuilder::SodiumOxideCurve25519(key.builder()),
-            ))),
-            bytes: key.secret_key.as_ref().into(),
-        }
-    }
-
-    fn get_referenced_sosak(path: &str) -> State {
-        State::Referenced {
-            builder: TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(
-                SecretAsymmetricKeyBuilder::SodiumOxideCurve25519(
-                    SodiumOxideCurve25519SecretAsymmetricKeyBuilder {},
-                ),
-            ))),
-            path: path.to_owned(),
-        }
-    }
-
-    fn get_sealed_sosak_with_unsealed_key() -> State {
-        State::Sealed {
-            builder: TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(
-                SecretAsymmetricKeyBuilder::SodiumOxideCurve25519(
-                    SodiumOxideCurve25519SecretAsymmetricKeyBuilder {},
-                ),
-            ))),
-            unsealable: ByteAlgorithm::SodiumOxideSecretAsymmetricKey(
-                get_sosaku_with_unsealed_key(get_sosak().secret_key.as_ref(), None),
-            ),
-        }
-    }
-
-    fn get_sealed_sosak_with_referenced_key(path: &str) -> State {
-        State::Sealed {
-            builder: TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(
-                SecretAsymmetricKeyBuilder::SodiumOxideCurve25519(
-                    SodiumOxideCurve25519SecretAsymmetricKeyBuilder {},
-                ),
-            ))),
-            unsealable: ByteAlgorithm::SodiumOxideSecretAsymmetricKey(
-                get_sosaku_with_referenced_key(get_sosak().secret_key.as_ref(), None, path),
-            ),
-        }
-    }
-
-    // fn get_sosaks_with_unsealed_key(
-    //     payload: &[u8],
-    //     public_key: Option<SodiumOxideCurve25519PublicAsymmetricKey>,
-    // ) -> SodiumOxideSecretAsymmetricKeySealable {
-    //     let source = ByteSource::Vector(VectorByteSource::new(payload));
-    //     let public_key = match public_key {
-    //         Some(pk) => Some(Box::new(State::Unsealed {
-    //             builder: TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Public(
-    //                 PublicAsymmetricKeyBuilder::SodiumOxideCurve25519(
-    //                     SodiumOxideCurve25519PublicAsymmetricKeyBuilder {},
-    //                 ),
-    //             ))),
-    //             bytes: ByteSource::Vector(VectorByteSource::new(pk.public_key.as_ref())),
-    //         })),
-    //         None => None,
-    //     };
-    //     SodiumOxideSecretAsymmetricKeySealable {
-    //         source,
-    //         secret_key: Box::new(get_unsealed_sosak()),
-    //         nonce: get_soan(),
-    //         public_key,
-    //     }
+    // fn get_unsealed_sosak(path: EntryPath) -> Entry<SodiumOxideCurve25519SecretAsymmetricKey> {
+    //     let key = get_sosak();
+    //     key.to_unsealed_entry(path).unwrap()
     // }
 
-    // fn get_sosaks_with_referenced_key(
-    //     payload: &[u8],
-    //     public_key: Option<SodiumOxideCurve25519PublicAsymmetricKey>,
-    //     path: &str,
-    // ) -> SodiumOxideSecretAsymmetricKeySealable {
-    //     let source = ByteSource::Vector(VectorByteSource::new(payload));
-    //     let public_key = match public_key {
-    //         Some(pk) => Some(Box::new(State::Unsealed {
-    //             builder: TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Public(
-    //                 PublicAsymmetricKeyBuilder::SodiumOxideCurve25519(
-    //                     SodiumOxideCurve25519PublicAsymmetricKeyBuilder {},
-    //                 ),
-    //             ))),
-    //             bytes: ByteSource::Vector(VectorByteSource::new(pk.public_key.as_ref())),
-    //         })),
-    //         None => None,
-    //     };
-    //     SodiumOxideSecretAsymmetricKeySealable {
-    //         source,
-    //         secret_key: Box::new(get_referenced_sosak(path)),
-    //         nonce: get_soan(),
-    //         public_key,
-    //     }
+    // fn get_referenced_sosak(
+    //     path: EntryPath,
+    //     storer: MockStorer,
+    // ) -> Entry<SodiumOxideCurve25519SecretAsymmetricKey> {
+    //     let key = get_sosak();
+    //     key.to_ref_entry(path, storer).unwrap()
     // }
 
-    fn get_sosaku_with_unsealed_key(
-        plaintext: &[u8],
-        public_key: Option<SodiumOxideCurve25519PublicAsymmetricKey>,
-    ) -> SodiumOxideSecretAsymmetricKeyAlgorithm {
-        let ciphertext = get_sosak_ciphertext(plaintext, &public_key);
-        let public_key = match public_key {
-            Some(pk) => Some(Box::new(State::Unsealed {
-                builder: TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Public(
-                    PublicAsymmetricKeyBuilder::SodiumOxideCurve25519(
-                        SodiumOxideCurve25519PublicAsymmetricKeyBuilder {},
-                    ),
-                ))),
-                bytes: pk.public_key.as_ref().into(),
-            })),
-            None => None,
-        };
-        let source = ciphertext.as_slice().into();
-        SodiumOxideSecretAsymmetricKeyAlgorithm {
-            source,
-            secret_key: Box::new(get_unsealed_sosak()),
-            nonce: get_soan(),
-            public_key,
-        }
-    }
+    // async fn get_sealed_sosak_with_unsealed_key(
+    //     path: EntryPath,
+    // ) -> Entry<SodiumOxideCurve25519SecretAsymmetricKey> {
+    //     let key = get_sosak();
+    //     let encryption_key = get_sosk();
+    //     let algorithm = encryption_key
+    //         .to_byte_algorithm(Some(get_sosn()), |key| async move {
+    //             key.to_unsealed_entry(".encryptionkey.".to_owned())
+    //         })
+    //         .await
+    //         .unwrap();
+    //     key.to_sealed_entry(path, algorithm).await.unwrap()
+    // }
 
-    fn get_sosaku_with_referenced_key(
-        plaintext: &[u8],
-        public_key: Option<SodiumOxideCurve25519PublicAsymmetricKey>,
-        path: &str,
-    ) -> SodiumOxideSecretAsymmetricKeyAlgorithm {
-        let ciphertext = get_sosak_ciphertext(plaintext, &public_key);
-        let public_key = match public_key {
-            Some(pk) => Some(Box::new(State::Unsealed {
-                builder: TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Public(
-                    PublicAsymmetricKeyBuilder::SodiumOxideCurve25519(
-                        SodiumOxideCurve25519PublicAsymmetricKeyBuilder {},
-                    ),
-                ))),
-                bytes: pk.public_key.as_ref().into(),
-            })),
-            None => None,
-        };
-        let source = ciphertext.as_slice().into();
-        SodiumOxideSecretAsymmetricKeyAlgorithm {
-            source,
-            secret_key: Box::new(get_referenced_sosak(path)),
-            nonce: get_soan(),
-            public_key,
-        }
-    }
+    // async fn get_sealed_sosak_with_referenced_key(
+    //     path: EntryPath,
+    //     storer: MockStorer,
+    // ) -> Entry<SodiumOxideCurve25519SecretAsymmetricKey> {
+    //     let key = get_sosak();
+    //     let encryption_key = get_sosk();
+    //     let algorithm = encryption_key
+    //         .to_byte_algorithm(Some(get_sosn()), |key| async move {
+    //             key.to_ref_entry(".encryptionkey.".to_owned(), TypeStorer::Mock(storer))
+    //         })
+    //         .await
+    //         .unwrap();
+    //     key.to_sealed_entry(path, algorithm).await.unwrap()
+    // }
 
     //////////////////////////////////////
     /// SYMMETRIC KEY HELPER FUNCTIONS ///
@@ -1302,156 +1103,276 @@ mod tests {
         }
     }
 
-    /// Returns the key from get_sosk() wrapped in a States::Unsealed
-    fn get_unsealed_sosk() -> State {
-        let sosk = get_sosk();
-        State::Unsealed {
-            builder: TypeBuilder::Key(KeyBuilder::Symmetric(SymmetricKeyBuilder::SodiumOxide(
-                sosk.builder(),
-            ))),
-            bytes: sosk.key.as_ref().into(),
-        }
-    }
-
-    /// Returns the key from get_sosk() wrapped in a States::Referenced
-    fn get_referenced_sosk(path: &str) -> State {
-        State::Referenced {
-            builder: TypeBuilder::Key(KeyBuilder::Symmetric(SymmetricKeyBuilder::SodiumOxide(
-                SodiumOxideSymmetricKeyBuilder {},
-            ))),
-            path: path.to_string(),
-        }
-    }
-
-    /// Returns the key from get_sosk() wrapped in a States::Sealed and decrypted
-    /// by an unsealed version of the key from get_sosk()
-    fn get_sealed_sosk_with_unsealed_key() -> State {
-        State::Sealed {
-            builder: TypeBuilder::Key(KeyBuilder::Symmetric(SymmetricKeyBuilder::SodiumOxide(
-                SodiumOxideSymmetricKeyBuilder {},
-            ))),
-            unsealable: ByteAlgorithm::SodiumOxideSymmetricKey(get_sosku_with_unsealed_key(
-                get_sosk().key.as_ref(),
-            )),
-        }
-    }
-
-    /// Returns the key from get_sosk() wrapped in a States::Sealed and decrypted
-    /// by a States::Referenced with the given path
-    fn get_sealed_sosk_with_referenced_key(path: &str) -> State {
-        State::Sealed {
-            builder: TypeBuilder::Key(KeyBuilder::Symmetric(SymmetricKeyBuilder::SodiumOxide(
-                SodiumOxideSymmetricKeyBuilder {},
-            ))),
-            unsealable: ByteAlgorithm::SodiumOxideSymmetricKey(get_sosku_with_referenced_key(
-                get_sosk().key.as_ref(),
-                path,
-            )),
-        }
-    }
-
-    /// Returns a sealable backed by get_unsealed_sosk() with the bytes "hello, world!"
-    // fn get_sosks_with_unsealed_key(payload: &[u8]) -> SodiumOxideSymmetricKeySealable {
-    //     let source = ByteSource::Vector(VectorByteSource::new(payload));
-    //     SodiumOxideSymmetricKeySealable {
-    //         source,
-    //         key: Box::new(get_unsealed_sosk()),
-    //         nonce: get_sosn(),
-    //     }
+    // /// Returns the key from get_sosk() wrapped in a States::Unsealed
+    // fn get_unsealed_sosk(path: EntryPath) -> Entry<SodiumOxideSymmetricKey> {
+    //     let sosk = get_sosk();
+    //     sosk.to_unsealed_entry(path).unwrap()
     // }
 
-    // /// Returns a sealable backed by get_referenced_sosk() with the bytes "hello, world!"
-    // fn get_sosks_with_referenced_key(
-    //     payload: &[u8],
-    //     path: &str,
-    // ) -> SodiumOxideSymmetricKeySealable {
-    //     let source = ByteSource::Vector(VectorByteSource::new(payload));
-    //     SodiumOxideSymmetricKeySealable {
-    //         source,
-    //         key: Box::new(get_referenced_sosk(path)),
-    //         nonce: get_sosn(),
-    //     }
+    // /// Returns the key from get_sosk() wrapped in a States::Referenced
+    // fn get_referenced_sosk(path: EntryPath, storer: MockStorer) -> Entry<SodiumOxideSymmetricKey> {
+    //     let sosk = get_sosk();
+    //     sosk.to_ref_entry(path, storer).unwrap()
     // }
 
-    fn get_sosku_with_unsealed_key(plaintext: &[u8]) -> SodiumOxideSymmetricKeyAlgorithm {
-        let sealed_bytes = get_sosk_ciphertext(plaintext);
-        let source = sealed_bytes.as_slice().into();
-        SodiumOxideSymmetricKeyAlgorithm {
-            source,
-            key: Box::new(get_unsealed_sosk()),
-            nonce: get_sosn(),
-        }
-    }
-
-    fn get_sosku_with_referenced_key(
-        plaintext: &[u8],
-        path: &str,
-    ) -> SodiumOxideSymmetricKeyAlgorithm {
-        let sealed_bytes = get_sosk_ciphertext(plaintext);
-        let source = sealed_bytes.as_slice().into();
-        SodiumOxideSymmetricKeyAlgorithm {
-            source,
-            key: Box::new(get_referenced_sosk(path)),
-            nonce: get_sosn(),
-        }
-    }
-
-    // #[tokio::test]
-    // async fn test_seal_symmetrickeysealable_with_unsealed_key() {
-    //     let sosks = get_sosks_with_unsealed_key(b"hello, world");
-    //     let storer = MockStorer::new();
-    //     let _ = sosks.seal(storer).await.unwrap();
-    // }
-
-    // #[tokio::test]
-    // async fn test_seal_symmetrickeysealable_with_referenced_key() {
-    //     let sosks = get_sosks_with_referenced_key(b"hello, world", ".path.default.");
-    //     let mut storer = MockStorer::new();
-    //     storer
-    //         .expect_get_indexed::<SodiumOxideSymmetricKey>()
-    //         .withf(|path: &str, index: &Option<Document>| {
-    //             path == ".path.default." && *index == Some(bson::doc! { "c": { "builder": { "t": "Key", "c": { "t": "Symmetric", "c": { "t": "SodiumOxide" } } } } })
+    // /// Returns the key from get_sosk() wrapped in a States::Sealed and decrypted
+    // /// by an unsealed version of the key from get_sosk()
+    // async fn get_sealed_sosk_with_unsealed_key(path: EntryPath) -> Entry<SodiumOxideSymmetricKey> {
+    //     let sosk = get_sosk();
+    //     let encryption_key = get_sosk();
+    //     let algorithm = encryption_key
+    //         .to_byte_algorithm(Some(get_sosn()), |key| async move {
+    //             key.to_unsealed_entry(".encryptionkey.".to_owned())
     //         })
-    //         .returning(|path, _| {
-    //             Ok(Entry {
-    //                 path: path.to_owned(),
-    //                 value: get_unsealed_sosk(),
-    //             })
-    //         });
-    //     let _ = sosks.seal(storer).await.unwrap();
+    //         .await
+    //         .unwrap();
+    //     sosk.to_sealed_entry(path, algorithm).await.unwrap()
     // }
 
+    // /// Returns the key from get_sosk() wrapped in a States::Sealed and decrypted
+    // /// by a States::Referenced with the given path
+    // async fn get_sealed_sosk_with_referenced_key(
+    //     path: EntryPath,
+    //     storer: MockStorer,
+    // ) -> Entry<SodiumOxideSymmetricKey> {
+    //     let sosk = get_sosk();
+    //     let encryption_key = get_sosk();
+    //     let algorithm = encryption_key
+    //         .to_byte_algorithm(Some(get_sosn()), |key| async move {
+    //             key.to_ref_entry(".encryptionkey.".to_owned(), storer)
+    //         })
+    //         .await
+    //         .unwrap();
+    //     sosk.to_sealed_entry(path, algorithm).await.unwrap()
+    // }
+
+    ///////////////////////////
+    /// SYMMETRIC KEY TESTS ///
+    ///////////////////////////
+
+    /// SYMMETRIC BYTE ALGORITHM - SEAL ///
     #[tokio::test]
-    async fn test_unseal_symmetrickeyunsealable_with_unsealed_key() {
-        let sosku = get_sosku_with_unsealed_key(b"hello, world!");
-        let storer = MockStorer::new();
-        let source = sosku.unseal(&storer).await.unwrap();
-        let sdb = StringDataBuilder {};
-        let d = sdb.build(Some(source.get().unwrap())).unwrap();
-        assert_eq!(d.to_string(), "hello, world!".to_owned());
+    async fn test_seal_symmetricbytealgorithm_with_unsealed_key() {
+        let data = Data::String("hello, world!".to_owned());
+        let key = get_sosk();
+        let algorithm = key
+            .to_byte_algorithm(Some(get_sosn()), |key| async move {
+                key.to_unsealed_entry(".encryptionkey.".to_owned())
+            })
+            .await
+            .unwrap();
+        let ciphertext = algorithm.seal(&data.byte_source()).await.unwrap();
+        assert_eq!(
+            ciphertext.get().unwrap(),
+            get_sosk_ciphertext(b"hello, world!")
+        );
     }
 
     #[tokio::test]
-    async fn test_unseal_symmetrickeyunsealable_with_referenced_key() {
-        let sosku = get_sosku_with_referenced_key(b"hello, world!", ".keys.default.");
+    async fn test_seal_symmetricbytealgorithm_with_referenced_key() {
+        let data = Data::String("hello, world!".to_owned());
+        let unsealed_key = get_sosk()
+            .to_unsealed_entry(".encryptionkey.".to_owned())
+            .unwrap();
         let mut storer = MockStorer::new();
         storer
-            .expect_get_indexed::<SodiumOxideSymmetricKey>()
-            .withf(|path: &str, index: &Option<Document>| {
-                path == ".keys.default." && *index == Some(bson::doc! { "c": { "builder": { "t": "Key", "c": { "t": "Symmetric", "c": { "t": "SodiumOxide" } } } } })
+            .expect_private_get_indexed::<SodiumOxideSymmetricKey>()
+            .withf(|path, index| {
+                path == ".encryptionkey." && index == &SodiumOxideSymmetricKey::get_index()
             })
-            .returning(move |path, _| {
-                Ok(Entry {
-                    path: path.to_owned(),
-                    value: get_unsealed_sosk(),
-                })
-            });
-        let source = sosku.unseal(&storer).await.unwrap();
-        let sdb = StringDataBuilder {};
-        let d = sdb.build(Some(source.get().unwrap())).unwrap();
-        assert_eq!(d.to_string(), "hello, world!".to_owned());
+            .return_once(move |_, _| Ok(unsealed_key));
+        let ref_key = get_sosk()
+            .to_ref_entry(".encryptionkey.".to_owned(), storer)
+            .unwrap();
+        let algorithm = ref_key
+            .to_symmetric_byte_algorithm(Some(get_sosn()))
+            .await
+            .unwrap();
+        let ciphertext = algorithm.seal(&data.byte_source()).await.unwrap();
+        assert_eq!(
+            ciphertext.get().unwrap(),
+            get_sosk_ciphertext(b"hello, world!")
+        );
     }
 
+    #[tokio::test]
+    async fn test_seal_symmetricbytealgorithm_with_sealed_key_with_unsealed_decryption_key() {
+        let data = Data::String("hello, world!".to_owned());
+        let key = get_sosk();
+        let key_encryption_key = get_sosk();
+        let key_encryption_algorithm = key_encryption_key
+            .to_byte_algorithm(Some(get_sosn()), |key| async move {
+                key.to_unsealed_entry(".keyencryptionkey.".to_owned())
+            })
+            .await
+            .unwrap();
+        let algorithm = key
+            .to_byte_algorithm(Some(get_sosn()), |key| async move {
+                key.to_sealed_entry(".encryptionkey.".to_owned(), key_encryption_algorithm)
+                    .await
+            })
+            .await
+            .unwrap();
+        let ciphertext = algorithm.seal(&data.byte_source()).await.unwrap();
+        assert_eq!(
+            ciphertext.get().unwrap(),
+            get_sosk_ciphertext(b"hello, world!")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_seal_symmetricbytealgorithm_with_sealed_key_with_referenced_decryption_key() {
+        let unsealed_key_encryption_key = get_sosk()
+            .to_unsealed_entry(".keyencryptionkey.".to_owned())
+            .unwrap();
+        let mut storer = MockStorer::new();
+        storer
+            .expect_private_get_indexed::<SodiumOxideSymmetricKey>()
+            .withf(|path, index| {
+                path == ".keyencryptionkey." && index == &SodiumOxideSymmetricKey::get_index()
+            })
+            .return_once(move |_, _| Ok(unsealed_key_encryption_key));
+        let data = Data::String("hello, world!".to_owned());
+        let key = get_sosk();
+        let referenced_key_encryption_key = get_sosk()
+            .to_ref_entry(".keyencryptionkey.".to_owned(), storer)
+            .unwrap();
+        let key_encryption_algorithm = referenced_key_encryption_key
+            .to_symmetric_byte_algorithm(Some(get_sosn()))
+            .await
+            .unwrap();
+        let algorithm = key
+            .to_byte_algorithm(Some(get_sosn()), |key| async move {
+                key.to_sealed_entry(".encryptionkey.".to_owned(), key_encryption_algorithm)
+                    .await
+            })
+            .await
+            .unwrap();
+        let ciphertext = algorithm.seal(&data.byte_source()).await.unwrap();
+        assert_eq!(
+            ciphertext.get().unwrap(),
+            get_sosk_ciphertext(b"hello, world!")
+        );
+    }
+
+    /// SYMMETRIC BYTE ALGORITHM - UNSEAL ///
+    #[tokio::test]
+    async fn test_unseal_symmetricbytealgorithm_with_unsealed_key() {
+        let data = Data::String("hello, world!".to_owned());
+        let key = get_sosk();
+        let algorithm = key
+            .to_byte_algorithm(Some(get_sosn()), |key| async move {
+                key.to_unsealed_entry(".encryptionkey.".to_owned())
+            })
+            .await
+            .unwrap();
+        let ciphertext = get_sosk_ciphertext(data.byte_source().get().unwrap());
+        let plaintext = algorithm
+            .unseal(&ByteSource::Vector(
+                AsRef::<[u8]>::as_ref(&ciphertext).into(),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(data.byte_source().get().unwrap(), plaintext.get().unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_unseal_symmetricbytealgorithm_with_referenced_key() {
+        let data = Data::String("hello, world!".to_owned());
+        let unsealed_key = get_sosk()
+            .to_unsealed_entry(".encryptionkey.".to_owned())
+            .unwrap();
+        let mut storer = MockStorer::new();
+        storer
+            .expect_private_get_indexed::<SodiumOxideSymmetricKey>()
+            .withf(|path, index| {
+                path == ".encryptionkey." && index == &SodiumOxideSymmetricKey::get_index()
+            })
+            .return_once(move |_, _| Ok(unsealed_key));
+        let ref_key = get_sosk()
+            .to_ref_entry(".encryptionkey.".to_owned(), storer)
+            .unwrap();
+        let algorithm = ref_key
+            .to_symmetric_byte_algorithm(Some(get_sosn()))
+            .await
+            .unwrap();
+        let ciphertext = get_sosk_ciphertext(data.byte_source().get().unwrap());
+        let plaintext = algorithm
+            .unseal(&ByteSource::Vector(
+                AsRef::<[u8]>::as_ref(&ciphertext).into(),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(data.byte_source().get().unwrap(), plaintext.get().unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_unseal_symmetricbytealgorithm_with_sealed_key_with_unsealed_decryption_key() {
+        let data = Data::String("hello, world!".to_owned());
+        let key = get_sosk();
+        let key_encryption_key = get_sosk();
+        let key_encryption_algorithm = key_encryption_key
+            .to_byte_algorithm(Some(get_sosn()), |key| async move {
+                key.to_unsealed_entry(".keyencryptionkey.".to_owned())
+            })
+            .await
+            .unwrap();
+        let algorithm = key
+            .to_byte_algorithm(Some(get_sosn()), |key| async move {
+                key.to_sealed_entry(".encryptionkey.".to_owned(), key_encryption_algorithm)
+                    .await
+            })
+            .await
+            .unwrap();
+        let ciphertext = get_sosk_ciphertext(data.byte_source().get().unwrap());
+        let plaintext = algorithm
+            .unseal(&ByteSource::Vector(
+                AsRef::<[u8]>::as_ref(&ciphertext).into(),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(data.byte_source().get().unwrap(), plaintext.get().unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_unseal_symmetricbytealgorithm_with_sealed_key_with_referenced_decryption_key() {
+        let unsealed_key_encryption_key = get_sosk()
+            .to_unsealed_entry(".keyencryptionkey.".to_owned())
+            .unwrap();
+        let mut storer = MockStorer::new();
+        storer
+            .expect_private_get_indexed::<SodiumOxideSymmetricKey>()
+            .withf(|path, index| {
+                path == ".keyencryptionkey." && index == &SodiumOxideSymmetricKey::get_index()
+            })
+            .return_once(move |_, _| Ok(unsealed_key_encryption_key));
+        let data = Data::String("hello, world!".to_owned());
+        let key = get_sosk();
+        let referenced_key_encryption_key = get_sosk()
+            .to_ref_entry(".keyencryptionkey.".to_owned(), storer)
+            .unwrap();
+        let key_encryption_algorithm = referenced_key_encryption_key
+            .to_symmetric_byte_algorithm(Some(get_sosn()))
+            .await
+            .unwrap();
+        let algorithm = key
+            .to_byte_algorithm(Some(get_sosn()), |key| async move {
+                key.to_sealed_entry(".encryptionkey.".to_owned(), key_encryption_algorithm)
+                    .await
+            })
+            .await
+            .unwrap();
+        let ciphertext = get_sosk_ciphertext(data.byte_source().get().unwrap());
+        let plaintext = algorithm
+            .unseal(&ByteSource::Vector(
+                AsRef::<[u8]>::as_ref(&ciphertext).into(),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(data.byte_source().get().unwrap(), plaintext.get().unwrap());
+    }
+
+    /// SYMMETRIC KEY - BUILDER ///
     #[test]
     fn test_sodiumoxidesymmetrickeybuilder_build_valid() {
         let soskb = SodiumOxideSymmetricKeyBuilder {};
@@ -1484,6 +1405,7 @@ mod tests {
         let _: SodiumOxideSymmetricKeyBuilder = tbc.try_into().unwrap();
     }
 
+    /// SYMMETRIC KEY - SEAL AND UNSEAL ///
     #[test]
     fn test_seal_symmetrickey() {
         let plaintext = "hello, world!".into();
@@ -1558,93 +1480,307 @@ mod tests {
     /// SECRET ASYMMETRIC KEY TESTS ///
     ///////////////////////////////////
 
-    // #[tokio::test]
-    // async fn test_seal_secretasymmetrickeysealable_with_unsealed_key() {
-    //     let sosaks = get_sosaks_with_unsealed_key(b"hello, world!", None);
-    //     let storer = MockStorer::new();
-    //     let ciphertext = sosaks.seal(storer).await.unwrap();
-    //     assert_eq!(
-    //         ciphertext.get_source().get().unwrap(),
-    //         get_sosak_ciphertext(b"hello, world!", None)
-    //     );
-    // }
-
-    // #[tokio::test]
-    // async fn test_seal_secretasymmetrickeysealable_with_separate_public_key() {
-    //     let (other_sopak, _) = SodiumOxideCurve25519PublicAsymmetricKey::new();
-    //     let sosaks = get_sosaks_with_unsealed_key(b"hello, world!", Some(other_sopak.clone()));
-    //     let storer = MockStorer::new();
-    //     let ciphertext = sosaks.seal(storer).await.unwrap();
-    //     assert_eq!(
-    //         ciphertext.get_source().get().unwrap(),
-    //         get_sosak_ciphertext(b"hello, world!", Some(other_sopak))
-    //     );
-    // }
-
-    // #[tokio::test]
-    // async fn test_seal_secretasymmetrickeysealable_with_referenced_key() {
-    //     let sosaks = get_sosaks_with_referenced_key(b"hello, world!", None, ".keys.default.");
-    //     let mut storer = MockStorer::new();
-    //     storer
-    //         .expect_get_indexed::<SodiumOxideCurve25519SecretAsymmetricKey>()
-    //         .withf(|path: &str, index: &Option<Document>| {
-    //             path == ".keys.default."
-    //                 && *index == SodiumOxideCurve25519SecretAsymmetricKey::get_index()
-    //         })
-    //         .returning(|path, _| {
-    //             Ok(Entry {
-    //                 path: path.to_owned(),
-    //                 value: get_unsealed_sosak(),
-    //             })
-    //         });
-    //     let ciphertext = sosaks.seal(storer).await.unwrap();
-    //     assert_eq!(
-    //         ciphertext.get_source().get().unwrap(),
-    //         get_sosak_ciphertext(b"hello, world!", None)
-    //     );
-    // }
-
+    /// SECRET ASYMMETRIC BYTE ALGORITHM - SEAL ///
     #[tokio::test]
-    async fn test_unseal_secretasymmetrickeyunsealable_with_unsealed_key() {
-        let sosaku = get_sosaku_with_unsealed_key(b"hello, world!", None);
-        let storer = MockStorer::new();
-        let source = sosaku.unseal(&storer).await.unwrap();
-        let sdb = StringDataBuilder {};
-        let d = sdb.build(Some(source.get().unwrap())).unwrap();
-        assert_eq!(d.to_string(), "hello, world!".to_owned());
+    async fn test_seal_secretasymmetricbytealgorithm_with_unsealed_key() {
+        let data = Data::String("hello, world!".to_owned());
+        let alice_key = get_sosak()
+            .to_unsealed_entry(".alicesecretkey.".to_owned())
+            .unwrap();
+        let bob_key = SodiumOxideCurve25519SecretAsymmetricKey::new()
+            .public_key()
+            .unwrap()
+            .to_unsealed_entry(".bobpublickey.".to_owned())
+            .unwrap();
+        let bob_key_bytes = bob_key.resolve().await.unwrap().byte_source();
+        let algorithm = alice_key
+            .to_secret_asymmetric_byte_algorithm(Some(bob_key), Some(get_soan()))
+            .await
+            .unwrap();
+        let ciphertext = algorithm.seal(&data.byte_source()).await.unwrap();
+        let bob_key_copy = SodiumOxideCurve25519PublicAsymmetricKeyBuilder {}
+            .build(Some(bob_key_bytes.get().unwrap()))
+            .unwrap();
+        assert_eq!(
+            ciphertext.get().unwrap(),
+            get_sosak_ciphertext(b"hello, world!", &Some(bob_key_copy))
+        );
     }
 
     #[tokio::test]
-    async fn test_unseal_secretasymmetrickeyunsealable_with_separate_public_key() {
-        let (other_sopak, _) = SodiumOxideCurve25519PublicAsymmetricKey::new();
-        let sosaku = get_sosaku_with_unsealed_key(b"hello, world!", Some(other_sopak));
-        let storer = MockStorer::new();
-        let ciphertext = sosaku.unseal(&storer).await.unwrap();
-        assert_eq!(ciphertext.get().unwrap(), b"hello, world!",);
-    }
-
-    #[tokio::test]
-    async fn test_unseal_secretasymmetrickeyunsealable_with_referenced_key() {
-        let sosaku = get_sosaku_with_referenced_key(b"hello, world!", None, ".keys.default.");
+    async fn test_seal_secretasymmetricbytealgorithm_with_referenced_key() {
+        let data = Data::String("hello, world!".to_owned());
+        let unsealed_alice_key = get_sosak()
+            .to_unsealed_entry(".alicesecretkey.".to_owned())
+            .unwrap();
+        let unsealed_bob_key = SodiumOxideCurve25519SecretAsymmetricKey::new()
+            .public_key()
+            .unwrap()
+            .to_unsealed_entry(".bobpublickey.".to_owned())
+            .unwrap();
+        let bob_key_bytes = unsealed_bob_key.resolve().await.unwrap().byte_source();
         let mut storer = MockStorer::new();
         storer
-            .expect_get_indexed::<SodiumOxideCurve25519SecretAsymmetricKey>()
-            .withf(|path: &str, index: &Option<Document>| {
-                path == ".keys.default."
-                    && *index == SodiumOxideCurve25519SecretAsymmetricKey::get_index()
+            .expect_private_get_indexed::<SodiumOxideCurve25519SecretAsymmetricKey>()
+            .withf(|path, index| {
+                path == ".alicesecretkey."
+                    && index == &SodiumOxideCurve25519SecretAsymmetricKey::get_index()
             })
-            .returning(|path, _| {
-                Ok(Entry {
-                    path: path.to_owned(),
-                    value: get_unsealed_sosak(),
-                })
-            });
-        let source = sosaku.unseal(&storer).await.unwrap();
-        let sdb = StringDataBuilder {};
-        let d = sdb.build(Some(source.get().unwrap())).unwrap();
-        assert_eq!(d.to_string(), "hello, world!".to_owned());
+            .return_once(move |_, _| Ok(unsealed_alice_key));
+        let ref_alice_key = get_sosak()
+            .to_ref_entry(".alicesecretkey.".to_owned(), storer)
+            .unwrap();
+        let algorithm = ref_alice_key
+            .to_secret_asymmetric_byte_algorithm(Some(unsealed_bob_key), Some(get_soan()))
+            .await
+            .unwrap();
+        let ciphertext = algorithm.seal(&data.byte_source()).await.unwrap();
+        let bob_key_copy = SodiumOxideCurve25519PublicAsymmetricKeyBuilder {}
+            .build(Some(bob_key_bytes.get().unwrap()))
+            .unwrap();
+        assert_eq!(
+            ciphertext.get().unwrap(),
+            get_sosak_ciphertext(b"hello, world!", &Some(bob_key_copy))
+        );
     }
 
+    #[tokio::test]
+    async fn test_seal_secretasymmetricbytealgorithm_with_sealed_key_with_unsealed_decryption_key()
+    {
+        let data = Data::String("hello, world!".to_owned());
+        let alice_decryption_key = get_sosk()
+            .to_unsealed_entry(".alicedecryptionkey.".to_owned())
+            .unwrap();
+        let alice_decryption_algorithm = alice_decryption_key
+            .to_symmetric_byte_algorithm(Some(get_sosn()))
+            .await
+            .unwrap();
+        let alice_key = get_sosak()
+            .to_sealed_entry(".alicesecretkey.".to_owned(), alice_decryption_algorithm)
+            .await
+            .unwrap();
+        let bob_key = SodiumOxideCurve25519SecretAsymmetricKey::new()
+            .public_key()
+            .unwrap()
+            .to_unsealed_entry(".bobpublickey.".to_owned())
+            .unwrap();
+        let bob_key_bytes = bob_key.resolve().await.unwrap().byte_source();
+        let algorithm = alice_key
+            .to_secret_asymmetric_byte_algorithm(Some(bob_key), Some(get_soan()))
+            .await
+            .unwrap();
+        let ciphertext = algorithm.seal(&data.byte_source()).await.unwrap();
+        let bob_key_copy = SodiumOxideCurve25519PublicAsymmetricKeyBuilder {}
+            .build(Some(bob_key_bytes.get().unwrap()))
+            .unwrap();
+        assert_eq!(
+            ciphertext.get().unwrap(),
+            get_sosak_ciphertext(b"hello, world!", &Some(bob_key_copy))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_seal_secretasymmetricbytealgorithm_with_sealed_key_with_referenced_decryption_key(
+    ) {
+        let data = Data::String("hello, world!".to_owned());
+        let unsealed_alice_decryption_key = get_sosk()
+            .to_unsealed_entry(".alicedecryptionkey.".to_owned())
+            .unwrap();
+        let mut storer = MockStorer::new();
+        storer
+            .expect_private_get_indexed::<SodiumOxideSymmetricKey>()
+            .withf(|path, index| {
+                path == ".alicedecryptionkey." && index == &SodiumOxideSymmetricKey::get_index()
+            })
+            .return_once(move |_, _| Ok(unsealed_alice_decryption_key));
+        let ref_alice_decryption_key = get_sosk()
+            .to_ref_entry(".alicedecryptionkey.".to_owned(), storer)
+            .unwrap();
+        let alice_decryption_algorithm = ref_alice_decryption_key
+            .to_symmetric_byte_algorithm(Some(get_sosn()))
+            .await
+            .unwrap();
+        let sealed_alice_key = get_sosak()
+            .to_sealed_entry(".alicesecretkey.".to_owned(), alice_decryption_algorithm)
+            .await
+            .unwrap();
+        let unsealed_bob_key = SodiumOxideCurve25519SecretAsymmetricKey::new()
+            .public_key()
+            .unwrap()
+            .to_unsealed_entry(".bobpublickey.".to_owned())
+            .unwrap();
+        let bob_key_bytes = unsealed_bob_key.resolve().await.unwrap().byte_source();
+        let algorithm = sealed_alice_key
+            .to_secret_asymmetric_byte_algorithm(Some(unsealed_bob_key), Some(get_soan()))
+            .await
+            .unwrap();
+        let ciphertext = algorithm.seal(&data.byte_source()).await.unwrap();
+        let bob_key_copy = SodiumOxideCurve25519PublicAsymmetricKeyBuilder {}
+            .build(Some(bob_key_bytes.get().unwrap()))
+            .unwrap();
+        assert_eq!(
+            ciphertext.get().unwrap(),
+            get_sosak_ciphertext(b"hello, world!", &Some(bob_key_copy))
+        );
+    }
+
+    /// SECRET ASYMMETRIC BYTE ALGORITHM - UNSEAL ///
+    #[tokio::test]
+    async fn test_unseal_secretasymmetricbytealgorithm_with_unsealed_key() {
+        let data = Data::String("hello, world!".to_owned());
+        let alice_key = get_sosak()
+            .to_unsealed_entry(".alicesecretkey.".to_owned())
+            .unwrap();
+        let bob_key = SodiumOxideCurve25519SecretAsymmetricKey::new()
+            .public_key()
+            .unwrap()
+            .to_unsealed_entry(".bobpublickey.".to_owned())
+            .unwrap();
+        let bob_key_bytes = bob_key.resolve().await.unwrap().byte_source();
+        let bob_key_copy = SodiumOxideCurve25519PublicAsymmetricKeyBuilder {}
+            .build(Some(bob_key_bytes.get().unwrap()))
+            .unwrap();
+        let ciphertext = get_sosak_ciphertext(b"hello, world!", &Some(bob_key_copy));
+        let algorithm = alice_key
+            .to_secret_asymmetric_byte_algorithm(Some(bob_key), Some(get_soan()))
+            .await
+            .unwrap();
+        let plaintext = algorithm
+            .unseal(&ByteSource::Vector(
+                AsRef::<[u8]>::as_ref(&ciphertext).into(),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(data.byte_source().get().unwrap(), plaintext.get().unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_unseal_secretasymmetricbytealgorithm_with_referenced_key() {
+        let data = Data::String("hello, world!".to_owned());
+        let unsealed_alice_key = get_sosak()
+            .to_unsealed_entry(".alicesecretkey.".to_owned())
+            .unwrap();
+        let unsealed_bob_key = SodiumOxideCurve25519SecretAsymmetricKey::new()
+            .public_key()
+            .unwrap()
+            .to_unsealed_entry(".bobpublickey.".to_owned())
+            .unwrap();
+        let bob_key_bytes = unsealed_bob_key.resolve().await.unwrap().byte_source();
+        let bob_key_copy = SodiumOxideCurve25519PublicAsymmetricKeyBuilder {}
+            .build(Some(bob_key_bytes.get().unwrap()))
+            .unwrap();
+        let mut storer = MockStorer::new();
+        storer
+            .expect_private_get_indexed::<SodiumOxideCurve25519SecretAsymmetricKey>()
+            .withf(|path, index| {
+                path == ".alicesecretkey."
+                    && index == &SodiumOxideCurve25519SecretAsymmetricKey::get_index()
+            })
+            .return_once(move |_, _| Ok(unsealed_alice_key));
+        let ref_alice_key = get_sosak()
+            .to_ref_entry(".alicesecretkey.".to_owned(), storer)
+            .unwrap();
+        let ciphertext = get_sosak_ciphertext(b"hello, world!", &Some(bob_key_copy));
+        let algorithm = ref_alice_key
+            .to_secret_asymmetric_byte_algorithm(Some(unsealed_bob_key), Some(get_soan()))
+            .await
+            .unwrap();
+        let plaintext = algorithm
+            .unseal(&ByteSource::Vector(
+                AsRef::<[u8]>::as_ref(&ciphertext).into(),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(data.byte_source().get().unwrap(), plaintext.get().unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_unseal_secretasymmetricbytealgorithm_with_sealed_key_with_unsealed_decryption_key(
+    ) {
+        let data = Data::String("hello, world!".to_owned());
+        let alice_decryption_key = get_sosk()
+            .to_unsealed_entry(".alicedecryptionkey.".to_owned())
+            .unwrap();
+        let alice_decryption_algorithm = alice_decryption_key
+            .to_symmetric_byte_algorithm(Some(get_sosn()))
+            .await
+            .unwrap();
+        let alice_key = get_sosak()
+            .to_sealed_entry(".alicesecretkey.".to_owned(), alice_decryption_algorithm)
+            .await
+            .unwrap();
+        let bob_key = SodiumOxideCurve25519SecretAsymmetricKey::new()
+            .public_key()
+            .unwrap()
+            .to_unsealed_entry(".bobpublickey.".to_owned())
+            .unwrap();
+        let bob_key_bytes = bob_key.resolve().await.unwrap().byte_source();
+        let bob_key_copy = SodiumOxideCurve25519PublicAsymmetricKeyBuilder {}
+            .build(Some(bob_key_bytes.get().unwrap()))
+            .unwrap();
+        let ciphertext = get_sosak_ciphertext(b"hello, world!", &Some(bob_key_copy));
+        let algorithm = alice_key
+            .to_secret_asymmetric_byte_algorithm(Some(bob_key), Some(get_soan()))
+            .await
+            .unwrap();
+        let plaintext = algorithm
+            .unseal(&ByteSource::Vector(
+                AsRef::<[u8]>::as_ref(&ciphertext).into(),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(data.byte_source().get().unwrap(), plaintext.get().unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_unseal_secretasymmetricbytealgorithm_with_sealed_key_with_referenced_decryption_key(
+    ) {
+        let data = Data::String("hello, world!".to_owned());
+        let unsealed_alice_decryption_key = get_sosk()
+            .to_unsealed_entry(".alicedecryptionkey.".to_owned())
+            .unwrap();
+        let mut storer = MockStorer::new();
+        storer
+            .expect_private_get_indexed::<SodiumOxideSymmetricKey>()
+            .withf(|path, index| {
+                path == ".alicedecryptionkey." && index == &SodiumOxideSymmetricKey::get_index()
+            })
+            .return_once(move |_, _| Ok(unsealed_alice_decryption_key));
+        let ref_alice_decryption_key = get_sosk()
+            .to_ref_entry(".alicedecryptionkey.".to_owned(), storer)
+            .unwrap();
+        let alice_decryption_algorithm = ref_alice_decryption_key
+            .to_symmetric_byte_algorithm(Some(get_sosn()))
+            .await
+            .unwrap();
+        let sealed_alice_key = get_sosak()
+            .to_sealed_entry(".alicesecretkey.".to_owned(), alice_decryption_algorithm)
+            .await
+            .unwrap();
+        let unsealed_bob_key = SodiumOxideCurve25519SecretAsymmetricKey::new()
+            .public_key()
+            .unwrap()
+            .to_unsealed_entry(".bobpublickey.".to_owned())
+            .unwrap();
+        let bob_key_bytes = unsealed_bob_key.resolve().await.unwrap().byte_source();
+        let bob_key_copy = SodiumOxideCurve25519PublicAsymmetricKeyBuilder {}
+            .build(Some(bob_key_bytes.get().unwrap()))
+            .unwrap();
+        let ciphertext = get_sosak_ciphertext(b"hello, world!", &Some(bob_key_copy));
+        let algorithm = sealed_alice_key
+            .to_secret_asymmetric_byte_algorithm(Some(unsealed_bob_key), Some(get_soan()))
+            .await
+            .unwrap();
+        let plaintext = algorithm
+            .unseal(&ByteSource::Vector(
+                AsRef::<[u8]>::as_ref(&ciphertext).into(),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(data.byte_source().get().unwrap(), plaintext.get().unwrap(),);
+    }
+
+    /// SECRET ASYMMETRIC KEY - BUILDER \\\
     #[test]
     fn test_sodiumoxidesecretasymmetrickeybuilder_build_valid() {
         let sosakb = SodiumOxideCurve25519SecretAsymmetricKeyBuilder {};
@@ -1679,6 +1815,7 @@ mod tests {
         let _: SodiumOxideCurve25519SecretAsymmetricKeyBuilder = tbc.try_into().unwrap();
     }
 
+    /// SECRET ASYMMETRIC KEY - SEAL AND UNSEAL ///
     #[test]
     fn test_seal_secretasymmetrickey_with_non_referenced_key() {
         let plaintext = "hello, world!".into();
@@ -1756,93 +1893,302 @@ mod tests {
     ///////////////////////////////////
     /// PUBLIC ASYMMETRIC KEY TESTS ///
     ///////////////////////////////////
-    // #[tokio::test]
-    // async fn test_seal_publicasymmetrickeysealable_with_unsealed_key() {
-    //     let sopaks = get_sopaks_with_unsealed_key(b"hello, world!", None);
-    //     let storer = MockStorer::new();
-    //     let ciphertext = sopaks.seal(storer).await.unwrap();
-    //     assert_eq!(
-    //         ciphertext.get_source().get().unwrap(),
-    //         get_sopak_ciphertext(b"hello, world!", None)
-    //     );
-    // }
 
-    // #[tokio::test]
-    // async fn test_seal_publicasymmetrickeysealable_with_separate_secret_key() {
-    //     let (_, other_sosak) = SodiumOxideCurve25519PublicAsymmetricKey::new();
-    //     let sopaks = get_sopaks_with_unsealed_key(b"hello, world!", Some(&other_sosak));
-    //     let storer = MockStorer::new();
-    //     let ciphertext = sopaks.seal(storer).await.unwrap();
-    //     assert_eq!(
-    //         ciphertext.get_source().get().unwrap(),
-    //         get_sopak_ciphertext(b"hello, world!", Some(&other_sosak))
-    //     );
-    // }
-
-    // #[tokio::test]
-    // async fn test_seal_publicasymmetrickeysealable_with_referenced_key() {
-    //     let sopaks = get_sopaks_with_referenced_key(b"hello, world!", None, ".keys.default.");
-    //     let mut storer = MockStorer::new();
-    //     storer
-    //         .expect_get_indexed::<SodiumOxideCurve25519PublicAsymmetricKey>()
-    //         .withf(|path: &str, index: &Option<Document>| {
-    //             path == ".keys.default."
-    //                 && *index == SodiumOxideCurve25519PublicAsymmetricKey::get_index()
-    //         })
-    //         .returning(|path, _| {
-    //             Ok(Entry {
-    //                 path: path.to_owned(),
-    //                 value: get_unsealed_sopak(),
-    //             })
-    //         });
-    //     let ciphertext = sopaks.seal(storer).await.unwrap();
-    //     assert_eq!(
-    //         ciphertext.get_source().get().unwrap(),
-    //         get_sopak_ciphertext(b"hello, world!", None)
-    //     );
-    // }
-
+    /// PUBLIC ASYMMETRIC BYTE ALGORITHM - SEAL ///
     #[tokio::test]
-    async fn test_unseal_publicasymmetrickeyunsealable_with_unsealed_key() {
-        let sopaku = get_sopaku_with_unsealed_key(b"hello, world!", None);
-        let storer = MockStorer::new();
-        let source = sopaku.unseal(&storer).await.unwrap();
-        let sdb = StringDataBuilder {};
-        let d = sdb.build(Some(source.get().unwrap())).unwrap();
-        assert_eq!(d.to_string(), "hello, world!".to_owned());
+    async fn test_seal_publicasymmetricbytealgorithm_with_unsealed_key() {
+        let data = Data::String("hello, world!".to_owned());
+        let (alice_public_key, _) = get_sopak();
+        let unsealed_alice_public_key = alice_public_key
+            .to_unsealed_entry(".alicepublickey.".to_owned())
+            .unwrap();
+        let bob_key = SodiumOxideCurve25519SecretAsymmetricKey::new()
+            .to_unsealed_entry(".bobsecretkey.".to_owned())
+            .unwrap();
+        let bob_key_bytes = bob_key.resolve().await.unwrap().byte_source();
+        let algorithm = unsealed_alice_public_key
+            .to_public_asymmetric_byte_algorithm(bob_key, Some(get_soan()))
+            .await
+            .unwrap();
+        let ciphertext = algorithm.seal(&data.byte_source()).await.unwrap();
+        let bob_key_copy = SodiumOxideCurve25519SecretAsymmetricKeyBuilder {}
+            .build(Some(bob_key_bytes.get().unwrap()))
+            .unwrap();
+        assert_eq!(
+            ciphertext.get().unwrap(),
+            get_sopak_ciphertext(b"hello, world!", Some(&bob_key_copy))
+        );
     }
 
     #[tokio::test]
-    async fn test_unseal_publicasymmetrickeyunsealable_with_separate_public_key() {
-        let (_, other_sosak) = SodiumOxideCurve25519PublicAsymmetricKey::new();
-        let sopaku = get_sopaku_with_unsealed_key(b"hello, world!", Some(&other_sosak));
-        let storer = MockStorer::new();
-        let ciphertext = sopaku.unseal(&storer).await.unwrap();
-        assert_eq!(ciphertext.get().unwrap(), b"hello, world!",);
-    }
-
-    #[tokio::test]
-    async fn test_unseal_publicasymmetrickeyunsealable_with_referenced_key() {
-        let sopaku = get_sopaku_with_referenced_key(b"hello, world!", None, ".keys.default.");
+    async fn test_seal_publicasymmetricbytealgorithm_with_referenced_key() {
+        let data = Data::String("hello, world!".to_owned());
+        let (alice_public_key, _) = get_sopak();
+        let unsealed_alice_public_key = alice_public_key
+            .to_unsealed_entry(".alicepublickey.".to_owned())
+            .unwrap();
+        let unsealed_bob_key = SodiumOxideCurve25519SecretAsymmetricKey::new()
+            .to_unsealed_entry(".bobsecretkey.".to_owned())
+            .unwrap();
+        let bob_key_bytes = unsealed_bob_key.resolve().await.unwrap().byte_source();
         let mut storer = MockStorer::new();
         storer
-            .expect_get_indexed::<SodiumOxideCurve25519PublicAsymmetricKey>()
-            .withf(|path: &str, index: &Option<Document>| {
-                path == ".keys.default."
-                    && *index == SodiumOxideCurve25519PublicAsymmetricKey::get_index()
+            .expect_private_get_indexed::<SodiumOxideCurve25519PublicAsymmetricKey>()
+            .withf(|path, index| {
+                path == ".alicepublickey."
+                    && index == &SodiumOxideCurve25519PublicAsymmetricKey::get_index()
             })
-            .returning(|path, _| {
-                Ok(Entry {
-                    path: path.to_owned(),
-                    value: get_unsealed_sopak(),
-                })
-            });
-        let source = sopaku.unseal(&storer).await.unwrap();
-        let sdb = StringDataBuilder {};
-        let d = sdb.build(Some(source.get().unwrap())).unwrap();
-        assert_eq!(d.to_string(), "hello, world!".to_owned());
+            .return_once(move |_, _| Ok(unsealed_alice_public_key));
+        let (alice_public_key, _) = get_sopak();
+        let ref_alice_public_key = alice_public_key
+            .to_ref_entry(".alicepublickey.".to_owned(), storer)
+            .unwrap();
+        let algorithm = ref_alice_public_key
+            .to_public_asymmetric_byte_algorithm(unsealed_bob_key, Some(get_soan()))
+            .await
+            .unwrap();
+        let ciphertext = algorithm.seal(&data.byte_source()).await.unwrap();
+        let bob_key_copy = SodiumOxideCurve25519SecretAsymmetricKeyBuilder {}
+            .build(Some(bob_key_bytes.get().unwrap()))
+            .unwrap();
+        assert_eq!(
+            ciphertext.get().unwrap(),
+            get_sopak_ciphertext(b"hello, world!", Some(&bob_key_copy))
+        );
     }
 
+    #[tokio::test]
+    async fn test_seal_publicasymmetricbytealgorithm_with_sealed_key_with_unsealed_decryption_key()
+    {
+        let data = Data::String("hello, world!".to_owned());
+        let alice_decryption_key = get_sosk()
+            .to_unsealed_entry(".alicedecryptionkey.".to_owned())
+            .unwrap();
+        let alice_decryption_algorithm = alice_decryption_key
+            .to_symmetric_byte_algorithm(Some(get_sosn()))
+            .await
+            .unwrap();
+        let (alice_public_key, _) = get_sopak();
+        let sealed_alice_public_key = alice_public_key
+            .to_sealed_entry(".alicepublickey.".to_owned(), alice_decryption_algorithm)
+            .await
+            .unwrap();
+        let bob_key = SodiumOxideCurve25519SecretAsymmetricKey::new()
+            .to_unsealed_entry(".bobsecretkey.".to_owned())
+            .unwrap();
+        let bob_key_bytes = bob_key.resolve().await.unwrap().byte_source();
+        let algorithm = sealed_alice_public_key
+            .to_public_asymmetric_byte_algorithm(bob_key, Some(get_soan()))
+            .await
+            .unwrap();
+        let ciphertext = algorithm.seal(&data.byte_source()).await.unwrap();
+        let bob_key_copy = SodiumOxideCurve25519SecretAsymmetricKeyBuilder {}
+            .build(Some(bob_key_bytes.get().unwrap()))
+            .unwrap();
+        assert_eq!(
+            ciphertext.get().unwrap(),
+            get_sopak_ciphertext(b"hello, world!", Some(&bob_key_copy))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_seal_publicasymmetricbytealgorithm_with_sealed_key_with_referenced_decryption_key(
+    ) {
+        let data = Data::String("hello, world!".to_owned());
+        let unsealed_alice_decryption_key = get_sosk()
+            .to_unsealed_entry(".alicedecryptionkey.".to_owned())
+            .unwrap();
+        let mut storer = MockStorer::new();
+        storer
+            .expect_private_get_indexed::<SodiumOxideSymmetricKey>()
+            .withf(|path, index| {
+                path == ".alicedecryptionkey." && index == &SodiumOxideSymmetricKey::get_index()
+            })
+            .return_once(move |_, _| Ok(unsealed_alice_decryption_key));
+        let ref_alice_decryption_key = get_sosk()
+            .to_ref_entry(".alicedecryptionkey.".to_owned(), storer)
+            .unwrap();
+        let alice_decryption_algorithm = ref_alice_decryption_key
+            .to_symmetric_byte_algorithm(Some(get_sosn()))
+            .await
+            .unwrap();
+        let (alice_public_key, _) = get_sopak();
+        let sealed_alice_public_key = alice_public_key
+            .to_sealed_entry(".alicepublickey.".to_owned(), alice_decryption_algorithm)
+            .await
+            .unwrap();
+        let unsealed_bob_key = SodiumOxideCurve25519SecretAsymmetricKey::new()
+            .to_unsealed_entry(".bobsecretkey.".to_owned())
+            .unwrap();
+        let bob_key_bytes = unsealed_bob_key.resolve().await.unwrap().byte_source();
+        let algorithm = sealed_alice_public_key
+            .to_public_asymmetric_byte_algorithm(unsealed_bob_key, Some(get_soan()))
+            .await
+            .unwrap();
+        let ciphertext = algorithm.seal(&data.byte_source()).await.unwrap();
+        let bob_key_copy = SodiumOxideCurve25519SecretAsymmetricKeyBuilder {}
+            .build(Some(bob_key_bytes.get().unwrap()))
+            .unwrap();
+        assert_eq!(
+            ciphertext.get().unwrap(),
+            get_sopak_ciphertext(b"hello, world!", Some(&bob_key_copy))
+        );
+    }
+
+    /// PUBLIC ASYMMETRIC BYTE ALGORITHM - UNSEAL ///
+    #[tokio::test]
+    async fn test_unseal_publicasymmetricbytealgorithm_with_unsealed_key() {
+        let data = Data::String("hello, world!".to_owned());
+        let (alice_public_key, _) = get_sopak();
+        let unsealed_alice_public_key = alice_public_key
+            .to_unsealed_entry(".alicepublickey.".to_owned())
+            .unwrap();
+        let bob_key = SodiumOxideCurve25519SecretAsymmetricKey::new()
+            .to_unsealed_entry(".bobsecretkey.".to_owned())
+            .unwrap();
+        let bob_key_bytes = bob_key.resolve().await.unwrap().byte_source();
+        let bob_key_copy = SodiumOxideCurve25519SecretAsymmetricKeyBuilder {}
+            .build(Some(bob_key_bytes.get().unwrap()))
+            .unwrap();
+        let ciphertext = get_sopak_ciphertext(b"hello, world!", Some(&bob_key_copy));
+        let algorithm = unsealed_alice_public_key
+            .to_public_asymmetric_byte_algorithm(bob_key, Some(get_soan()))
+            .await
+            .unwrap();
+        let plaintext = algorithm
+            .unseal(&ByteSource::Vector(
+                AsRef::<[u8]>::as_ref(&ciphertext).into(),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(data.byte_source().get().unwrap(), plaintext.get().unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_unseal_publicasymmetricbytealgorithm_with_referenced_key() {
+        let data = Data::String("hello, world!".to_owned());
+        let (alice_public_key, _) = get_sopak();
+        let unsealed_alice_public_key = alice_public_key
+            .to_unsealed_entry(".alicepublickey.".to_owned())
+            .unwrap();
+        let unsealed_bob_key = SodiumOxideCurve25519SecretAsymmetricKey::new()
+            .to_unsealed_entry(".bobsecretkey.".to_owned())
+            .unwrap();
+        let bob_key_bytes = unsealed_bob_key.resolve().await.unwrap().byte_source();
+        let bob_key_copy = SodiumOxideCurve25519SecretAsymmetricKeyBuilder {}
+            .build(Some(bob_key_bytes.get().unwrap()))
+            .unwrap();
+        let mut storer = MockStorer::new();
+        storer
+            .expect_private_get_indexed::<SodiumOxideCurve25519PublicAsymmetricKey>()
+            .withf(|path, index| {
+                path == ".alicepublickey."
+                    && index == &SodiumOxideCurve25519PublicAsymmetricKey::get_index()
+            })
+            .return_once(move |_, _| Ok(unsealed_alice_public_key));
+        let (alice_public_key, _) = get_sopak();
+        let ref_alice_public_key = alice_public_key
+            .to_ref_entry(".alicepublickey.".to_owned(), storer)
+            .unwrap();
+        let ciphertext = get_sopak_ciphertext(b"hello, world!", Some(&bob_key_copy));
+        let algorithm = ref_alice_public_key
+            .to_public_asymmetric_byte_algorithm(unsealed_bob_key, Some(get_soan()))
+            .await
+            .unwrap();
+        let plaintext = algorithm
+            .unseal(&ByteSource::Vector(
+                AsRef::<[u8]>::as_ref(&ciphertext).into(),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(data.byte_source().get().unwrap(), plaintext.get().unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_unseal_publicasymmetricbytealgorithm_with_sealed_key_with_unsealed_decryption_key(
+    ) {
+        let data = Data::String("hello, world!".to_owned());
+        let alice_decryption_key = get_sosk()
+            .to_unsealed_entry(".alicedecryptionkey.".to_owned())
+            .unwrap();
+        let alice_decryption_algorithm = alice_decryption_key
+            .to_symmetric_byte_algorithm(Some(get_sosn()))
+            .await
+            .unwrap();
+        let (alice_public_key, _) = get_sopak();
+        let sealed_alice_public_key = alice_public_key
+            .to_sealed_entry(".alicepublickey.".to_owned(), alice_decryption_algorithm)
+            .await
+            .unwrap();
+        let bob_key = SodiumOxideCurve25519SecretAsymmetricKey::new()
+            .to_unsealed_entry(".bobsecretkey.".to_owned())
+            .unwrap();
+        let bob_key_bytes = bob_key.resolve().await.unwrap().byte_source();
+        let bob_key_copy = SodiumOxideCurve25519SecretAsymmetricKeyBuilder {}
+            .build(Some(bob_key_bytes.get().unwrap()))
+            .unwrap();
+        let ciphertext = get_sopak_ciphertext(b"hello, world!", Some(&bob_key_copy));
+        let algorithm = sealed_alice_public_key
+            .to_public_asymmetric_byte_algorithm(bob_key, Some(get_soan()))
+            .await
+            .unwrap();
+        let plaintext = algorithm
+            .unseal(&ByteSource::Vector(
+                AsRef::<[u8]>::as_ref(&ciphertext).into(),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(data.byte_source().get().unwrap(), plaintext.get().unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_unseal_publicasymmetricbytealgorithm_with_sealed_key_with_referenced_decryption_key(
+    ) {
+        let data = Data::String("hello, world!".to_owned());
+        let unsealed_alice_decryption_key = get_sosk()
+            .to_unsealed_entry(".alicedecryptionkey.".to_owned())
+            .unwrap();
+        let mut storer = MockStorer::new();
+        storer
+            .expect_private_get_indexed::<SodiumOxideSymmetricKey>()
+            .withf(|path, index| {
+                path == ".alicedecryptionkey." && index == &SodiumOxideSymmetricKey::get_index()
+            })
+            .return_once(move |_, _| Ok(unsealed_alice_decryption_key));
+        let ref_alice_decryption_key = get_sosk()
+            .to_ref_entry(".alicedecryptionkey.".to_owned(), storer)
+            .unwrap();
+        let alice_decryption_algorithm = ref_alice_decryption_key
+            .to_symmetric_byte_algorithm(Some(get_sosn()))
+            .await
+            .unwrap();
+        let (alice_public_key, _) = get_sopak();
+        let sealed_alice_key = alice_public_key
+            .to_sealed_entry(".alicepublickey.".to_owned(), alice_decryption_algorithm)
+            .await
+            .unwrap();
+        let unsealed_bob_key = SodiumOxideCurve25519SecretAsymmetricKey::new()
+            .to_unsealed_entry(".bobsecretkey.".to_owned())
+            .unwrap();
+        let bob_key_bytes = unsealed_bob_key.resolve().await.unwrap().byte_source();
+        let bob_key_copy = SodiumOxideCurve25519SecretAsymmetricKeyBuilder {}
+            .build(Some(bob_key_bytes.get().unwrap()))
+            .unwrap();
+        let ciphertext = get_sopak_ciphertext(b"hello, world!", Some(&bob_key_copy));
+        let algorithm = sealed_alice_key
+            .to_public_asymmetric_byte_algorithm(unsealed_bob_key, Some(get_soan()))
+            .await
+            .unwrap();
+        let plaintext = algorithm
+            .unseal(&ByteSource::Vector(
+                AsRef::<[u8]>::as_ref(&ciphertext).into(),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(data.byte_source().get().unwrap(), plaintext.get().unwrap(),);
+    }
+
+    /// PUBLIC ASYMMETRIC KEY - BUILDER ///
     #[test]
     fn test_sodiumoxidepublicasymmetrickeybuilder_build_valid() {
         let sopakb = SodiumOxideCurve25519PublicAsymmetricKeyBuilder {};
@@ -1877,6 +2223,7 @@ mod tests {
         let _: SodiumOxideCurve25519PublicAsymmetricKeyBuilder = tbc.try_into().unwrap();
     }
 
+    /// PUBLIC ASYMMETRIC KEY - SEAL AND UNSEAL ///
     #[test]
     fn test_seal_publicasymmetrickey_with_non_referenced_key() {
         let plaintext = "hello, world!".into();

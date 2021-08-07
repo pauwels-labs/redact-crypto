@@ -61,10 +61,11 @@ impl From<MongoStorerError> for CryptoError {
 }
 
 /// Stores an instance of a mongodb-backed key storer
-#[derive(Clone, Serialize, Deserialize, Debug)]
-#[serde(into = "MongoDbInfo", from = "MongoDbInfo")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct MongoStorer {
-    db_info: MongoDbInfo,
+    url: String,
+    db_name: String,
+    #[serde(skip)]
     client: OnceCell<Client>,
 }
 
@@ -74,37 +75,13 @@ impl From<MongoStorer> for TypeStorer {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct MongoDbInfo {
-    url: String,
-    db_name: String,
-}
-
-impl From<MongoStorer> for MongoDbInfo {
-    fn from(storer: MongoStorer) -> Self {
-        storer.db_info
-    }
-}
-
-impl From<MongoDbInfo> for MongoStorer {
-    fn from(db_info: MongoDbInfo) -> Self {
-        MongoStorer {
-            db_info,
-            client: OnceCell::new(),
-        }
-    }
-}
-
 impl MongoStorer {
     /// Instantiates a mongo-backed key storer using a URL to the mongo cluster and the
     /// name of the DB to connect to.
     pub fn new(url: &str, db_name: &str) -> Self {
-        let db_info = MongoDbInfo {
+        MongoStorer {
             url: url.to_owned(),
             db_name: db_name.to_owned(),
-        };
-        MongoStorer {
-            db_info,
             client: OnceCell::new(),
         }
     }
@@ -116,7 +93,7 @@ impl MongoStorer {
             Some(c) => Ok(c),
             None => {
                 let db_client_options = ClientOptions::parse_with_resolver_config(
-                    &self.db_info.url,
+                    &self.url,
                     mongodb::options::ResolverConfig::cloudflare(),
                 )
                 .await
@@ -151,7 +128,7 @@ impl Storer for MongoStorer {
         let client = self.get_client().await?;
 
         client
-            .database(&self.db_info.db_name)
+            .database(&self.db_name)
             .collection("entries")
             .find_one(filter, filter_options)
             .await
@@ -188,7 +165,7 @@ impl Storer for MongoStorer {
         let cursor = self
             .get_client()
             .await?
-            .database(&self.db_info.db_name)
+            .database(&self.db_name)
             .collection("entries")
             .find(filter, filter_options)
             .await
@@ -230,9 +207,9 @@ impl Storer for MongoStorer {
         match self
             .get_client()
             .await?
-            .database(&self.db_info.db_name)
+            .database(&self.db_name)
             .collection("entries")
-            .replace_one(filter, doc.clone(), filter_options)
+            .replace_one(filter, doc, filter_options)
             .await
         {
             Ok(_) => Ok(entry),
