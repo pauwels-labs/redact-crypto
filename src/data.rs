@@ -35,7 +35,7 @@ impl Display for BinaryType {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct BinaryData {
-    pub binary: Vec<u8>,
+    pub binary: String,
     pub binary_type: BinaryType
 }
 
@@ -64,7 +64,7 @@ impl Display for Data {
                 Data::String(s) => s.to_owned(),
                 Data::Binary(b) => {
                     if let Some(b) = b {
-                        base64::encode(b.clone().binary)
+                        serde_json::to_string(b).unwrap()
                     } else {
                         "".to_owned()
                     }
