@@ -64,7 +64,7 @@ impl Display for Data {
                 Data::String(s) => s.to_owned(),
                 Data::Binary(b) => {
                     if let Some(b) = b {
-                        serde_json::to_string(b).unwrap()
+                        serde_json::to_string(b).map_err(|_| std::fmt::Error)?
                     } else {
                         "".to_owned()
                     }
