@@ -59,7 +59,7 @@ pub mod storage;
 pub use algorithm::{Algorithm, ByteAlgorithm};
 pub use data::{
     BoolDataBuilder, Data, DataBuilder, F64DataBuilder, I64DataBuilder, StringDataBuilder,
-    U64DataBuilder, BinaryData, BinaryType
+    U64DataBuilder, BinaryDataBuilder, BinaryData, BinaryType
 };
 pub use entry::{
     Builder, Entry, EntryPath, HasBuilder, State, StorableType, ToEntry, Type, TypeBuilder,
