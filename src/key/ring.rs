@@ -1,7 +1,7 @@
 use crate::{
     AsymmetricKeyBuilder, Builder, ByteSource, CryptoError, HasBuilder, HasByteSource, HasIndex,
-    HasPublicKey, KeyBuilder, PublicAsymmetricKey, PublicAsymmetricKeyBuilder,
-    SecretAsymmetricKeyBuilder, Signer, StorableType, TypeBuilder, TypeBuilderContainer,
+    HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder, SecretAsymmetricKeyBuilder, Signer,
+    StorableType, TypeBuilder, TypeBuilderContainer,
 };
 use mongodb::bson::{self, Document};
 use once_cell::unsync::OnceCell;
@@ -225,11 +225,11 @@ impl RingEd25519PublicAsymmetricKey {
 }
 
 impl HasPublicKey for RingEd25519SecretAsymmetricKey {
-    fn public_key(&self) -> Result<PublicAsymmetricKey, CryptoError> {
-        Ok(PublicAsymmetricKey::RingEd25519(
-            RingEd25519PublicAsymmetricKey {
-                public_key: self.get_secret_key()?.public_key().as_ref().to_vec(),
-            },
-        ))
+    type PublicKey = RingEd25519PublicAsymmetricKey;
+
+    fn public_key(&self) -> Result<Self::PublicKey, CryptoError> {
+        Ok(RingEd25519PublicAsymmetricKey {
+            public_key: self.get_secret_key()?.public_key().as_ref().to_vec(),
+        })
     }
 }
