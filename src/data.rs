@@ -382,12 +382,9 @@ impl Builder for BinaryDataBuilder {
 mod tests {
     use super::{
         BoolDataBuilder, Data, DataBuilder, F64DataBuilder, I64DataBuilder, StringDataBuilder,
-        U64DataBuilder,
+        U64DataBuilder, BinaryDataBuilder
     };
-    use crate::{
-        key::sodiumoxide::SodiumOxideSymmetricKeyBuilder, Builder, ByteSource, HasBuilder,
-        HasIndex, KeyBuilder, SymmetricKeyBuilder, TypeBuilder, TypeBuilderContainer,
-    };
+    use crate::{key::sodiumoxide::SodiumOxideSymmetricKeyBuilder, Builder, ByteSource, HasBuilder, HasIndex, KeyBuilder, SymmetricKeyBuilder, TypeBuilder, TypeBuilderContainer, BinaryData, BinaryType};
     use mongodb::bson::{self, Document};
     use std::convert::{Into, TryInto};
 
@@ -429,6 +426,16 @@ mod tests {
     }
 
     #[test]
+    fn test_display_binary_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageJPEG
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"ImageJPEG\"}");
+    }
+
+    #[test]
     fn test_data_to_bytesource() {
         let d = Data::String("hello, world!".to_owned());
         let bs: ByteSource = d.into();
@@ -462,6 +469,11 @@ mod tests {
         let di = Data::I64(-10);
         let df = Data::F64(-10.46);
         let ds = Data::String("hello, world!".to_owned());
+        let binary = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageJPEG
+        };
+        let d_binary = Data::Binary(Some(binary));
 
         assert_eq!(
             db.builder().build(Some(b"true")).unwrap().to_string(),
@@ -485,6 +497,13 @@ mod tests {
                 .unwrap()
                 .to_string(),
             ds.to_string()
+        );
+        assert_eq!(
+            d_binary.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageJPEG\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary.to_string()
         );
     }
 
@@ -675,5 +694,45 @@ mod tests {
             SymmetricKeyBuilder::SodiumOxide(SodiumOxideSymmetricKeyBuilder {}),
         )));
         let _: StringDataBuilder = tbc.try_into().unwrap();
+    }
+
+    #[test]
+    fn test_binarydatabuilder_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageJPEG\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) =>{
+                        assert_eq!(bd.binary_type, BinaryType::ImageJPEG);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary-type"),
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_binarydatabuilder_build_invalid() {
+        let udb = BinaryDataBuilder {};
+        udb.build(Some(b"-10")).unwrap();
+    }
+
+    #[test]
+    fn test_binarydatabuilder_from_typebuildercontainer_valid() {
+        let tbc = TypeBuilderContainer(TypeBuilder::Data(DataBuilder::Binary(BinaryDataBuilder {})));
+        let _: BinaryDataBuilder = tbc.try_into().unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_binarydatabuilder_from_typebuildercontainer_invalid() {
+        let tbc = TypeBuilderContainer(TypeBuilder::Key(KeyBuilder::Symmetric(
+            SymmetricKeyBuilder::SodiumOxide(SodiumOxideSymmetricKeyBuilder {}),
+        )));
+        let _: BinaryDataBuilder = tbc.try_into().unwrap();
     }
 }
