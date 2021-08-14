@@ -724,7 +724,10 @@ impl StorableType for SodiumOxideEd25519SecretAsymmetricKey {}
 
 impl Signer for SodiumOxideEd25519SecretAsymmetricKey {
     fn sign(&self, bytes: ByteSource) -> Result<ByteSource, CryptoError> {
-        Ok(sign::sign(bytes.get()?, &self.secret_key).as_slice().into())
+        Ok(sign::sign_detached(bytes.get()?, &self.secret_key)
+            .to_bytes()
+            .as_ref()
+            .into())
     }
 }
 

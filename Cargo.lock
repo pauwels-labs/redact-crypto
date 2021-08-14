@@ -193,6 +193,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "const-oid"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44c32f031ea41b4291d695026c023b95d59db2d8a2c7640800ed56bc8f510f22"
+
+[[package]]
+name = "const-oid"
+version = "0.6.0"
+source = "git+https://github.com/ajpauwels/utils?rev=9f303824463e8ca93d4cacc869aea6196d97eb36#9f303824463e8ca93d4cacc869aea6196d97eb36"
+
+[[package]]
+name = "cookie-factory"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "396de984970346b0d9e93d1415082923c679e5ae5c3ee3dcbd104f5610af126b"
+
+[[package]]
 name = "core-foundation"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -251,6 +268,35 @@ dependencies = [
  "darling_core",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "der"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31e21d2d0f22cde6e88694108429775c0219760a07779bf96503b434a03d7412"
+dependencies = [
+ "const-oid 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "der"
+version = "0.4.1"
+source = "git+https://github.com/ajpauwels/utils?rev=9f303824463e8ca93d4cacc869aea6196d97eb36#9f303824463e8ca93d4cacc869aea6196d97eb36"
+dependencies = [
+ "const-oid 0.6.0 (git+https://github.com/ajpauwels/utils?rev=9f303824463e8ca93d4cacc869aea6196d97eb36)",
+ "der_derive",
+]
+
+[[package]]
+name = "der_derive"
+version = "0.4.0"
+source = "git+https://github.com/ajpauwels/utils?rev=9f303824463e8ca93d4cacc869aea6196d97eb36#9f303824463e8ca93d4cacc869aea6196d97eb36"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+ "synstructure",
 ]
 
 [[package]]
@@ -1244,6 +1290,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
+name = "pkcs8"
+version = "0.7.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fbee84ed13e44dd82689fa18348a49934fa79cc774a344c42fc9b301c71b140a"
+dependencies = [
+ "der 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "spki",
+]
+
+[[package]]
 name = "pkg-config"
 version = "0.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1442,18 +1498,24 @@ dependencies = [
  "async-recursion",
  "async-trait",
  "base64 0.13.0",
+ "chrono",
+ "cookie-factory",
+ "der 0.4.1 (git+https://github.com/ajpauwels/utils?rev=9f303824463e8ca93d4cacc869aea6196d97eb36)",
  "futures",
  "hex",
  "mockall",
  "mongodb",
  "once_cell",
+ "pkcs8",
  "reqwest 0.11.4",
  "ring",
  "serde",
+ "serde_bytes",
  "serde_json",
  "sodiumoxide",
  "tokio 1.9.0",
  "uuid",
+ "x509",
 ]
 
 [[package]]
@@ -1840,6 +1902,15 @@ name = "spin"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
+
+[[package]]
+name = "spki"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "987637c5ae6b3121aba9d513f869bd2bff11c4cc086c22473befd6649c0bd521"
+dependencies = [
+ "der 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "stringprep"
@@ -2471,4 +2542,14 @@ checksum = "d59cefebd0c892fa2dd6de581e937301d8552cb44489cdff035c6187cb63fa5e"
 dependencies = [
  "winapi 0.2.8",
  "winapi-build",
+]
+
+[[package]]
+name = "x509"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca3cec94c3999f31341553f358ef55f65fc031291a022cd42ec0ce7219560c76"
+dependencies = [
+ "chrono",
+ "cookie-factory",
 ]
