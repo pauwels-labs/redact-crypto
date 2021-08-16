@@ -520,6 +520,26 @@ mod tests {
     }
 
     #[test]
+    fn test_display_binary_mp4_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::VideoMP4
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"VideoMP4\"}");
+    }
+
+    #[test]
+    fn test_display_binary_mpeg_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::VideoMPEG
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"VideoMPEG\"}");
+    }
+
+    #[test]
     fn test_data_to_bytesource() {
         let d = Data::String("hello, world!".to_owned());
         let bs: ByteSource = d.into();
@@ -596,6 +616,17 @@ mod tests {
         };
         let d_binary_webp = Data::Binary(Some(binary_webp));
 
+        let binary_mpeg = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::VideoMPEG
+        };
+        let d_binary_mpeg = Data::Binary(Some(binary_mpeg));
+
+        let binary_mp4 = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::VideoMP4
+        };
+        let d_binary_mp4 = Data::Binary(Some(binary_mp4));
 
         assert_eq!(
             db.builder().build(Some(b"true")).unwrap().to_string(),
@@ -668,6 +699,20 @@ mod tests {
                 .unwrap()
                 .to_string(),
             d_binary_webp.to_string()
+        );
+        assert_eq!(
+            d_binary_mpeg.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"VideoMPEG\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary_mpeg.to_string()
+        );
+        assert_eq!(
+            d_binary_mp4.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"VideoMP4\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary_mp4.to_string()
         );
     }
 
@@ -977,6 +1022,42 @@ mod tests {
                 match b {
                     Some(bd) => {
                         assert_eq!(bd.binary_type, BinaryType::ImageWEBP);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary"),
+        }
+    }
+
+    #[test]
+    fn test_binarydatabuilder_mpeg_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"VideoMPEG\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) => {
+                        assert_eq!(bd.binary_type, BinaryType::VideoMPEG);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary"),
+        }
+    }
+
+    #[test]
+    fn test_binarydatabuilder_mp4_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"VideoMP4\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) => {
+                        assert_eq!(bd.binary_type, BinaryType::VideoMP4);
                         assert_eq!(bd.binary, "abc");
                     },
                     _ => panic!("Extracted data should have been a binary-type"),
