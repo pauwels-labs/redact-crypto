@@ -8,7 +8,8 @@ use std::{convert::TryFrom, fmt::Display, str::FromStr};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum BinaryType {
-    ImageJPEG
+    ImageJPEG,
+    ImagePNG
 }
 
 impl TryFrom<&str> for BinaryType {
@@ -17,6 +18,7 @@ impl TryFrom<&str> for BinaryType {
     fn try_from(s: &str) -> Result<BinaryType, CryptoError> {
         match s {
             "image/jpeg" => Ok(BinaryType::ImageJPEG),
+            "image/png" => Ok(BinaryType::ImagePNG),
             _ => Err(CryptoError::NotDeserializableToBaseDataType)
         }
     }
@@ -28,6 +30,7 @@ impl Display for BinaryType {
                "{}",
                match self {
                    BinaryType::ImageJPEG => "image/jpeg",
+                   BinaryType::ImagePNG => "image/png",
                }
         )
     }
@@ -426,13 +429,23 @@ mod tests {
     }
 
     #[test]
-    fn test_display_binary_data() {
+    fn test_display_binary_jpeg_data() {
         let binary_data = BinaryData {
             binary: "abc".to_string(),
             binary_type: BinaryType::ImageJPEG
         };
         let d = Data::Binary(Some(binary_data));
         assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"ImageJPEG\"}");
+    }
+
+    #[test]
+    fn test_display_binary_png_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImagePNG
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"ImagePNG\"}");
     }
 
     #[test]
@@ -469,11 +482,16 @@ mod tests {
         let di = Data::I64(-10);
         let df = Data::F64(-10.46);
         let ds = Data::String("hello, world!".to_owned());
-        let binary = BinaryData {
+        let binary_jpeg = BinaryData {
             binary: "abc".to_string(),
             binary_type: BinaryType::ImageJPEG
         };
-        let d_binary = Data::Binary(Some(binary));
+        let d_binary_jpeg = Data::Binary(Some(binary_jpeg));
+        let binary_png = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImagePNG
+        };
+        let d_binary_png = Data::Binary(Some(binary_png));
 
         assert_eq!(
             db.builder().build(Some(b"true")).unwrap().to_string(),
@@ -499,11 +517,18 @@ mod tests {
             ds.to_string()
         );
         assert_eq!(
-            d_binary.builder()
+            d_binary_jpeg.builder()
                 .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageJPEG\"}"))
                 .unwrap()
                 .to_string(),
-            d_binary.to_string()
+            d_binary_jpeg.to_string()
+        );
+        assert_eq!(
+            d_binary_png.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImagePNG\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary_png.to_string()
         );
     }
 
@@ -697,7 +722,7 @@ mod tests {
     }
 
     #[test]
-    fn test_binarydatabuilder_build_valid() {
+    fn test_binarydatabuilder_jpeg_build_valid() {
         let udb = BinaryDataBuilder {};
         let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageJPEG\"}")).unwrap();
         match d {
@@ -715,10 +740,35 @@ mod tests {
     }
 
     #[test]
+    fn test_binarydatabuilder_png_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImagePNG\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) =>{
+                        assert_eq!(bd.binary_type, BinaryType::ImagePNG);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary"),
+        }
+    }
+
+    #[test]
     #[should_panic]
     fn test_binarydatabuilder_build_invalid() {
         let udb = BinaryDataBuilder {};
         udb.build(Some(b"-10")).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_binarydatabuilder_build_invalid_binary_type() {
+        let udb = BinaryDataBuilder {};
+        udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageXYZ\"}")).unwrap();
     }
 
     #[test]
