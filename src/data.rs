@@ -15,7 +15,8 @@ pub enum BinaryType {
     ImageAVIF,
     ImageSVG,
     ImageWEBP,
-    VideoMP4
+    VideoMP4,
+    VideoMPEG,
 }
 
 impl TryFrom<&str> for BinaryType {
@@ -31,6 +32,7 @@ impl TryFrom<&str> for BinaryType {
             "image/svg+xml" => Ok(BinaryType::ImageSVG),
             "image/webp" => Ok(BinaryType::ImageWEBP),
             "video/mp4" => Ok(BinaryType::VideoMP4),
+            "video/mpeg" => Ok(BinaryType::VideoMPEG),
             _ => Err(CryptoError::NotDeserializableToBaseDataType)
         }
     }
@@ -49,6 +51,7 @@ impl Display for BinaryType {
                    BinaryType::ImageSVG => "image/svg+xml",
                    BinaryType::ImageWEBP => "image/webp",
                    BinaryType::VideoMP4 => "video/mp4",
+                   BinaryType::VideoMPEG => "video/mpeg",
                }
         )
     }
