@@ -867,7 +867,7 @@ mod tests {
         match d {
             Data::Binary(b) => {
                 match b {
-                    Some(bd) =>{
+                    Some(bd) => {
                         assert_eq!(bd.binary_type, BinaryType::ImageJPEG);
                         assert_eq!(bd.binary, "abc");
                     },
@@ -885,7 +885,7 @@ mod tests {
         match d {
             Data::Binary(b) => {
                 match b {
-                    Some(bd) =>{
+                    Some(bd) => {
                         assert_eq!(bd.binary_type, BinaryType::ImagePNG);
                         assert_eq!(bd.binary, "abc");
                     },
@@ -903,8 +903,80 @@ mod tests {
         match d {
             Data::Binary(b) => {
                 match b {
-                    Some(bd) =>{
+                    Some(bd) => {
                         assert_eq!(bd.binary_type, BinaryType::ImageGIF);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary"),
+        }
+    }
+
+    #[test]
+    fn test_binarydatabuilder_apng_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageAPNG\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) => {
+                        assert_eq!(bd.binary_type, BinaryType::ImageAPNG);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary"),
+        }
+    }
+
+    #[test]
+    fn test_binarydatabuilder_avif_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageAVIF\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) => {
+                        assert_eq!(bd.binary_type, BinaryType::ImageAVIF);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary"),
+        }
+    }
+
+    #[test]
+    fn test_binarydatabuilder_svg_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageSVG\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) => {
+                        assert_eq!(bd.binary_type, BinaryType::ImageSVG);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary"),
+        }
+    }
+
+    #[test]
+    fn test_binarydatabuilder_webp_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageWEBP\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) => {
+                        assert_eq!(bd.binary_type, BinaryType::ImageWEBP);
                         assert_eq!(bd.binary, "abc");
                     },
                     _ => panic!("Extracted data should have been a binary-type"),
