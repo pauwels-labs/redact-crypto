@@ -9,7 +9,8 @@ use std::{convert::TryFrom, fmt::Display, str::FromStr};
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum BinaryType {
     ImageJPEG,
-    ImagePNG
+    ImagePNG,
+    ImageGIF,
 }
 
 impl TryFrom<&str> for BinaryType {
@@ -19,6 +20,7 @@ impl TryFrom<&str> for BinaryType {
         match s {
             "image/jpeg" => Ok(BinaryType::ImageJPEG),
             "image/png" => Ok(BinaryType::ImagePNG),
+            "image/gif" => Ok(BinaryType::ImageGIF),
             _ => Err(CryptoError::NotDeserializableToBaseDataType)
         }
     }
@@ -31,6 +33,7 @@ impl Display for BinaryType {
                match self {
                    BinaryType::ImageJPEG => "image/jpeg",
                    BinaryType::ImagePNG => "image/png",
+                   BinaryType::ImageGIF => "image/gif",
                }
         )
     }
@@ -449,6 +452,16 @@ mod tests {
     }
 
     #[test]
+    fn test_display_binary_gif_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageGIF
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"ImageGIF\"}");
+    }
+
+    #[test]
     fn test_data_to_bytesource() {
         let d = Data::String("hello, world!".to_owned());
         let bs: ByteSource = d.into();
@@ -492,6 +505,11 @@ mod tests {
             binary_type: BinaryType::ImagePNG
         };
         let d_binary_png = Data::Binary(Some(binary_png));
+        let binary_gif = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageGIF
+        };
+        let d_binary_gif = Data::Binary(Some(binary_gif));
 
         assert_eq!(
             db.builder().build(Some(b"true")).unwrap().to_string(),
@@ -529,6 +547,13 @@ mod tests {
                 .unwrap()
                 .to_string(),
             d_binary_png.to_string()
+        );
+        assert_eq!(
+            d_binary_gif.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageGIF\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary_gif.to_string()
         );
     }
 
@@ -748,6 +773,24 @@ mod tests {
                 match b {
                     Some(bd) =>{
                         assert_eq!(bd.binary_type, BinaryType::ImagePNG);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary"),
+        }
+    }
+
+    #[test]
+    fn test_binarydatabuilder_gif_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageGIF\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) =>{
+                        assert_eq!(bd.binary_type, BinaryType::ImageGIF);
                         assert_eq!(bd.binary, "abc");
                     },
                     _ => panic!("Extracted data should have been a binary-type"),
