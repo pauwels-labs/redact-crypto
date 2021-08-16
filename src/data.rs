@@ -11,6 +11,10 @@ pub enum BinaryType {
     ImageJPEG,
     ImagePNG,
     ImageGIF,
+    ImageAPNG,
+    ImageAVIF,
+    ImageSVG,
+    ImageWEBP,
 }
 
 impl TryFrom<&str> for BinaryType {
@@ -21,6 +25,10 @@ impl TryFrom<&str> for BinaryType {
             "image/jpeg" => Ok(BinaryType::ImageJPEG),
             "image/png" => Ok(BinaryType::ImagePNG),
             "image/gif" => Ok(BinaryType::ImageGIF),
+            "image/apng" => Ok(BinaryType::ImageAPNG),
+            "image/avif" => Ok(BinaryType::ImageAVIF),
+            "image/svg" => Ok(BinaryType::ImageSVG),
+            "image/webp" => Ok(BinaryType::ImageWEBP),
             _ => Err(CryptoError::NotDeserializableToBaseDataType)
         }
     }
@@ -34,6 +42,10 @@ impl Display for BinaryType {
                    BinaryType::ImageJPEG => "image/jpeg",
                    BinaryType::ImagePNG => "image/png",
                    BinaryType::ImageGIF => "image/gif",
+                   BinaryType::ImageAPNG => "image/apng",
+                   BinaryType::ImageAVIF => "image/avif",
+                   BinaryType::ImageSVG => "image/svg",
+                   BinaryType::ImageWEBP => "image/webp",
                }
         )
     }
@@ -462,6 +474,46 @@ mod tests {
     }
 
     #[test]
+    fn test_display_binary_apng_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageAPNG
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"ImageAPNG\"}");
+    }
+
+    #[test]
+    fn test_display_binary_avif_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageAVIF
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"ImageAVIF\"}");
+    }
+
+    #[test]
+    fn test_display_binary_svg_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageSVG
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"ImageSVG\"}");
+    }
+
+    #[test]
+    fn test_display_binary_webp_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageWEBP
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"ImageWEBP\"}");
+    }
+
+    #[test]
     fn test_data_to_bytesource() {
         let d = Data::String("hello, world!".to_owned());
         let bs: ByteSource = d.into();
@@ -495,21 +547,49 @@ mod tests {
         let di = Data::I64(-10);
         let df = Data::F64(-10.46);
         let ds = Data::String("hello, world!".to_owned());
+
         let binary_jpeg = BinaryData {
             binary: "abc".to_string(),
             binary_type: BinaryType::ImageJPEG
         };
         let d_binary_jpeg = Data::Binary(Some(binary_jpeg));
+
         let binary_png = BinaryData {
             binary: "abc".to_string(),
             binary_type: BinaryType::ImagePNG
         };
         let d_binary_png = Data::Binary(Some(binary_png));
+
         let binary_gif = BinaryData {
             binary: "abc".to_string(),
             binary_type: BinaryType::ImageGIF
         };
         let d_binary_gif = Data::Binary(Some(binary_gif));
+
+        let binary_apng = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageAPNG
+        };
+        let d_binary_apng = Data::Binary(Some(binary_apng));
+
+        let binary_avif = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageAVIF
+        };
+        let d_binary_avif = Data::Binary(Some(binary_avif));
+
+        let binary_svg = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageSVG
+        };
+        let d_binary_svg = Data::Binary(Some(binary_svg));
+
+        let binary_webp = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageWEBP
+        };
+        let d_binary_webp = Data::Binary(Some(binary_webp));
+
 
         assert_eq!(
             db.builder().build(Some(b"true")).unwrap().to_string(),
@@ -554,6 +634,34 @@ mod tests {
                 .unwrap()
                 .to_string(),
             d_binary_gif.to_string()
+        );
+        assert_eq!(
+            d_binary_apng.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageAPNG\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary_apng.to_string()
+        );
+        assert_eq!(
+            d_binary_avif.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageAVIF\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary_avif.to_string()
+        );
+        assert_eq!(
+            d_binary_svg.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageSVG\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary_svg.to_string()
+        );
+        assert_eq!(
+            d_binary_webp.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageWEBP\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary_webp.to_string()
         );
     }
 
