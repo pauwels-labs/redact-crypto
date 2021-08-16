@@ -27,7 +27,7 @@ impl TryFrom<&str> for BinaryType {
             "image/gif" => Ok(BinaryType::ImageGIF),
             "image/apng" => Ok(BinaryType::ImageAPNG),
             "image/avif" => Ok(BinaryType::ImageAVIF),
-            "image/svg" => Ok(BinaryType::ImageSVG),
+            "image/svg+xml" => Ok(BinaryType::ImageSVG),
             "image/webp" => Ok(BinaryType::ImageWEBP),
             _ => Err(CryptoError::NotDeserializableToBaseDataType)
         }
@@ -44,7 +44,7 @@ impl Display for BinaryType {
                    BinaryType::ImageGIF => "image/gif",
                    BinaryType::ImageAPNG => "image/apng",
                    BinaryType::ImageAVIF => "image/avif",
-                   BinaryType::ImageSVG => "image/svg",
+                   BinaryType::ImageSVG => "image/svg+xml",
                    BinaryType::ImageWEBP => "image/webp",
                }
         )
