@@ -32,6 +32,8 @@ once_cell = "1.8.0"
 ring = { version = "0.16.20", features = ["std"] }
 async-recursion = "0.3.2"
 mockall = "0.9.0"
+strum = "0.21"
+strum_macros = "0.21"
 
 [dev-dependencies]
 tokio = { version = "1.7.1", features = ["macros", "rt-multi-thread"] }
