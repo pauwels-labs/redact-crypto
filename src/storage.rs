@@ -7,6 +7,7 @@
 
 pub mod mongodb;
 pub mod redact;
+pub mod google_cloud_storage;
 
 use crate::{CryptoError, Entry, StorableType};
 use ::mongodb::bson::Document;
@@ -24,6 +25,7 @@ pub trait HasIndex {
 pub enum TypeStorer {
     Redact(redact::RedactStorer),
     Mongo(mongodb::MongoStorer),
+    GoogleCloud(google_cloud_storage::GoogleCloudStorer),
     Mock(tests::MockStorer),
 }
 
@@ -37,6 +39,7 @@ impl Storer for TypeStorer {
         match self {
             TypeStorer::Redact(rs) => rs.get_indexed(path, index).await,
             TypeStorer::Mongo(ms) => ms.get_indexed(path, index).await,
+            TypeStorer::GoogleCloud(gcs) => gcs.get_indexed(path, index).await,
             TypeStorer::Mock(ms) => ms.get_indexed(path, index).await,
         }
     }
@@ -51,6 +54,7 @@ impl Storer for TypeStorer {
         match self {
             TypeStorer::Redact(rs) => rs.list_indexed(path, skip, page_size, index).await,
             TypeStorer::Mongo(ms) => ms.list_indexed(path, skip, page_size, index).await,
+            TypeStorer::GoogleCloud(gcs) => gcs.list_indexed(path, skip, page_size, index).await,
             TypeStorer::Mock(ms) => ms.list_indexed(path, skip, page_size, index).await,
         }
     }
@@ -59,6 +63,7 @@ impl Storer for TypeStorer {
         match self {
             TypeStorer::Redact(rs) => rs.create(value).await,
             TypeStorer::Mongo(ms) => ms.create(value).await,
+            TypeStorer::GoogleCloud(gcs) => gcs.create(value).await,
             TypeStorer::Mock(ms) => ms.create(value).await,
         }
     }
