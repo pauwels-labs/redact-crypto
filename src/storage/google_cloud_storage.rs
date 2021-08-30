@@ -97,7 +97,7 @@ impl Storer for GoogleCloudStorer {
     ) -> Result<Entry<T>, CryptoError> {
         let bytes = self.client
             .object()
-            .download("default-bucket", path)
+            .download("default_bucket_hw", path)
             .await
             .map_err(|e| GoogleCloudStorerError::InternalError {
                 source: Box::new(e),
@@ -132,7 +132,7 @@ impl Storer for GoogleCloudStorer {
 
         match self.client
             .object()
-            .create("default-bucket", entry_string.as_bytes().to_vec(), &entry.path.clone(), "application/json")
+            .create("default_bucket_hw", entry_string.as_bytes().to_vec(), &entry.path.clone(), "application/json")
             .await
         {
             Ok(_) => Ok(entry),
