@@ -11,7 +11,7 @@ impl AsRef<[u64]> for Oid {
 }
 impl OidTrait for Oid {}
 
-pub struct AlgorithmIdentifierWrapper<'a>(AlgorithmIdentifier<'a>);
+pub struct AlgorithmIdentifierWrapper<'a>(pub AlgorithmIdentifier<'a>);
 impl<'a> AlgorithmIdentifierTrait for AlgorithmIdentifierWrapper<'a> {
     type AlgorithmOid = Oid;
 
