@@ -47,7 +47,7 @@ impl Storer for TypeStorer {
     async fn list_indexed<T: StorableType>(
         &self,
         path: &str,
-        skip: i64,
+        skip: u64,
         page_size: i64,
         index: &Option<Document>,
     ) -> Result<Vec<Entry<T>>, CryptoError> {
@@ -91,7 +91,7 @@ pub trait Storer: Send + Sync {
     async fn list<T: HasIndex<Index = Document> + StorableType>(
         &self,
         path: &str,
-        skip: i64,
+        skip: u64,
         page_size: i64,
     ) -> Result<Vec<Entry<T>>, CryptoError> {
         self.list_indexed::<T>(path, skip, page_size, &T::get_index())
@@ -102,7 +102,7 @@ pub trait Storer: Send + Sync {
     async fn list_indexed<T: StorableType>(
         &self,
         path: &str,
-        skip: i64,
+        skip: u64,
         page_size: i64,
         index: &Option<Document>,
     ) -> Result<Vec<Entry<T>>, CryptoError>;
@@ -129,7 +129,7 @@ where
     async fn list_indexed<T: StorableType>(
         &self,
         name: &str,
-        skip: i64,
+        skip: u64,
         page_size: i64,
         index: &Option<Document>,
     ) -> Result<Vec<Entry<T>>, CryptoError> {
@@ -157,7 +157,7 @@ pub mod tests {
         pub fn private_deserialize() -> Self;
         pub fn private_serialize(&self) -> MockStorer;
     pub fn private_get_indexed<T: StorableType>(&self, path: &str, index: &Option<Document>) -> Result<Entry<T>, CryptoError>;
-    pub fn private_list_indexed<T: StorableType>(&self, path: &str, skip: i64, page_size: i64, index: &Option<Document>) -> Result<Vec<Entry<T>>, CryptoError>;
+    pub fn private_list_indexed<T: StorableType>(&self, path: &str, skip: u64, page_size: i64, index: &Option<Document>) -> Result<Vec<Entry<T>>, CryptoError>;
     pub fn private_create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError>;
     }
     }
@@ -180,7 +180,7 @@ pub mod tests {
         async fn list_indexed<T: StorableType>(
             &self,
             path: &str,
-            skip: i64,
+            skip: u64,
             page_size: i64,
             index: &Option<Document>,
         ) -> Result<Vec<Entry<T>>, CryptoError> {

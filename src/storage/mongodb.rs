@@ -152,7 +152,7 @@ impl Storer for MongoStorer {
     async fn list_indexed<T: StorableType>(
         &self,
         path: &str,
-        skip: i64,
+        skip: u64,
         page_size: i64,
         index: &Option<Document>,
     ) -> Result<Vec<Entry<T>>, CryptoError> {

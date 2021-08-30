@@ -7,7 +7,6 @@ use std::{
 };
 use mongodb::bson::Document;
 use cloud_storage::Client;
-use once_cell::sync::OnceCell;
 use cloud_storage::Error::Other;
 
 #[derive(Debug)]
@@ -125,7 +124,7 @@ impl Storer for GoogleCloudStorer {
     async fn list_indexed<T: StorableType>(
         &self,
         _path: &str,
-        _skip: i64,
+        _skip: u64,
         _page_size: i64,
         _index: &Option<Document>,
     ) -> Result<Vec<Entry<T>>, CryptoError> {

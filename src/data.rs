@@ -5,7 +5,7 @@ use crate::{
 use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt::Display, str::FromStr};
-use strum::{IntoEnumIterator, EnumIter};
+use strum::EnumIter;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, EnumIter)]
 pub enum BinaryType {
