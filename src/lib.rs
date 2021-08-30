@@ -55,7 +55,7 @@ pub mod key;
 pub mod nonce;
 mod source;
 pub mod storage;
-mod x509;
+pub mod x509;
 
 pub use algorithm::{Algorithm, ByteAlgorithm};
 pub use data::{
