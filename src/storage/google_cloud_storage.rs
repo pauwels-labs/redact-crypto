@@ -103,7 +103,7 @@ impl Storer for GoogleCloudStorer {
             .map_err(|e| {
                 match e {
                     Other(e) => {
-                        GoogleCloudStorerError::NotFound {}
+                        GoogleCloudStorerError::NotFound {}.into()
                     },
                     _ => {
                         GoogleCloudStorerError::InternalError {
