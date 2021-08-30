@@ -6,7 +6,8 @@ use std::{
     fmt::{self, Display, Formatter},
 };
 use mongodb::bson::Document;
-use google_cloud::storage::Client;
+use cloud_storage::Client;
+use once_cell::sync::OnceCell;
 
 #[derive(Debug)]
 pub enum GoogleCloudStorerError {
@@ -57,7 +58,9 @@ impl From<GoogleCloudStorerError> for CryptoError {
 /// Stores an instance of a mongodb-backed key storer
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GoogleCloudStorer {
-    project_name: String,
+    // project_name: String,
+    #[serde(skip)]
+    client: Client,
 }
 
 impl From<GoogleCloudStorer> for TypeStorer {
@@ -67,22 +70,23 @@ impl From<GoogleCloudStorer> for TypeStorer {
 }
 
 impl GoogleCloudStorer {
-    pub fn new(project_name: String) -> Self {
+    pub fn new() -> Self {
         return GoogleCloudStorer {
-            project_name,
+            client: Client::new(),
         }
     }
 }
 
-impl GoogleCloudStorer {
-    async fn get_client(&self) -> Result<Client, GoogleCloudStorerError> {
-        Client::new(&self.project_name)
-            .await
-            .map_err(|e| GoogleCloudStorerError::InternalError {
-                source: Box::new(e),
-            })
-    }
-}
+//
+// impl GoogleCloudStorer {
+//     async fn get_client(&self) -> Result<Client, GoogleCloudStorerError> {
+//         Client::new(&self.project_name)
+//             .await
+//             .map_err(|e| GoogleCloudStorerError::InternalError {
+//                 source: Box::new(e),
+//             })
+//     }
+// }
 
 #[async_trait]
 impl Storer for GoogleCloudStorer {
@@ -91,25 +95,14 @@ impl Storer for GoogleCloudStorer {
         path: &str,
         _index: &Option<Document>,
     ) -> Result<Entry<T>, CryptoError> {
-
-
-        let bytes = self.get_client()
-            .await?
-            .bucket("entries")
-            .await
-            .map_err(|e| GoogleCloudStorerError::InternalError {
-                source: Box::new(e),
-            })?
-            .object(path)
-            .await
-            .map_err(|e| GoogleCloudStorerError::InternalError {
-                source: Box::new(e),
-            })?
-            .get()
+        let bytes = self.client
+            .object()
+            .download("default-bucket", path)
             .await
             .map_err(|e| GoogleCloudStorerError::InternalError {
                 source: Box::new(e),
             })?;
+
         let s = String::from_utf8(bytes)
             .map_err(|e| GoogleCloudStorerError::InternalError {
                 source: Box::new(e),
@@ -137,21 +130,16 @@ impl Storer for GoogleCloudStorer {
                 source: Box::new(e),
             })?;
 
-        match self.get_client()
-            .await?
-            .bucket("entries")
+        match self.client
+            .object()
+            .create("default-bucket", entry_string.as_bytes().to_vec(), &entry.path.clone(), "application/json")
             .await
-            .map_err(|e| GoogleCloudStorerError::InternalError {
+        {
+            Ok(_) => Ok(entry),
+            Err(e) => Err(GoogleCloudStorerError::InternalError {
                 source: Box::new(e),
-            })?
-            .create_object(&entry.path, entry_string.as_bytes(), "application/json")
-            .await
-            {
-                Ok(_) => Ok(entry),
-                Err(e) => Err(GoogleCloudStorerError::InternalError {
-                    source: Box::new(e),
-                }
-                .into()),
             }
+                .into()),
+        }
     }
 }
