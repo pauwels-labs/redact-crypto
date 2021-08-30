@@ -5,6 +5,64 @@ use crate::{
 use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt::Display, str::FromStr};
+use strum::{IntoEnumIterator, EnumIter};
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, EnumIter)]
+pub enum BinaryType {
+    ImageJPEG,
+    ImagePNG,
+    ImageGIF,
+    ImageAPNG,
+    ImageAVIF,
+    ImageSVG,
+    ImageWEBP,
+    VideoMP4,
+    VideoMPEG,
+}
+
+impl TryFrom<&str> for BinaryType {
+    type Error = CryptoError;
+
+    fn try_from(s: &str) -> Result<BinaryType, CryptoError> {
+        match s {
+            "image/jpeg" => Ok(BinaryType::ImageJPEG),
+            "image/png" => Ok(BinaryType::ImagePNG),
+            "image/gif" => Ok(BinaryType::ImageGIF),
+            "image/apng" => Ok(BinaryType::ImageAPNG),
+            "image/avif" => Ok(BinaryType::ImageAVIF),
+            "image/svg+xml" => Ok(BinaryType::ImageSVG),
+            "image/webp" => Ok(BinaryType::ImageWEBP),
+            "video/mp4" => Ok(BinaryType::VideoMP4),
+            "video/mpeg" => Ok(BinaryType::VideoMPEG),
+            _ => Err(CryptoError::NotDeserializableToBaseDataType)
+        }
+    }
+}
+
+impl Display for BinaryType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f,
+               "{}",
+               match self {
+                   BinaryType::ImageJPEG => "image/jpeg",
+                   BinaryType::ImagePNG => "image/png",
+                   BinaryType::ImageGIF => "image/gif",
+                   BinaryType::ImageAPNG => "image/apng",
+                   BinaryType::ImageAVIF => "image/avif",
+                   BinaryType::ImageSVG => "image/svg+xml",
+                   BinaryType::ImageWEBP => "image/webp",
+                   BinaryType::VideoMP4 => "video/mp4",
+                   BinaryType::VideoMPEG => "video/mpeg",
+               }
+        )
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct BinaryData {
+    pub binary: String,
+    pub binary_type: BinaryType
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum Data {
@@ -13,6 +71,7 @@ pub enum Data {
     I64(i64),
     F64(f64),
     String(String),
+    Binary(Option<BinaryData>)
 }
 
 impl StorableType for Data {}
@@ -28,6 +87,13 @@ impl Display for Data {
                 Data::I64(n) => n.to_string(),
                 Data::F64(n) => n.to_string(),
                 Data::String(s) => s.to_owned(),
+                Data::Binary(b) => {
+                    if let Some(b) = b {
+                        serde_json::to_string(b).map_err(|_| std::fmt::Error)?
+                    } else {
+                        "".to_owned()
+                    }
+                }
             }
         )
     }
@@ -63,6 +129,7 @@ impl HasBuilder for Data {
             Self::I64(_) => DataBuilder::I64(I64DataBuilder {}),
             Self::F64(_) => DataBuilder::F64(F64DataBuilder {}),
             Self::String(_) => DataBuilder::String(StringDataBuilder {}),
+            Self::Binary(_) => DataBuilder::Binary(BinaryDataBuilder {}),
         }
     }
 }
@@ -81,6 +148,7 @@ pub enum DataBuilder {
     I64(I64DataBuilder),
     F64(F64DataBuilder),
     String(StringDataBuilder),
+    Binary(BinaryDataBuilder),
 }
 
 impl TryFrom<TypeBuilderContainer> for DataBuilder {
@@ -110,6 +178,7 @@ impl Builder for DataBuilder {
             Self::I64(ndb) => ndb.build(bytes),
             Self::F64(ndb) => ndb.build(bytes),
             Self::String(sdb) => sdb.build(bytes),
+            Self::Binary(bdb) => bdb.build(bytes),
         }
     }
 }
@@ -297,16 +366,50 @@ impl Builder for StringDataBuilder {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct BinaryDataBuilder {}
+
+impl TryFrom<TypeBuilderContainer> for BinaryDataBuilder {
+    type Error = CryptoError;
+
+    fn try_from(builder: TypeBuilderContainer) -> Result<Self, Self::Error> {
+        match builder.0 {
+            TypeBuilder::Data(DataBuilder::Binary(bdb)) => Ok(bdb),
+            _ => Err(CryptoError::NotDowncastable),
+        }
+    }
+}
+
+impl From<BinaryDataBuilder> for TypeBuilder {
+    fn from(bdb: BinaryDataBuilder) -> TypeBuilder {
+        TypeBuilder::Data(DataBuilder::Binary(bdb))
+    }
+}
+
+impl Builder for BinaryDataBuilder {
+    type Output = Data;
+
+    fn build(&self, data: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
+        match data {
+            Some(binary_data_bytes) => {
+                let s = String::from_utf8(binary_data_bytes.to_vec())
+                    .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+                let bd: BinaryData = serde_json::from_str(&s)
+                    .map_err(|_| CryptoError::NotDeserializableToBaseDataType)?;
+                Ok(Data::Binary(Some(bd)))
+            }
+            None => Ok(Data::String("".to_owned())),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         BoolDataBuilder, Data, DataBuilder, F64DataBuilder, I64DataBuilder, StringDataBuilder,
-        U64DataBuilder,
+        U64DataBuilder, BinaryDataBuilder
     };
-    use crate::{
-        key::sodiumoxide::SodiumOxideSymmetricKeyBuilder, Builder, ByteSource, HasBuilder,
-        HasIndex, KeyBuilder, SymmetricKeyBuilder, TypeBuilder, TypeBuilderContainer,
-    };
+    use crate::{key::sodiumoxide::SodiumOxideSymmetricKeyBuilder, Builder, ByteSource, HasBuilder, HasIndex, KeyBuilder, SymmetricKeyBuilder, TypeBuilder, TypeBuilderContainer, BinaryData, BinaryType};
     use mongodb::bson::{self, Document};
     use std::convert::{Into, TryInto};
 
@@ -348,6 +451,96 @@ mod tests {
     }
 
     #[test]
+    fn test_display_binary_jpeg_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageJPEG
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"ImageJPEG\"}");
+    }
+
+    #[test]
+    fn test_display_binary_png_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImagePNG
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"ImagePNG\"}");
+    }
+
+    #[test]
+    fn test_display_binary_gif_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageGIF
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"ImageGIF\"}");
+    }
+
+    #[test]
+    fn test_display_binary_apng_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageAPNG
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"ImageAPNG\"}");
+    }
+
+    #[test]
+    fn test_display_binary_avif_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageAVIF
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"ImageAVIF\"}");
+    }
+
+    #[test]
+    fn test_display_binary_svg_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageSVG
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"ImageSVG\"}");
+    }
+
+    #[test]
+    fn test_display_binary_webp_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageWEBP
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"ImageWEBP\"}");
+    }
+
+    #[test]
+    fn test_display_binary_mp4_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::VideoMP4
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"VideoMP4\"}");
+    }
+
+    #[test]
+    fn test_display_binary_mpeg_data() {
+        let binary_data = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::VideoMPEG
+        };
+        let d = Data::Binary(Some(binary_data));
+        assert_eq!(d.to_string(), "{\"binary\":\"abc\",\"binary_type\":\"VideoMPEG\"}");
+    }
+
+    #[test]
     fn test_data_to_bytesource() {
         let d = Data::String("hello, world!".to_owned());
         let bs: ByteSource = d.into();
@@ -382,6 +575,60 @@ mod tests {
         let df = Data::F64(-10.46);
         let ds = Data::String("hello, world!".to_owned());
 
+        let binary_jpeg = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageJPEG
+        };
+        let d_binary_jpeg = Data::Binary(Some(binary_jpeg));
+
+        let binary_png = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImagePNG
+        };
+        let d_binary_png = Data::Binary(Some(binary_png));
+
+        let binary_gif = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageGIF
+        };
+        let d_binary_gif = Data::Binary(Some(binary_gif));
+
+        let binary_apng = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageAPNG
+        };
+        let d_binary_apng = Data::Binary(Some(binary_apng));
+
+        let binary_avif = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageAVIF
+        };
+        let d_binary_avif = Data::Binary(Some(binary_avif));
+
+        let binary_svg = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageSVG
+        };
+        let d_binary_svg = Data::Binary(Some(binary_svg));
+
+        let binary_webp = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::ImageWEBP
+        };
+        let d_binary_webp = Data::Binary(Some(binary_webp));
+
+        let binary_mpeg = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::VideoMPEG
+        };
+        let d_binary_mpeg = Data::Binary(Some(binary_mpeg));
+
+        let binary_mp4 = BinaryData {
+            binary: "abc".to_string(),
+            binary_type: BinaryType::VideoMP4
+        };
+        let d_binary_mp4 = Data::Binary(Some(binary_mp4));
+
         assert_eq!(
             db.builder().build(Some(b"true")).unwrap().to_string(),
             db.to_string()
@@ -404,6 +651,69 @@ mod tests {
                 .unwrap()
                 .to_string(),
             ds.to_string()
+        );
+        assert_eq!(
+            d_binary_jpeg.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageJPEG\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary_jpeg.to_string()
+        );
+        assert_eq!(
+            d_binary_png.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImagePNG\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary_png.to_string()
+        );
+        assert_eq!(
+            d_binary_gif.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageGIF\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary_gif.to_string()
+        );
+        assert_eq!(
+            d_binary_apng.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageAPNG\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary_apng.to_string()
+        );
+        assert_eq!(
+            d_binary_avif.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageAVIF\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary_avif.to_string()
+        );
+        assert_eq!(
+            d_binary_svg.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageSVG\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary_svg.to_string()
+        );
+        assert_eq!(
+            d_binary_webp.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageWEBP\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary_webp.to_string()
+        );
+        assert_eq!(
+            d_binary_mpeg.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"VideoMPEG\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary_mpeg.to_string()
+        );
+        assert_eq!(
+            d_binary_mp4.builder()
+                .build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"VideoMP4\"}"))
+                .unwrap()
+                .to_string(),
+            d_binary_mp4.to_string()
         );
     }
 
@@ -594,5 +904,196 @@ mod tests {
             SymmetricKeyBuilder::SodiumOxide(SodiumOxideSymmetricKeyBuilder {}),
         )));
         let _: StringDataBuilder = tbc.try_into().unwrap();
+    }
+
+    #[test]
+    fn test_binarydatabuilder_jpeg_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageJPEG\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) => {
+                        assert_eq!(bd.binary_type, BinaryType::ImageJPEG);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary-type"),
+        }
+    }
+
+    #[test]
+    fn test_binarydatabuilder_png_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImagePNG\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) => {
+                        assert_eq!(bd.binary_type, BinaryType::ImagePNG);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary"),
+        }
+    }
+
+    #[test]
+    fn test_binarydatabuilder_gif_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageGIF\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) => {
+                        assert_eq!(bd.binary_type, BinaryType::ImageGIF);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary"),
+        }
+    }
+
+    #[test]
+    fn test_binarydatabuilder_apng_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageAPNG\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) => {
+                        assert_eq!(bd.binary_type, BinaryType::ImageAPNG);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary"),
+        }
+    }
+
+    #[test]
+    fn test_binarydatabuilder_avif_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageAVIF\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) => {
+                        assert_eq!(bd.binary_type, BinaryType::ImageAVIF);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary"),
+        }
+    }
+
+    #[test]
+    fn test_binarydatabuilder_svg_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageSVG\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) => {
+                        assert_eq!(bd.binary_type, BinaryType::ImageSVG);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary"),
+        }
+    }
+
+    #[test]
+    fn test_binarydatabuilder_webp_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageWEBP\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) => {
+                        assert_eq!(bd.binary_type, BinaryType::ImageWEBP);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary"),
+        }
+    }
+
+    #[test]
+    fn test_binarydatabuilder_mpeg_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"VideoMPEG\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) => {
+                        assert_eq!(bd.binary_type, BinaryType::VideoMPEG);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary"),
+        }
+    }
+
+    #[test]
+    fn test_binarydatabuilder_mp4_build_valid() {
+        let udb = BinaryDataBuilder {};
+        let d = udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"VideoMP4\"}")).unwrap();
+        match d {
+            Data::Binary(b) => {
+                match b {
+                    Some(bd) => {
+                        assert_eq!(bd.binary_type, BinaryType::VideoMP4);
+                        assert_eq!(bd.binary, "abc");
+                    },
+                    _ => panic!("Extracted data should have been a binary-type"),
+                }
+            },
+            _ => panic!("Extracted data should have been a binary"),
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_binarydatabuilder_build_invalid() {
+        let udb = BinaryDataBuilder {};
+        udb.build(Some(b"-10")).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_binarydatabuilder_build_invalid_binary_type() {
+        let udb = BinaryDataBuilder {};
+        udb.build(Some(b"{\"binary\":\"abc\",\"binary_type\":\"ImageXYZ\"}")).unwrap();
+    }
+
+    #[test]
+    fn test_binarydatabuilder_from_typebuildercontainer_valid() {
+        let tbc = TypeBuilderContainer(TypeBuilder::Data(DataBuilder::Binary(BinaryDataBuilder {})));
+        let _: BinaryDataBuilder = tbc.try_into().unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_binarydatabuilder_from_typebuildercontainer_invalid() {
+        let tbc = TypeBuilderContainer(TypeBuilder::Key(KeyBuilder::Symmetric(
+            SymmetricKeyBuilder::SodiumOxide(SodiumOxideSymmetricKeyBuilder {}),
+        )));
+        let _: BinaryDataBuilder = tbc.try_into().unwrap();
     }
 }
