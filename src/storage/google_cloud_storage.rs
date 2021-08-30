@@ -19,6 +19,9 @@ pub enum GoogleCloudStorerError {
 
     /// Requested document was not found
     NotFound,
+
+    /// Not Implemented
+    NotImplemented
 }
 
 impl Error for GoogleCloudStorerError {
@@ -26,6 +29,7 @@ impl Error for GoogleCloudStorerError {
         match *self {
             GoogleCloudStorerError::InternalError { ref source } => Some(source.as_ref()),
             GoogleCloudStorerError::NotFound => None,
+            GoogleCloudStorerError::NotImplemented => None,
         }
     }
 }
@@ -38,6 +42,9 @@ impl Display for GoogleCloudStorerError {
             }
             GoogleCloudStorerError::NotFound => {
                 write!(f, "Requested document not found")
+            }
+            GoogleCloudStorerError::NotImplemented => {
+                write!(f, "This method is not implemented")
             }
         }
     }
@@ -52,6 +59,7 @@ impl From<GoogleCloudStorerError> for CryptoError {
             GoogleCloudStorerError::NotFound => CryptoError::NotFound {
                 source: Box::new(gcse),
             },
+            GoogleCloudStorerError::NotImplemented => CryptoError::NotImplemented {},
         }
     }
 }
@@ -59,7 +67,7 @@ impl From<GoogleCloudStorerError> for CryptoError {
 /// Stores an instance of a mongodb-backed key storer
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GoogleCloudStorer {
-    // project_name: String,
+    bucket_name: String,
     #[serde(skip)]
     client: Client,
 }
@@ -71,23 +79,13 @@ impl From<GoogleCloudStorer> for TypeStorer {
 }
 
 impl GoogleCloudStorer {
-    pub fn new() -> Self {
+    pub fn new(bucket_name: String) -> Self {
         return GoogleCloudStorer {
+            bucket_name,
             client: Client::new(),
         }
     }
 }
-
-//
-// impl GoogleCloudStorer {
-//     async fn get_client(&self) -> Result<Client, GoogleCloudStorerError> {
-//         Client::new(&self.project_name)
-//             .await
-//             .map_err(|e| GoogleCloudStorerError::InternalError {
-//                 source: Box::new(e),
-//             })
-//     }
-// }
 
 #[async_trait]
 impl Storer for GoogleCloudStorer {
@@ -98,11 +96,11 @@ impl Storer for GoogleCloudStorer {
     ) -> Result<Entry<T>, CryptoError> {
         let bytes = self.client
             .object()
-            .download("default_bucket_hw", path)
+            .download(&self.bucket_name, path)
             .await
             .map_err(|e| {
                 match e {
-                    Other(e) => {
+                    Other(_) => {
                         GoogleCloudStorerError::NotFound {}.into()
                     },
                     _ => {
@@ -131,7 +129,7 @@ impl Storer for GoogleCloudStorer {
         _page_size: i64,
         _index: &Option<Document>,
     ) -> Result<Vec<Entry<T>>, CryptoError> {
-        Err(GoogleCloudStorerError::NotFound {}.into())
+        Err(GoogleCloudStorerError::NotImplemented {}.into())
     }
 
     async fn create<T: StorableType>(&self, entry: Entry<T>) -> Result<Entry<T>, CryptoError> {
@@ -142,7 +140,7 @@ impl Storer for GoogleCloudStorer {
 
         match self.client
             .object()
-            .create("default_bucket_hw", entry_string.as_bytes().to_vec(), &entry.path.clone(), "application/json")
+            .create(&self.bucket_name, entry_string.as_bytes().to_vec(), &entry.path.clone(), "application/json")
             .await
         {
             Ok(_) => Ok(entry),
