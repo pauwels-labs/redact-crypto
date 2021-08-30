@@ -1,93 +1,17 @@
-// Parts of this file are pulled straight from docs.rs/der
 use cookie_factory::{GenResult, WriteContext};
-use core::convert::TryFrom;
-use der::{
-    asn1::{Any, BitString, ContextSpecific, ObjectIdentifier, SetOfRef, UtcTime, Utf8String},
-    Encodable, Message,
-};
-use pkcs8::AlgorithmIdentifier;
+use spki::AlgorithmIdentifier;
 use std::io::Write;
 use x509::{der::Oid as OidTrait, AlgorithmIdentifier as AlgorithmIdentifierTrait};
 
-// #[derive(Message)]
-// pub struct Validity {
-//     not_before: UtcTime,
-//     not_after: UtcTime,
-// }
-
-// pub enum Name<'a> {
-//     RelativeDistinguishedName(SetOfRef<'a, Utf8AttributeValueAssertion<'a>>),
-// }
-
-// impl<'a> TryFrom<Any<'a>> for Name<'a> {
-//     type Error = der::Error;
-
-//     fn try_from(any: Any<'a>) -> der::Result<Name> {
-//         any.sequence(|decoder| {
-//             let rdn = decoder.decode()?;
-//             Ok(Name::RelativeDistinguishedName(rdn))
-//         })
-//     }
-// }
-
-// impl<'a> Message<'a> for Name<'a> {
-//     fn fields<F, T>(&self, field_encoder: F) -> der::Result<T>
-//     where
-//         F: FnOnce(&[&dyn Encodable]) -> der::Result<T>,
-//     {
-//         match self {
-//             Self::RelativeDistinguishedName(rdn) => field_encoder(&[rdn]),
-//         }
-//     }
-// }
-
-// #[derive(Clone, Ord, Eq, PartialEq, PartialOrd, Message)]
-// pub struct Utf8AttributeValueAssertion<'a> {
-//     type_attribute: ObjectIdentifier,
-//     value_attribute: Utf8String<'a>,
-// }
-
-// #[derive(Message)]
-// pub struct TbsCertificate<'a> {
-//     version: ContextSpecific<'a>,
-//     serial_number: u64,
-//     signature: AlgorithmIdentifier<'a>,
-//     issuer: Name<'a>,
-//     validity: Validity,
-//     subject: Name<'a>,
-//     subject_public_key_info: SubjectPublicKeyInfo<'a>,
-// }
-
-// #[derive(Message)]
-// pub struct Certificate<'a> {
-//     tbs_certificate: TbsCertificate<'a>,
-//     signature_algorithm: AlgorithmIdentifier<'a>,
-//     signature_value: BitString<'a>,
-// }
-
-// #[derive(Message)]
-// pub struct SubjectPublicKeyInfo<'a> {
-//     pub algorithm: AlgorithmIdentifier<'a>,
-//     pub subject_public_key: BitString<'a>,
-// }
-
-// #[derive(Copy, Clone, Debug, Eq, PartialEq, Message)]
-// pub struct AlgorithmIdentifier<'a> {
-//     pub algorithm: ObjectIdentifier,
-//     pub parameters: Option<Any<'a>>,
-// }
-
-pub struct AlgorithmIdentifierWrapper<'a>(AlgorithmIdentifier<'a>);
 pub struct Oid(Vec<u64>);
-
 impl AsRef<[u64]> for Oid {
     fn as_ref(&self) -> &[u64] {
         &self.0
     }
 }
-
 impl OidTrait for Oid {}
 
+pub struct AlgorithmIdentifierWrapper<'a>(AlgorithmIdentifier<'a>);
 impl<'a> AlgorithmIdentifierTrait for AlgorithmIdentifierWrapper<'a> {
     type AlgorithmOid = Oid;
 
