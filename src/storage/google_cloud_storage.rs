@@ -8,6 +8,7 @@ use std::{
 use mongodb::bson::Document;
 use cloud_storage::Client;
 use once_cell::sync::OnceCell;
+use cloud_storage::Error::Other;
 
 #[derive(Debug)]
 pub enum GoogleCloudStorerError {
@@ -99,8 +100,17 @@ impl Storer for GoogleCloudStorer {
             .object()
             .download("default_bucket_hw", path)
             .await
-            .map_err(|e| GoogleCloudStorerError::InternalError {
-                source: Box::new(e),
+            .map_err(|e| {
+                match e {
+                    Other(e) => {
+                        GoogleCloudStorerError::NotFound {}
+                    },
+                    _ => {
+                        GoogleCloudStorerError::InternalError {
+                            source: Box::new(e),
+                        }
+                    }
+                }
             })?;
 
         let s = String::from_utf8(bytes)
