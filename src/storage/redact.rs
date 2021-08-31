@@ -54,7 +54,7 @@ impl From<RedactStorerError> for CryptoError {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RedactStorer {
     url: String,
 }

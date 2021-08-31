@@ -64,11 +64,9 @@ impl From<GoogleCloudStorerError> for CryptoError {
 }
 
 /// Stores an instance of a mongodb-backed key storer
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GoogleCloudStorer {
     bucket_name: String,
-    #[serde(skip)]
-    client: Client,
 }
 
 impl From<GoogleCloudStorer> for TypeStorer {
@@ -80,8 +78,7 @@ impl From<GoogleCloudStorer> for TypeStorer {
 impl GoogleCloudStorer {
     pub fn new(bucket_name: String) -> Self {
         return GoogleCloudStorer {
-            bucket_name,
-            client: Client::new(),
+            bucket_name
         }
     }
 }
@@ -93,7 +90,8 @@ impl Storer for GoogleCloudStorer {
         path: &str,
         _index: &Option<Document>,
     ) -> Result<Entry<T>, CryptoError> {
-        let bytes = self.client
+        let client = Client::new();
+        let bytes = client
             .object()
             .download(&self.bucket_name, path)
             .await
@@ -136,8 +134,9 @@ impl Storer for GoogleCloudStorer {
             .map_err(|e| GoogleCloudStorerError::InternalError {
                 source: Box::new(e),
             })?;
+        let client = Client::new();
 
-        match self.client
+        match client
             .object()
             .create(&self.bucket_name, entry_string.as_bytes().to_vec(), &entry.path.clone(), "application/json")
             .await

@@ -61,7 +61,7 @@ impl From<MongoStorerError> for CryptoError {
 }
 
 /// Stores an instance of a mongodb-backed key storer
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MongoStorer {
     url: String,
     db_name: String,

@@ -21,7 +21,7 @@ pub trait HasIndex {
     fn get_index() -> Option<Self::Index>;
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TypeStorer {
     Redact(redact::RedactStorer),
     Mongo(mongodb::MongoStorer),
@@ -152,6 +152,7 @@ pub mod tests {
     use mongodb::bson::Document;
     use serde::{Deserialize, Serialize};
 
+
     mock! {
     pub Storer {
         pub fn private_deserialize() -> Self;
@@ -165,6 +166,12 @@ pub mod tests {
     impl core::fmt::Debug for MockStorer {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             f.debug_struct("MockStorer").finish()
+        }
+    }
+
+    impl Clone for MockStorer {
+        fn clone(&self) -> Self {
+            unimplemented!()
         }
     }
 
