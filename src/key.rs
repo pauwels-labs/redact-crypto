@@ -157,7 +157,7 @@ pub trait PublicAsymmetricUnsealer {
 }
 
 pub trait HasPublicKey {
-    type PublicKey;
+    type PublicKey: HasByteSource;
 
     fn public_key(&self) -> Result<Self::PublicKey, CryptoError>;
 }
