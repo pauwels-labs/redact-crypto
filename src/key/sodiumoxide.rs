@@ -651,6 +651,15 @@ impl HasByteSource for SodiumOxideCurve25519PublicAsymmetricKey {
     }
 }
 
+impl HasAlgorithmIdentifier for SodiumOxideCurve25519PublicAsymmetricKey {
+    fn algorithm_identifier<'a>() -> AlgorithmIdentifier<'a> {
+        AlgorithmIdentifier {
+            oid: spki::ObjectIdentifier::new("1.3.101.110"),
+            parameters: None,
+        }
+    }
+}
+
 impl SodiumOxideCurve25519PublicAsymmetricKey {
     pub const KEYBYTES: usize = EXTERNALSODIUMOXIDEPUBLICASYMMETRICKEYBYTES;
 
@@ -881,6 +890,15 @@ impl HasBuilder for SodiumOxideEd25519PublicAsymmetricKey {
 impl HasByteSource for SodiumOxideEd25519PublicAsymmetricKey {
     fn byte_source(&self) -> ByteSource {
         self.public_key.as_ref().into()
+    }
+}
+
+impl HasAlgorithmIdentifier for SodiumOxideEd25519PublicAsymmetricKey {
+    fn algorithm_identifier<'a>() -> AlgorithmIdentifier<'a> {
+        AlgorithmIdentifier {
+            oid: spki::ObjectIdentifier::new("1.3.101.112"),
+            parameters: None,
+        }
     }
 }
 

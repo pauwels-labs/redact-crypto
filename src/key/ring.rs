@@ -217,6 +217,15 @@ impl HasByteSource for RingEd25519PublicAsymmetricKey {
     }
 }
 
+impl HasAlgorithmIdentifier for RingEd25519PublicAsymmetricKey {
+    fn algorithm_identifier<'a>() -> AlgorithmIdentifier<'a> {
+        AlgorithmIdentifier {
+            oid: spki::ObjectIdentifier::new("1.3.101.112"),
+            parameters: None,
+        }
+    }
+}
+
 impl RingEd25519PublicAsymmetricKey {
     pub fn new() -> Result<(Self, RingEd25519SecretAsymmetricKey), CryptoError> {
         let secret_key = RingEd25519SecretAsymmetricKey::new()?;
