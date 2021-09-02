@@ -218,7 +218,7 @@ impl HasByteSource for RingEd25519PublicAsymmetricKey {
 }
 
 impl HasAlgorithmIdentifier for RingEd25519PublicAsymmetricKey {
-    fn algorithm_identifier<'a>() -> AlgorithmIdentifier<'a> {
+    fn algorithm_identifier<'a>(&self) -> AlgorithmIdentifier<'a> {
         AlgorithmIdentifier {
             oid: spki::ObjectIdentifier::new("1.3.101.112"),
             parameters: None,
@@ -245,7 +245,7 @@ impl HasPublicKey for RingEd25519SecretAsymmetricKey {
 }
 
 impl HasAlgorithmIdentifier for RingEd25519SecretAsymmetricKey {
-    fn algorithm_identifier<'a>() -> AlgorithmIdentifier<'a> {
+    fn algorithm_identifier<'a>(&self) -> AlgorithmIdentifier<'a> {
         AlgorithmIdentifier {
             oid: spki::ObjectIdentifier::new("1.3.101.112"),
             parameters: None,

@@ -652,7 +652,7 @@ impl HasByteSource for SodiumOxideCurve25519PublicAsymmetricKey {
 }
 
 impl HasAlgorithmIdentifier for SodiumOxideCurve25519PublicAsymmetricKey {
-    fn algorithm_identifier<'a>() -> AlgorithmIdentifier<'a> {
+    fn algorithm_identifier<'a>(&self) -> AlgorithmIdentifier<'a> {
         AlgorithmIdentifier {
             oid: spki::ObjectIdentifier::new("1.3.101.110"),
             parameters: None,
@@ -683,7 +683,7 @@ impl HasPublicKey for SodiumOxideCurve25519SecretAsymmetricKey {
 }
 
 impl HasAlgorithmIdentifier for SodiumOxideCurve25519SecretAsymmetricKey {
-    fn algorithm_identifier<'a>() -> AlgorithmIdentifier<'a> {
+    fn algorithm_identifier<'a>(&self) -> AlgorithmIdentifier<'a> {
         AlgorithmIdentifier {
             oid: spki::ObjectIdentifier::new("1.3.101.110"),
             parameters: None,
@@ -894,7 +894,7 @@ impl HasByteSource for SodiumOxideEd25519PublicAsymmetricKey {
 }
 
 impl HasAlgorithmIdentifier for SodiumOxideEd25519PublicAsymmetricKey {
-    fn algorithm_identifier<'a>() -> AlgorithmIdentifier<'a> {
+    fn algorithm_identifier<'a>(&self) -> AlgorithmIdentifier<'a> {
         AlgorithmIdentifier {
             oid: spki::ObjectIdentifier::new("1.3.101.112"),
             parameters: None,
@@ -925,7 +925,7 @@ impl HasPublicKey for SodiumOxideEd25519SecretAsymmetricKey {
 }
 
 impl HasAlgorithmIdentifier for SodiumOxideEd25519SecretAsymmetricKey {
-    fn algorithm_identifier<'a>() -> AlgorithmIdentifier<'a> {
+    fn algorithm_identifier<'a>(&self) -> AlgorithmIdentifier<'a> {
         AlgorithmIdentifier {
             oid: spki::ObjectIdentifier::new("1.3.101.112"),
             parameters: None,

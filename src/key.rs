@@ -163,7 +163,7 @@ pub trait HasPublicKey {
 }
 
 pub trait HasAlgorithmIdentifier {
-    fn algorithm_identifier<'a>() -> AlgorithmIdentifier<'a>;
+    fn algorithm_identifier<'a>(&self) -> AlgorithmIdentifier<'a>;
 }
 
 #[derive(Serialize, Deserialize, Debug)]
