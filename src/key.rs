@@ -22,6 +22,7 @@ use async_trait::async_trait;
 use futures::Future;
 use mongodb::bson::{self, Document};
 use serde::{Deserialize, Serialize};
+use spki::AlgorithmIdentifier;
 use std::convert::TryFrom;
 
 pub trait Signer {
@@ -155,11 +156,14 @@ pub trait PublicAsymmetricUnsealer {
     ) -> Result<Self::UnsealedOutput, CryptoError>;
 }
 
-/// Allows for retr
 pub trait HasPublicKey {
     type PublicKey;
 
     fn public_key(&self) -> Result<Self::PublicKey, CryptoError>;
+}
+
+pub trait HasAlgorithmIdentifier {
+    fn algorithm_identifier<'a>() -> AlgorithmIdentifier<'a>;
 }
 
 #[derive(Serialize, Deserialize, Debug)]

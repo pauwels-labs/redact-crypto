@@ -68,12 +68,12 @@ pub use entry::{
 };
 pub use error::CryptoError;
 pub use key::{
-    AsymmetricKey, AsymmetricKeyBuilder, HasPublicKey, Key, KeyBuilder, PublicAsymmetricKey,
-    PublicAsymmetricKeyBuilder, PublicAsymmetricSealer, PublicAsymmetricUnsealer,
-    SecretAsymmetricKey, SecretAsymmetricKeyBuilder, SecretAsymmetricSealer,
-    SecretAsymmetricUnsealer, Signer, SymmetricKey, SymmetricKeyBuilder, SymmetricSealer,
-    SymmetricUnsealer, ToPublicAsymmetricByteAlgorithm, ToSecretAsymmetricByteAlgorithm,
-    ToSymmetricByteAlgorithm, Verifier,
+    AsymmetricKey, AsymmetricKeyBuilder, HasAlgorithmIdentifier, HasPublicKey, Key, KeyBuilder,
+    PublicAsymmetricKey, PublicAsymmetricKeyBuilder, PublicAsymmetricSealer,
+    PublicAsymmetricUnsealer, SecretAsymmetricKey, SecretAsymmetricKeyBuilder,
+    SecretAsymmetricSealer, SecretAsymmetricUnsealer, Signer, SymmetricKey, SymmetricKeyBuilder,
+    SymmetricSealer, SymmetricUnsealer, ToPublicAsymmetricByteAlgorithm,
+    ToSecretAsymmetricByteAlgorithm, ToSymmetricByteAlgorithm, Verifier,
 };
 pub use nonce::{AsymmetricNonce, Nonce, SymmetricNonce};
 pub use source::{

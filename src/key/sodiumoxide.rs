@@ -34,7 +34,10 @@ use sodiumoxide::crypto::{
         SecretKey as ExternalSodiumOxideEd25519SecretAsymmetricKey,
     },
 };
+use spki::AlgorithmIdentifier;
 use std::{boxed::Box, convert::TryFrom};
+
+use super::HasAlgorithmIdentifier;
 
 // SYMMETRIC KEY \\
 #[derive(Serialize, Deserialize, Debug)]
@@ -670,6 +673,15 @@ impl HasPublicKey for SodiumOxideCurve25519SecretAsymmetricKey {
     }
 }
 
+impl HasAlgorithmIdentifier for SodiumOxideCurve25519SecretAsymmetricKey {
+    fn algorithm_identifier<'a>() -> AlgorithmIdentifier<'a> {
+        AlgorithmIdentifier {
+            oid: spki::ObjectIdentifier::new("1.3.101.110"),
+            parameters: None,
+        }
+    }
+}
+
 // SECRET SIGNING KEY \\
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct SodiumOxideEd25519SecretAsymmetricKeyBuilder {}
@@ -891,6 +903,15 @@ impl HasPublicKey for SodiumOxideEd25519SecretAsymmetricKey {
         Ok(SodiumOxideEd25519PublicAsymmetricKey {
             public_key: self.secret_key.public_key(),
         })
+    }
+}
+
+impl HasAlgorithmIdentifier for SodiumOxideEd25519SecretAsymmetricKey {
+    fn algorithm_identifier<'a>() -> AlgorithmIdentifier<'a> {
+        AlgorithmIdentifier {
+            oid: spki::ObjectIdentifier::new("1.3.101.112"),
+            parameters: None,
+        }
     }
 }
 
