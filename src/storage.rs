@@ -307,9 +307,9 @@ pub mod tests {
         }
     }
 
-    impl From<MockIndexedStorer> for IndexedTypeStorer {
+    impl From<MockIndexedStorer> for TypeStorer {
         fn from(mis: MockIndexedStorer) -> Self {
-            IndexedTypeStorer::Mock(mis)
+            TypeStorer::Mock(mis)
         }
     }
 }

@@ -901,6 +901,7 @@ mod tests {
     use crate::{
         nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce},
         storage::tests::MockStorer,
+        storage::tests::MockIndexedStorer,
         Algorithm, AsymmetricKeyBuilder, BoolDataBuilder, Builder, ByteSource, Data, DataBuilder,
         HasBuilder, HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder,
         PublicAsymmetricSealer, PublicAsymmetricUnsealer, SecretAsymmetricKeyBuilder,
@@ -1174,13 +1175,13 @@ mod tests {
         let unsealed_key = get_sosk()
             .to_unsealed_entry(".encryptionkey.".to_owned())
             .unwrap();
-        let mut storer = MockStorer::new();
+        let mut storer = MockIndexedStorer::new();
         storer
-            .expect_private_get_indexed::<SodiumOxideSymmetricKey>()
-            .withf(|path, index| {
-                path == ".encryptionkey." && index == &SodiumOxideSymmetricKey::get_index()
+            .expect_private_get::<SodiumOxideSymmetricKey>()
+            .withf(|path| {
+                path == ".encryptionkey."
             })
-            .return_once(move |_, _| Ok(unsealed_key));
+            .return_once(move |_| Ok(unsealed_key));
         let ref_key = get_sosk()
             .to_ref_entry(".encryptionkey.".to_owned(), storer)
             .unwrap();
@@ -1225,13 +1226,13 @@ mod tests {
         let unsealed_key_encryption_key = get_sosk()
             .to_unsealed_entry(".keyencryptionkey.".to_owned())
             .unwrap();
-        let mut storer = MockStorer::new();
+        let mut storer = MockIndexedStorer::new();
         storer
-            .expect_private_get_indexed::<SodiumOxideSymmetricKey>()
-            .withf(|path, index| {
-                path == ".keyencryptionkey." && index == &SodiumOxideSymmetricKey::get_index()
+            .expect_private_get::<SodiumOxideSymmetricKey>()
+            .withf(|path| {
+                path == ".keyencryptionkey."
             })
-            .return_once(move |_, _| Ok(unsealed_key_encryption_key));
+            .return_once(move |_| Ok(unsealed_key_encryption_key));
         let data = Data::String("hello, world!".to_owned());
         let key = get_sosk();
         let referenced_key_encryption_key = get_sosk()
@@ -1282,13 +1283,13 @@ mod tests {
         let unsealed_key = get_sosk()
             .to_unsealed_entry(".encryptionkey.".to_owned())
             .unwrap();
-        let mut storer = MockStorer::new();
+        let mut storer = MockIndexedStorer::new();
         storer
-            .expect_private_get_indexed::<SodiumOxideSymmetricKey>()
-            .withf(|path, index| {
-                path == ".encryptionkey." && index == &SodiumOxideSymmetricKey::get_index()
+            .expect_private_get::<SodiumOxideSymmetricKey>()
+            .withf(|path| {
+                path == ".encryptionkey."
             })
-            .return_once(move |_, _| Ok(unsealed_key));
+            .return_once(move |_| Ok(unsealed_key));
         let ref_key = get_sosk()
             .to_ref_entry(".encryptionkey.".to_owned(), storer)
             .unwrap();
@@ -1339,13 +1340,13 @@ mod tests {
         let unsealed_key_encryption_key = get_sosk()
             .to_unsealed_entry(".keyencryptionkey.".to_owned())
             .unwrap();
-        let mut storer = MockStorer::new();
+        let mut storer = MockIndexedStorer::new();
         storer
-            .expect_private_get_indexed::<SodiumOxideSymmetricKey>()
-            .withf(|path, index| {
-                path == ".keyencryptionkey." && index == &SodiumOxideSymmetricKey::get_index()
+            .expect_private_get::<SodiumOxideSymmetricKey>()
+            .withf(|path| {
+                path == ".keyencryptionkey."
             })
-            .return_once(move |_, _| Ok(unsealed_key_encryption_key));
+            .return_once(move |_| Ok(unsealed_key_encryption_key));
         let data = Data::String("hello, world!".to_owned());
         let key = get_sosk();
         let referenced_key_encryption_key = get_sosk()
@@ -1519,14 +1520,13 @@ mod tests {
             .to_unsealed_entry(".bobpublickey.".to_owned())
             .unwrap();
         let bob_key_bytes = unsealed_bob_key.resolve().await.unwrap().byte_source();
-        let mut storer = MockStorer::new();
+        let mut storer = MockIndexedStorer::new();
         storer
-            .expect_private_get_indexed::<SodiumOxideCurve25519SecretAsymmetricKey>()
-            .withf(|path, index| {
+            .expect_private_get::<SodiumOxideCurve25519SecretAsymmetricKey>()
+            .withf(|path| {
                 path == ".alicesecretkey."
-                    && index == &SodiumOxideCurve25519SecretAsymmetricKey::get_index()
             })
-            .return_once(move |_, _| Ok(unsealed_alice_key));
+            .return_once(move |_| Ok(unsealed_alice_key));
         let ref_alice_key = get_sosak()
             .to_ref_entry(".alicesecretkey.".to_owned(), storer)
             .unwrap();
@@ -1586,13 +1586,13 @@ mod tests {
         let unsealed_alice_decryption_key = get_sosk()
             .to_unsealed_entry(".alicedecryptionkey.".to_owned())
             .unwrap();
-        let mut storer = MockStorer::new();
+        let mut storer = MockIndexedStorer::new();
         storer
-            .expect_private_get_indexed::<SodiumOxideSymmetricKey>()
-            .withf(|path, index| {
-                path == ".alicedecryptionkey." && index == &SodiumOxideSymmetricKey::get_index()
+            .expect_private_get::<SodiumOxideSymmetricKey>()
+            .withf(|path| {
+                path == ".alicedecryptionkey."
             })
-            .return_once(move |_, _| Ok(unsealed_alice_decryption_key));
+            .return_once(move |_| Ok(unsealed_alice_decryption_key));
         let ref_alice_decryption_key = get_sosk()
             .to_ref_entry(".alicedecryptionkey.".to_owned(), storer)
             .unwrap();
@@ -1669,14 +1669,13 @@ mod tests {
         let bob_key_copy = SodiumOxideCurve25519PublicAsymmetricKeyBuilder {}
             .build(Some(bob_key_bytes.get().unwrap()))
             .unwrap();
-        let mut storer = MockStorer::new();
+        let mut storer = MockIndexedStorer::new();
         storer
-            .expect_private_get_indexed::<SodiumOxideCurve25519SecretAsymmetricKey>()
-            .withf(|path, index| {
+            .expect_private_get::<SodiumOxideCurve25519SecretAsymmetricKey>()
+            .withf(|path| {
                 path == ".alicesecretkey."
-                    && index == &SodiumOxideCurve25519SecretAsymmetricKey::get_index()
             })
-            .return_once(move |_, _| Ok(unsealed_alice_key));
+            .return_once(move |_| Ok(unsealed_alice_key));
         let ref_alice_key = get_sosak()
             .to_ref_entry(".alicesecretkey.".to_owned(), storer)
             .unwrap();
@@ -1739,13 +1738,13 @@ mod tests {
         let unsealed_alice_decryption_key = get_sosk()
             .to_unsealed_entry(".alicedecryptionkey.".to_owned())
             .unwrap();
-        let mut storer = MockStorer::new();
+        let mut storer = MockIndexedStorer::new();
         storer
-            .expect_private_get_indexed::<SodiumOxideSymmetricKey>()
-            .withf(|path, index| {
-                path == ".alicedecryptionkey." && index == &SodiumOxideSymmetricKey::get_index()
+            .expect_private_get::<SodiumOxideSymmetricKey>()
+            .withf(|path| {
+                path == ".alicedecryptionkey."
             })
-            .return_once(move |_, _| Ok(unsealed_alice_decryption_key));
+            .return_once(move |_| Ok(unsealed_alice_decryption_key));
         let ref_alice_decryption_key = get_sosk()
             .to_ref_entry(".alicedecryptionkey.".to_owned(), storer)
             .unwrap();
@@ -1931,14 +1930,13 @@ mod tests {
             .to_unsealed_entry(".bobsecretkey.".to_owned())
             .unwrap();
         let bob_key_bytes = unsealed_bob_key.resolve().await.unwrap().byte_source();
-        let mut storer = MockStorer::new();
+        let mut storer = MockIndexedStorer::new();
         storer
-            .expect_private_get_indexed::<SodiumOxideCurve25519PublicAsymmetricKey>()
-            .withf(|path, index| {
+            .expect_private_get::<SodiumOxideCurve25519PublicAsymmetricKey>()
+            .withf(|path| {
                 path == ".alicepublickey."
-                    && index == &SodiumOxideCurve25519PublicAsymmetricKey::get_index()
             })
-            .return_once(move |_, _| Ok(unsealed_alice_public_key));
+            .return_once(move |_| Ok(unsealed_alice_public_key));
         let (alice_public_key, _) = get_sopak();
         let ref_alice_public_key = alice_public_key
             .to_ref_entry(".alicepublickey.".to_owned(), storer)
@@ -1998,13 +1996,13 @@ mod tests {
         let unsealed_alice_decryption_key = get_sosk()
             .to_unsealed_entry(".alicedecryptionkey.".to_owned())
             .unwrap();
-        let mut storer = MockStorer::new();
+        let mut storer = MockIndexedStorer::new();
         storer
-            .expect_private_get_indexed::<SodiumOxideSymmetricKey>()
-            .withf(|path, index| {
-                path == ".alicedecryptionkey." && index == &SodiumOxideSymmetricKey::get_index()
+            .expect_private_get::<SodiumOxideSymmetricKey>()
+            .withf(|path| {
+                path == ".alicedecryptionkey."
             })
-            .return_once(move |_, _| Ok(unsealed_alice_decryption_key));
+            .return_once(move |_| Ok(unsealed_alice_decryption_key));
         let ref_alice_decryption_key = get_sosk()
             .to_ref_entry(".alicedecryptionkey.".to_owned(), storer)
             .unwrap();
@@ -2078,14 +2076,13 @@ mod tests {
         let bob_key_copy = SodiumOxideCurve25519SecretAsymmetricKeyBuilder {}
             .build(Some(bob_key_bytes.get().unwrap()))
             .unwrap();
-        let mut storer = MockStorer::new();
+        let mut storer = MockIndexedStorer::new();
         storer
-            .expect_private_get_indexed::<SodiumOxideCurve25519PublicAsymmetricKey>()
-            .withf(|path, index| {
+            .expect_private_get::<SodiumOxideCurve25519PublicAsymmetricKey>()
+            .withf(|path| {
                 path == ".alicepublickey."
-                    && index == &SodiumOxideCurve25519PublicAsymmetricKey::get_index()
             })
-            .return_once(move |_, _| Ok(unsealed_alice_public_key));
+            .return_once(move |_| Ok(unsealed_alice_public_key));
         let (alice_public_key, _) = get_sopak();
         let ref_alice_public_key = alice_public_key
             .to_ref_entry(".alicepublickey.".to_owned(), storer)
@@ -2148,13 +2145,13 @@ mod tests {
         let unsealed_alice_decryption_key = get_sosk()
             .to_unsealed_entry(".alicedecryptionkey.".to_owned())
             .unwrap();
-        let mut storer = MockStorer::new();
+        let mut storer = MockIndexedStorer::new();
         storer
-            .expect_private_get_indexed::<SodiumOxideSymmetricKey>()
-            .withf(|path, index| {
-                path == ".alicedecryptionkey." && index == &SodiumOxideSymmetricKey::get_index()
+            .expect_private_get::<SodiumOxideSymmetricKey>()
+            .withf(|path| {
+                path == ".alicedecryptionkey."
             })
-            .return_once(move |_, _| Ok(unsealed_alice_decryption_key));
+            .return_once(move |_| Ok(unsealed_alice_decryption_key));
         let ref_alice_decryption_key = get_sosk()
             .to_ref_entry(".alicedecryptionkey.".to_owned(), storer)
             .unwrap();
