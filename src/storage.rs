@@ -7,7 +7,7 @@
 
 pub mod mongodb;
 pub mod redact;
-pub mod google_cloud_storage;
+pub mod gcs;
 
 use crate::{CryptoError, Entry, StorableType};
 use ::mongodb::bson::Document;
@@ -25,7 +25,7 @@ pub trait HasIndex {
 pub enum TypeStorer {
     Redact(redact::RedactStorer),
     Mongo(mongodb::MongoStorer),
-    GoogleCloud(google_cloud_storage::GoogleCloudStorer),
+    GoogleCloud(gcs::GoogleCloudStorer),
     Mock(tests::MockStorer),
 }
 
