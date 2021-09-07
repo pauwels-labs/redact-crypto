@@ -1,4 +1,4 @@
-use crate::{CryptoError, Entry, StorableType, Storer, TypeStorer, HasIndex};
+use crate::{CryptoError, Entry, StorableType, Storer, IndexedTypeStorer, IndexedStorer};
 use async_trait::async_trait;
 use futures::StreamExt;
 use mongodb::{
@@ -13,7 +13,6 @@ use std::{
     error::Error,
     fmt::{self, Display, Formatter},
 };
-use crate::storage::{IndexedStorer, IndexedTypeStorer};
 
 #[derive(Debug)]
 pub enum MongoStorerError {

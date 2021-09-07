@@ -1,4 +1,4 @@
-use crate::{CryptoError, Entry, StorableType, Storer, TypeStorer};
+use crate::{CryptoError, Entry, StorableType, Storer, IndexedStorer, IndexedTypeStorer};
 use async_trait::async_trait;
 use mongodb::bson::Document;
 use reqwest::StatusCode;
@@ -7,7 +7,6 @@ use std::{
     error::Error,
     fmt::{self, Display, Formatter},
 };
-use crate::storage::{IndexedStorer, IndexedTypeStorer};
 
 #[derive(Debug)]
 pub enum RedactStorerError {

@@ -13,7 +13,6 @@ use crate::{CryptoError, Entry, StorableType};
 use ::mongodb::bson::Document;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::{ops::Deref, sync::Arc};
 
 pub trait HasIndex {
     type Index;
@@ -181,8 +180,6 @@ pub mod tests {
     use mockall::*;
     use mongodb::bson::Document;
     use serde::{Deserialize, Serialize};
-    use crate::storage::IndexedTypeStorer;
-
 
     mock! {
     pub IndexedStorer {

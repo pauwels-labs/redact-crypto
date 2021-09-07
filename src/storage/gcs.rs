@@ -5,7 +5,6 @@ use std::{
     error::Error,
     fmt::{self, Display, Formatter},
 };
-use mongodb::bson::Document;
 use cloud_storage::Client;
 use cloud_storage::Error::Other;
 

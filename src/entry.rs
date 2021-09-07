@@ -111,7 +111,7 @@ impl<T: StorableType> Entry<T> {
     }
 
     #[async_recursion]
-    pub async fn dereference(mut self) -> Result<Entry<T>, CryptoError> {
+    pub async fn dereference(self) -> Result<Entry<T>, CryptoError> {
         match self.value {
             State::Referenced {
                 ref path,
