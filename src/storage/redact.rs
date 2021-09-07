@@ -7,6 +7,7 @@ use std::{
     error::Error,
     fmt::{self, Display, Formatter},
 };
+use crate::storage::{IndexedStorer, IndexedTypeStorer};
 
 #[derive(Debug)]
 pub enum RedactStorerError {
@@ -69,14 +70,14 @@ impl RedactStorer {
     }
 }
 
-impl From<RedactStorer> for TypeStorer {
+impl From<RedactStorer> for IndexedTypeStorer {
     fn from(rs: RedactStorer) -> Self {
-        TypeStorer::Redact(rs)
+        IndexedTypeStorer::Redact(rs)
     }
 }
 
 #[async_trait]
-impl Storer for RedactStorer {
+impl IndexedStorer for RedactStorer {
     async fn get_indexed<T: StorableType>(
         &self,
         path: &str,
@@ -96,7 +97,7 @@ impl Storer for RedactStorer {
                         RedactStorerError::InternalError {
                             source: Box::new(source),
                         }
-                        .into()
+                            .into()
                     }
                 })?
                 .json::<Entry<T>>()
@@ -105,12 +106,12 @@ impl Storer for RedactStorer {
                     RedactStorerError::InternalError {
                         source: Box::new(source),
                     }
-                    .into()
+                        .into()
                 })?),
             Err(source) => Err(RedactStorerError::InternalError {
                 source: Box::new(source),
             }
-            .into()),
+                .into()),
         }
     }
 
@@ -138,7 +139,7 @@ impl Storer for RedactStorer {
                         RedactStorerError::InternalError {
                             source: Box::new(source),
                         }
-                        .into()
+                            .into()
                     }
                 })?
                 .json::<Vec<Entry<T>>>()
@@ -147,13 +148,33 @@ impl Storer for RedactStorer {
                     RedactStorerError::InternalError {
                         source: Box::new(source),
                     }
-                    .into()
+                        .into()
                 })?),
             Err(source) => Err(RedactStorerError::InternalError {
                 source: Box::new(source),
             }
-            .into()),
+                .into()),
         }
+    }
+}
+
+#[async_trait]
+impl Storer for RedactStorer {
+    async fn get<T: StorableType>(
+        &self,
+        path: &str,
+    ) -> Result<Entry<T>, CryptoError> {
+        self.get_indexed::<T>(path, &T::get_index()).await
+    }
+
+    async fn list<T: StorableType>(
+        &self,
+        path: &str,
+        skip: u64,
+        page_size: i64,
+    ) -> Result<Vec<Entry<T>>, CryptoError> {
+        self.list_indexed::<T>(path, skip, page_size, &T::get_index())
+            .await
     }
 
     async fn create<T: StorableType>(&self, entry: Entry<T>) -> Result<Entry<T>, CryptoError> {

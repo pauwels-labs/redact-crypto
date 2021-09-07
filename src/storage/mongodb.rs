@@ -1,4 +1,4 @@
-use crate::{CryptoError, Entry, StorableType, Storer, TypeStorer};
+use crate::{CryptoError, Entry, StorableType, Storer, TypeStorer, HasIndex};
 use async_trait::async_trait;
 use futures::StreamExt;
 use mongodb::{
@@ -13,6 +13,7 @@ use std::{
     error::Error,
     fmt::{self, Display, Formatter},
 };
+use crate::storage::{IndexedStorer, IndexedTypeStorer};
 
 #[derive(Debug)]
 pub enum MongoStorerError {
@@ -69,9 +70,9 @@ pub struct MongoStorer {
     client: OnceCell<Client>,
 }
 
-impl From<MongoStorer> for TypeStorer {
+impl From<MongoStorer> for IndexedTypeStorer {
     fn from(ms: MongoStorer) -> Self {
-        TypeStorer::Mongo(ms)
+        IndexedTypeStorer::Mongo(ms)
     }
 }
 
@@ -113,7 +114,7 @@ impl MongoStorer {
 }
 
 #[async_trait]
-impl Storer for MongoStorer {
+impl IndexedStorer for MongoStorer {
     async fn get_indexed<T: StorableType>(
         &self,
         path: &str,
@@ -136,14 +137,14 @@ impl Storer for MongoStorer {
                 MongoStorerError::InternalError {
                     source: Box::new(e),
                 }
-                .into()
+                    .into()
             })
             .and_then(|doc| match doc {
                 Some(doc) => bson::from_bson(Bson::Document(doc)).map_err(|e| {
                     MongoStorerError::InternalError {
                         source: Box::new(e),
                     }
-                    .into()
+                        .into()
                 }),
                 None => Err(MongoStorerError::NotFound.into()),
             })
@@ -173,7 +174,7 @@ impl Storer for MongoStorer {
                 MongoStorerError::InternalError {
                     source: Box::new(e),
                 }
-                .into()
+                    .into()
             })?;
 
         Ok(cursor
@@ -193,6 +194,26 @@ impl Storer for MongoStorer {
                 }
             })
             .collect::<Vec<Entry<T>>>())
+    }
+}
+
+#[async_trait]
+impl Storer for MongoStorer {
+    async fn get<T: StorableType>(
+        &self,
+        path: &str,
+    ) -> Result<Entry<T>, CryptoError> {
+        self.get_indexed::<T>(path, &T::get_index()).await
+    }
+
+    async fn list<T: StorableType>(
+        &self,
+        path: &str,
+        skip: u64,
+        page_size: i64,
+    ) -> Result<Vec<Entry<T>>, CryptoError> {
+        self.list_indexed::<T>(path, skip, page_size, &T::get_index())
+            .await
     }
 
     async fn create<T: StorableType>(&self, entry: Entry<T>) -> Result<Entry<T>, CryptoError> {

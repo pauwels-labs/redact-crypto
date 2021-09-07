@@ -85,10 +85,9 @@ impl GoogleCloudStorer {
 
 #[async_trait]
 impl Storer for GoogleCloudStorer {
-    async fn get_indexed<T: StorableType>(
+    async fn get<T: StorableType>(
         &self,
         path: &str,
-        _index: &Option<Document>,
     ) -> Result<Entry<T>, CryptoError> {
         let client = Client::new();
         let bytes = client
@@ -119,12 +118,11 @@ impl Storer for GoogleCloudStorer {
             })?)
     }
 
-    async fn list_indexed<T: StorableType>(
+    async fn list<T: StorableType>(
         &self,
         _path: &str,
         _skip: u64,
         _page_size: i64,
-        _index: &Option<Document>,
     ) -> Result<Vec<Entry<T>>, CryptoError> {
         Err(GoogleCloudStorerError::NotImplemented {}.into())
     }
