@@ -112,18 +112,15 @@ impl<T: StorableType> Entry<T> {
 
     #[async_recursion]
     pub async fn dereference(mut self) -> Result<Entry<T>, CryptoError> {
-        match self.resolved_value.take() {
-            None => match self.value {
-                State::Referenced {
-                    ref path,
-                    ref storer,
-                } => {
-                    let entry = storer.get::<T>(path).await?;
-                    Ok(entry.dereference().await?)
-                }
-                _ => Ok(self)
-            },
-            Some(_) => Ok(self),
+        match self.value {
+            State::Referenced {
+                ref path,
+                ref storer,
+            } => {
+                let entry = storer.get::<T>(path).await?;
+                Ok(entry.dereference().await?)
+            }
+            _ => Ok(self)
         }
     }
 
