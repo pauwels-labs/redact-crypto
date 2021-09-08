@@ -16,10 +16,7 @@ pub enum GoogleCloudStorerError {
     },
 
     /// Requested document was not found
-    NotFound,
-
-    /// Not Implemented
-    NotImplemented
+    NotFound
 }
 
 impl Error for GoogleCloudStorerError {
@@ -27,7 +24,6 @@ impl Error for GoogleCloudStorerError {
         match *self {
             GoogleCloudStorerError::InternalError { ref source } => Some(source.as_ref()),
             GoogleCloudStorerError::NotFound => None,
-            GoogleCloudStorerError::NotImplemented => None,
         }
     }
 }
@@ -40,9 +36,6 @@ impl Display for GoogleCloudStorerError {
             }
             GoogleCloudStorerError::NotFound => {
                 write!(f, "Requested document not found")
-            }
-            GoogleCloudStorerError::NotImplemented => {
-                write!(f, "This method is not implemented")
             }
         }
     }
@@ -57,7 +50,6 @@ impl From<GoogleCloudStorerError> for CryptoError {
             GoogleCloudStorerError::NotFound => CryptoError::NotFound {
                 source: Box::new(gcse),
             },
-            GoogleCloudStorerError::NotImplemented => CryptoError::NotImplemented {},
         }
     }
 }

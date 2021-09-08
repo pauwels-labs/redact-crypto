@@ -36,10 +36,7 @@ pub enum CryptoError {
     NotDeserializableToBaseDataType,
 
     /// Wrong nonce was provided during seal/unseal operation
-    WrongNonceType,
-
-    /// The method is not implemented for the storage implementation
-    NotImplemented
+    WrongNonceType
 }
 
 impl Error for CryptoError {
@@ -52,8 +49,7 @@ impl Error for CryptoError {
             CryptoError::InvalidSeedLength { .. } => None,
             CryptoError::NotDowncastable => None,
             CryptoError::NotDeserializableToBaseDataType => None,
-            CryptoError::WrongNonceType => None,
-            CryptoError::NotImplemented => None,
+            CryptoError::WrongNonceType => None
         }
     }
 }
@@ -101,9 +97,6 @@ impl Display for CryptoError {
             }
             CryptoError::WrongNonceType => {
                 write!(f, "Invalid type of nonce was provided for the operation")
-            }
-            CryptoError::NotImplemented => {
-                write!(f, "The method is not implemented for the storage implementation")
             }
         }
     }
