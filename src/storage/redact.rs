@@ -166,16 +166,6 @@ impl Storer for RedactStorer {
         self.get_indexed::<T>(path, &T::get_index()).await
     }
 
-    async fn list<T: StorableType>(
-        &self,
-        path: &str,
-        skip: u64,
-        page_size: i64,
-    ) -> Result<Vec<Entry<T>>, CryptoError> {
-        self.list_indexed::<T>(path, skip, page_size, &T::get_index())
-            .await
-    }
-
     async fn create<T: StorableType>(&self, entry: Entry<T>) -> Result<Entry<T>, CryptoError> {
         let client = reqwest::Client::new();
         let value = serde_json::to_value(&entry).map_err(|e| RedactStorerError::InternalError {

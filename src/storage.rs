@@ -47,6 +47,19 @@ impl IndexedStorer for IndexedTypeStorer {
         }
     }
 
+    async fn list<T: StorableType>(
+        &self,
+        path: &str,
+        skip: u64,
+        page_size: i64,
+    ) -> Result<Vec<Entry<T>>, CryptoError> {
+        match self {
+            IndexedTypeStorer::Redact(rs) => rs.list(path, skip, page_size).await,
+            IndexedTypeStorer::Mongo(ms) => ms.list(path, skip, page_size).await,
+            IndexedTypeStorer::Mock(ms) => ms.list(path, skip, page_size).await,
+        }
+    }
+
     async fn list_indexed<T: StorableType>(
         &self,
         path: &str,
@@ -75,19 +88,6 @@ impl Storer for IndexedTypeStorer {
         }
     }
 
-    async fn list<T: StorableType>(
-        &self,
-        path: &str,
-        skip: u64,
-        page_size: i64,
-    ) -> Result<Vec<Entry<T>>, CryptoError> {
-        match self {
-            IndexedTypeStorer::Redact(rs) => rs.list(path, skip, page_size).await,
-            IndexedTypeStorer::Mongo(ms) => ms.list(path, skip, page_size).await,
-            IndexedTypeStorer::Mock(ms) => ms.list(path, skip, page_size).await,
-        }
-    }
-
     async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError> {
         match self {
             IndexedTypeStorer::Redact(rs) => rs.create(value).await,
@@ -106,18 +106,6 @@ impl Storer for TypeStorer {
         match self {
             TypeStorer::GoogleCloud(gcs) => gcs.get(path).await,
             TypeStorer::Mock(ms) => ms.get(path).await,
-        }
-    }
-
-    async fn list<T: StorableType>(
-        &self,
-        path: &str,
-        skip: u64,
-        page_size: i64,
-    ) -> Result<Vec<Entry<T>>, CryptoError> {
-        match self {
-            TypeStorer::GoogleCloud(gcs) => gcs.list(path, skip, page_size).await,
-            TypeStorer::Mock(ms) => ms.list(path, skip, page_size).await,
         }
     }
 
@@ -140,6 +128,17 @@ pub trait IndexedStorer: Send + Sync + Storer {
         index: &Option<Document>,
     ) -> Result<Entry<T>, CryptoError>;
 
+    /// Fetches a list of all the stored keys.
+    async fn list<T: StorableType>(
+        &self,
+        path: &str,
+        skip: u64,
+        page_size: i64,
+    ) -> Result<Vec<Entry<T>>, CryptoError> {
+        self.list_indexed::<T>(path, skip, page_size, &T::get_index())
+            .await
+    }
+
     /// Like list, but doesn't enforce IntoIndex and allows providing a custom index doc
     async fn list_indexed<T: StorableType>(
         &self,
@@ -158,14 +157,6 @@ pub trait Storer: Send + Sync {
         &self,
         path: &str,
     ) -> Result<Entry<T>, CryptoError>;
-
-    /// Fetches a list of all the stored keys.
-    async fn list<T: StorableType>(
-        &self,
-        path: &str,
-        skip: u64,
-        page_size: i64,
-    ) -> Result<Vec<Entry<T>>, CryptoError>;
 
     /// Adds the given `Key` struct to the backing store.
     async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError>;
@@ -236,6 +227,14 @@ pub mod tests {
         ) -> Result<Entry<T>, CryptoError> {
             self.private_get_indexed(path, index)
         }
+        async fn list<T: StorableType>(
+            &self,
+            path: &str,
+            skip: u64,
+            page_size: i64,
+        ) -> Result<Vec<Entry<T>>, CryptoError> {
+            self.private_list(path, skip, page_size)
+        }
         async fn list_indexed<T: StorableType>(
             &self,
             path: &str,
@@ -254,14 +253,6 @@ pub mod tests {
             path: &str,
         ) -> Result<Entry<T>, CryptoError> {
             self.private_get(path)
-        }
-        async fn list<T: StorableType>(
-            &self,
-            path: &str,
-            skip: u64,
-            page_size: i64,
-        ) -> Result<Vec<Entry<T>>, CryptoError> {
-            self.private_list(path, skip, page_size)
         }
         async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError> {
             self.private_create(value)

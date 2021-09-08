@@ -117,15 +117,6 @@ impl Storer for GoogleCloudStorer {
             })?)
     }
 
-    async fn list<T: StorableType>(
-        &self,
-        _path: &str,
-        _skip: u64,
-        _page_size: i64,
-    ) -> Result<Vec<Entry<T>>, CryptoError> {
-        Err(GoogleCloudStorerError::NotImplemented {}.into())
-    }
-
     async fn create<T: StorableType>(&self, entry: Entry<T>) -> Result<Entry<T>, CryptoError> {
         let entry_string = serde_json::to_string(&entry)
             .map_err(|e| GoogleCloudStorerError::InternalError {
