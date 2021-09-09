@@ -33,7 +33,7 @@ ring = { version = "0.16.20", features = ["std"] }
 async-recursion = "0.3.2"
 mockall = "0.10.2"
 cloud-storage = "0.10"
-der = { git = "https://github.com/ajpauwels/utils", rev = "9f303824463e8ca93d4cacc869aea6196d97eb36", features = ["oid", "alloc", "std", "derive"] }
+der = { "version" = "0.4.1", features = ["oid", "alloc", "std", "derive"] }
 serde_bytes = "0.11.5"
 spki = "0.4.0"
 x509 = "0.2.0"
