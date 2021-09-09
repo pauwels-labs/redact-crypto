@@ -331,18 +331,6 @@ pub mod tests {
         }
     }
 
-    impl From<MockStorer> for NonIndexedTypeStorer {
-        fn from(mis: MockStorer) -> Self {
-            NonIndexedTypeStorer::Mock(mis)
-        }
-    }
-
-    impl From<MockIndexedStorer> for IndexedTypeStorer {
-        fn from(mis: MockIndexedStorer) -> Self {
-            IndexedTypeStorer::Mock(mis)
-        }
-    }
-
     impl From<MockIndexedStorer> for TypeStorer {
         fn from(mis: MockIndexedStorer) -> Self {
             TypeStorer::IndexedTypeStorer(IndexedTypeStorer::Mock(mis))
