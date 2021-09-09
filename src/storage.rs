@@ -30,7 +30,7 @@ pub enum IndexedTypeStorer {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TypeStorer {
     GoogleCloud(gcs::GoogleCloudStorer),
-    Mock(tests::MockIndexedStorer),
+    Mock(tests::MockStorer),
 }
 
 #[async_trait]
