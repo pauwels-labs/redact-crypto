@@ -54,7 +54,7 @@ impl From<RedactStorerError> for CryptoError {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RedactStorer {
     url: String,
 }
@@ -117,7 +117,7 @@ impl Storer for RedactStorer {
     async fn list_indexed<T: StorableType>(
         &self,
         path: &str,
-        skip: i64,
+        skip: u64,
         page_size: i64,
         index: &Option<Document>,
     ) -> Result<Vec<Entry<T>>, CryptoError> {

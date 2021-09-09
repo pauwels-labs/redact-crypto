@@ -7,6 +7,7 @@
 
 pub mod mongodb;
 pub mod redact;
+pub mod gcs;
 
 use crate::{CryptoError, Entry, StorableType};
 use ::mongodb::bson::Document;
@@ -20,10 +21,11 @@ pub trait HasIndex {
     fn get_index() -> Option<Self::Index>;
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TypeStorer {
     Redact(redact::RedactStorer),
     Mongo(mongodb::MongoStorer),
+    GoogleCloud(gcs::GoogleCloudStorer),
     Mock(tests::MockStorer),
 }
 
@@ -37,6 +39,7 @@ impl Storer for TypeStorer {
         match self {
             TypeStorer::Redact(rs) => rs.get_indexed(path, index).await,
             TypeStorer::Mongo(ms) => ms.get_indexed(path, index).await,
+            TypeStorer::GoogleCloud(gcs) => gcs.get_indexed(path, index).await,
             TypeStorer::Mock(ms) => ms.get_indexed(path, index).await,
         }
     }
@@ -44,13 +47,14 @@ impl Storer for TypeStorer {
     async fn list_indexed<T: StorableType>(
         &self,
         path: &str,
-        skip: i64,
+        skip: u64,
         page_size: i64,
         index: &Option<Document>,
     ) -> Result<Vec<Entry<T>>, CryptoError> {
         match self {
             TypeStorer::Redact(rs) => rs.list_indexed(path, skip, page_size, index).await,
             TypeStorer::Mongo(ms) => ms.list_indexed(path, skip, page_size, index).await,
+            TypeStorer::GoogleCloud(gcs) => gcs.list_indexed(path, skip, page_size, index).await,
             TypeStorer::Mock(ms) => ms.list_indexed(path, skip, page_size, index).await,
         }
     }
@@ -59,6 +63,7 @@ impl Storer for TypeStorer {
         match self {
             TypeStorer::Redact(rs) => rs.create(value).await,
             TypeStorer::Mongo(ms) => ms.create(value).await,
+            TypeStorer::GoogleCloud(gcs) => gcs.create(value).await,
             TypeStorer::Mock(ms) => ms.create(value).await,
         }
     }
@@ -86,7 +91,7 @@ pub trait Storer: Send + Sync {
     async fn list<T: HasIndex<Index = Document> + StorableType>(
         &self,
         path: &str,
-        skip: i64,
+        skip: u64,
         page_size: i64,
     ) -> Result<Vec<Entry<T>>, CryptoError> {
         self.list_indexed::<T>(path, skip, page_size, &T::get_index())
@@ -97,7 +102,7 @@ pub trait Storer: Send + Sync {
     async fn list_indexed<T: StorableType>(
         &self,
         path: &str,
-        skip: i64,
+        skip: u64,
         page_size: i64,
         index: &Option<Document>,
     ) -> Result<Vec<Entry<T>>, CryptoError>;
@@ -124,7 +129,7 @@ where
     async fn list_indexed<T: StorableType>(
         &self,
         name: &str,
-        skip: i64,
+        skip: u64,
         page_size: i64,
         index: &Option<Document>,
     ) -> Result<Vec<Entry<T>>, CryptoError> {
@@ -147,12 +152,13 @@ pub mod tests {
     use mongodb::bson::Document;
     use serde::{Deserialize, Serialize};
 
+
     mock! {
     pub Storer {
         pub fn private_deserialize() -> Self;
         pub fn private_serialize(&self) -> MockStorer;
     pub fn private_get_indexed<T: StorableType>(&self, path: &str, index: &Option<Document>) -> Result<Entry<T>, CryptoError>;
-    pub fn private_list_indexed<T: StorableType>(&self, path: &str, skip: i64, page_size: i64, index: &Option<Document>) -> Result<Vec<Entry<T>>, CryptoError>;
+    pub fn private_list_indexed<T: StorableType>(&self, path: &str, skip: u64, page_size: i64, index: &Option<Document>) -> Result<Vec<Entry<T>>, CryptoError>;
     pub fn private_create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError>;
     }
     }
@@ -160,6 +166,12 @@ pub mod tests {
     impl core::fmt::Debug for MockStorer {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             f.debug_struct("MockStorer").finish()
+        }
+    }
+
+    impl Clone for MockStorer {
+        fn clone(&self) -> Self {
+            unimplemented!()
         }
     }
 
@@ -175,7 +187,7 @@ pub mod tests {
         async fn list_indexed<T: StorableType>(
             &self,
             path: &str,
-            skip: i64,
+            skip: u64,
             page_size: i64,
             index: &Option<Document>,
         ) -> Result<Vec<Entry<T>>, CryptoError> {
