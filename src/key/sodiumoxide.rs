@@ -900,7 +900,7 @@ mod tests {
     };
     use crate::{
         nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce},
-        storage::tests::MockStorer,
+        storage::tests::MockStorer, storage::tests::MockIndexedStorer,
         Algorithm, AsymmetricKeyBuilder, BoolDataBuilder, Builder, ByteSource, Data, DataBuilder,
         HasBuilder, HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder,
         PublicAsymmetricSealer, PublicAsymmetricUnsealer, SecretAsymmetricKeyBuilder,
@@ -1519,7 +1519,7 @@ mod tests {
             .to_unsealed_entry(".bobpublickey.".to_owned())
             .unwrap();
         let bob_key_bytes = unsealed_bob_key.resolve().await.unwrap().byte_source();
-        let mut storer = MockStorer::new();
+        let mut storer = MockIndexedStorer::new();
         storer
             .expect_private_get::<SodiumOxideCurve25519SecretAsymmetricKey>()
             .withf(|path| {

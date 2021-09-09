@@ -1,4 +1,4 @@
-use crate::{CryptoError, Entry, StorableType, Storer, TypeStorer};
+use crate::{CryptoError, Entry, StorableType, Storer, NonIndexedTypeStorer};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -60,9 +60,9 @@ pub struct GoogleCloudStorer {
     bucket_name: String,
 }
 
-impl From<GoogleCloudStorer> for TypeStorer {
+impl From<GoogleCloudStorer> for NonIndexedTypeStorer {
     fn from(gcs: GoogleCloudStorer) -> Self {
-        TypeStorer::GoogleCloud(gcs)
+        NonIndexedTypeStorer::GoogleCloud(gcs)
     }
 }
 

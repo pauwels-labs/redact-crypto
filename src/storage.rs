@@ -21,6 +21,29 @@ pub trait HasIndex {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum TypeStorer {
+    IndexedTypeStorer(IndexedTypeStorer),
+    NonIndexedTypeStorer(NonIndexedTypeStorer)
+}
+
+#[async_trait]
+impl Storer for TypeStorer {
+    async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
+        match self {
+            TypeStorer::NonIndexedTypeStorer(ts) => ts.get(path).await,
+            TypeStorer::IndexedTypeStorer(ts) => ts.get(path).await
+        }
+    }
+
+    async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError> {
+        match self {
+            TypeStorer::NonIndexedTypeStorer(ts) => ts.create(value).await,
+            TypeStorer::IndexedTypeStorer(ts) => ts.create(value).await
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum IndexedTypeStorer {
     Redact(redact::RedactStorer),
     Mongo(mongodb::MongoStorer),
@@ -28,7 +51,7 @@ pub enum IndexedTypeStorer {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum TypeStorer {
+pub enum NonIndexedTypeStorer {
     GoogleCloud(gcs::GoogleCloudStorer),
     Mock(tests::MockStorer),
 }
@@ -98,21 +121,21 @@ impl Storer for IndexedTypeStorer {
 }
 
 #[async_trait]
-impl Storer for TypeStorer {
+impl Storer for NonIndexedTypeStorer {
     async fn get<T: StorableType>(
         &self,
         path: &str,
     ) -> Result<Entry<T>, CryptoError> {
         match self {
-            TypeStorer::GoogleCloud(gcs) => gcs.get(path).await,
-            TypeStorer::Mock(ms) => ms.get(path).await,
+            NonIndexedTypeStorer::GoogleCloud(gcs) => gcs.get(path).await,
+            NonIndexedTypeStorer::Mock(ms) => ms.get(path).await,
         }
     }
 
     async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError> {
         match self {
-            TypeStorer::GoogleCloud(gcs) => gcs.create(value).await,
-            TypeStorer::Mock(ms) => ms.create(value).await,
+            NonIndexedTypeStorer::GoogleCloud(gcs) => gcs.create(value).await,
+            NonIndexedTypeStorer::Mock(ms) => ms.create(value).await,
         }
     }
 }
@@ -171,6 +194,7 @@ pub mod tests {
     use mockall::*;
     use mongodb::bson::Document;
     use serde::{Deserialize, Serialize};
+    use crate::storage::NonIndexedTypeStorer;
 
     mock! {
     pub IndexedStorer {
@@ -307,15 +331,27 @@ pub mod tests {
         }
     }
 
-    impl From<MockStorer> for TypeStorer {
+    impl From<MockStorer> for NonIndexedTypeStorer {
         fn from(mis: MockStorer) -> Self {
-            TypeStorer::Mock(mis)
+            NonIndexedTypeStorer::Mock(mis)
         }
     }
 
     impl From<MockIndexedStorer> for IndexedTypeStorer {
         fn from(mis: MockIndexedStorer) -> Self {
             IndexedTypeStorer::Mock(mis)
+        }
+    }
+
+    impl From<MockIndexedStorer> for TypeStorer {
+        fn from(mis: MockIndexedStorer) -> Self {
+            TypeStorer::IndexedTypeStorer(IndexedTypeStorer::Mock(mis))
+        }
+    }
+
+    impl From<MockStorer> for TypeStorer {
+        fn from(mis: MockStorer) -> Self {
+            TypeStorer::NonIndexedTypeStorer(NonIndexedTypeStorer::Mock(mis))
         }
     }
 }
