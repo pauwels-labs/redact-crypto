@@ -33,7 +33,13 @@ ring = { version = "0.16.20", features = ["std"] }
 async-recursion = "0.3.2"
 mockall = "0.10.2"
 cloud-storage = "0.10.2"
+der = { "version" = "0.4.1", features = ["oid", "alloc", "std", "derive"] }
+serde_bytes = "0.11.5"
+spki = "0.4.0"
+x509 = "0.2.0"
+cookie-factory = "0.3.2"
 strum = { version = "0.21", features = ["derive"] }
 
 [dev-dependencies]
 tokio = { version = "1.7.1", features = ["macros", "rt-multi-thread"] }
+chrono = "0.4.19"

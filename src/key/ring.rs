@@ -1,7 +1,7 @@
 use crate::{
-    AsymmetricKeyBuilder, Builder, ByteSource, CryptoError, HasBuilder, HasByteSource, HasIndex,
-    HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder, SecretAsymmetricKeyBuilder, Signer,
-    StorableType, TypeBuilder, TypeBuilderContainer,
+    AsymmetricKeyBuilder, Builder, ByteSource, CryptoError, HasAlgorithmIdentifier, HasBuilder,
+    HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder,
+    SecretAsymmetricKeyBuilder, Signer, StorableType, TypeBuilder, TypeBuilderContainer,
 };
 use mongodb::bson::{self, Document};
 use once_cell::unsync::OnceCell;
@@ -10,6 +10,7 @@ use ring::{
     signature::{Ed25519KeyPair as ExternalEd25519KeyPair, KeyPair},
 };
 use serde::{Deserialize, Serialize};
+use spki::AlgorithmIdentifier;
 use std::convert::TryFrom;
 
 // SECRET SIGNING KEY \\
@@ -216,6 +217,15 @@ impl HasByteSource for RingEd25519PublicAsymmetricKey {
     }
 }
 
+impl HasAlgorithmIdentifier for RingEd25519PublicAsymmetricKey {
+    fn algorithm_identifier<'a>(&self) -> AlgorithmIdentifier<'a> {
+        AlgorithmIdentifier {
+            oid: spki::ObjectIdentifier::new("1.3.101.112"),
+            parameters: None,
+        }
+    }
+}
+
 impl RingEd25519PublicAsymmetricKey {
     pub fn new() -> Result<(Self, RingEd25519SecretAsymmetricKey), CryptoError> {
         let secret_key = RingEd25519SecretAsymmetricKey::new()?;
@@ -231,5 +241,14 @@ impl HasPublicKey for RingEd25519SecretAsymmetricKey {
         Ok(RingEd25519PublicAsymmetricKey {
             public_key: self.get_secret_key()?.public_key().as_ref().to_vec(),
         })
+    }
+}
+
+impl HasAlgorithmIdentifier for RingEd25519SecretAsymmetricKey {
+    fn algorithm_identifier<'a>(&self) -> AlgorithmIdentifier<'a> {
+        AlgorithmIdentifier {
+            oid: spki::ObjectIdentifier::new("1.3.101.112"),
+            parameters: None,
+        }
     }
 }
