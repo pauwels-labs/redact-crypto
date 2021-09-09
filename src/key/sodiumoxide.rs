@@ -34,7 +34,10 @@ use sodiumoxide::crypto::{
         SecretKey as ExternalSodiumOxideEd25519SecretAsymmetricKey,
     },
 };
+use spki::AlgorithmIdentifier;
 use std::{boxed::Box, convert::TryFrom};
+
+use super::HasAlgorithmIdentifier;
 
 // SYMMETRIC KEY \\
 #[derive(Serialize, Deserialize, Debug)]
@@ -648,6 +651,15 @@ impl HasByteSource for SodiumOxideCurve25519PublicAsymmetricKey {
     }
 }
 
+impl HasAlgorithmIdentifier for SodiumOxideCurve25519PublicAsymmetricKey {
+    fn algorithm_identifier<'a>(&self) -> AlgorithmIdentifier<'a> {
+        AlgorithmIdentifier {
+            oid: spki::ObjectIdentifier::new("1.3.101.110"),
+            parameters: None,
+        }
+    }
+}
+
 impl SodiumOxideCurve25519PublicAsymmetricKey {
     pub const KEYBYTES: usize = EXTERNALSODIUMOXIDEPUBLICASYMMETRICKEYBYTES;
 
@@ -667,6 +679,15 @@ impl HasPublicKey for SodiumOxideCurve25519SecretAsymmetricKey {
         Ok(SodiumOxideCurve25519PublicAsymmetricKey {
             public_key: self.secret_key.public_key(),
         })
+    }
+}
+
+impl HasAlgorithmIdentifier for SodiumOxideCurve25519SecretAsymmetricKey {
+    fn algorithm_identifier<'a>(&self) -> AlgorithmIdentifier<'a> {
+        AlgorithmIdentifier {
+            oid: spki::ObjectIdentifier::new("1.3.101.110"),
+            parameters: None,
+        }
     }
 }
 
@@ -724,7 +745,10 @@ impl StorableType for SodiumOxideEd25519SecretAsymmetricKey {}
 
 impl Signer for SodiumOxideEd25519SecretAsymmetricKey {
     fn sign(&self, bytes: ByteSource) -> Result<ByteSource, CryptoError> {
-        Ok(sign::sign(bytes.get()?, &self.secret_key).as_slice().into())
+        Ok(sign::sign_detached(bytes.get()?, &self.secret_key)
+            .to_bytes()
+            .as_ref()
+            .into())
     }
 }
 
@@ -869,6 +893,15 @@ impl HasByteSource for SodiumOxideEd25519PublicAsymmetricKey {
     }
 }
 
+impl HasAlgorithmIdentifier for SodiumOxideEd25519PublicAsymmetricKey {
+    fn algorithm_identifier<'a>(&self) -> AlgorithmIdentifier<'a> {
+        AlgorithmIdentifier {
+            oid: spki::ObjectIdentifier::new("1.3.101.112"),
+            parameters: None,
+        }
+    }
+}
+
 impl SodiumOxideEd25519PublicAsymmetricKey {
     pub const KEYBYTES: usize = EXTERNALSODIUMOXIDEPUBLICASYMMETRICKEYBYTES;
 
@@ -888,6 +921,15 @@ impl HasPublicKey for SodiumOxideEd25519SecretAsymmetricKey {
         Ok(SodiumOxideEd25519PublicAsymmetricKey {
             public_key: self.secret_key.public_key(),
         })
+    }
+}
+
+impl HasAlgorithmIdentifier for SodiumOxideEd25519SecretAsymmetricKey {
+    fn algorithm_identifier<'a>(&self) -> AlgorithmIdentifier<'a> {
+        AlgorithmIdentifier {
+            oid: spki::ObjectIdentifier::new("1.3.101.112"),
+            parameters: None,
+        }
     }
 }
 
