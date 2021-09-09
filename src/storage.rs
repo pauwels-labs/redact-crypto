@@ -165,7 +165,7 @@ pub trait Storer: Send + Sync {
 pub mod tests {
     use super::Storer as StorerTrait;
     use super::IndexedStorer as IndexedStorerTrait;
-    use crate::{CryptoError, Entry, StorableType, TypeStorer};
+    use crate::{CryptoError, Entry, StorableType, TypeStorer, IndexedTypeStorer};
     use async_trait::async_trait;
     use mockall::predicate::*;
     use mockall::*;
@@ -189,7 +189,6 @@ pub mod tests {
         pub fn private_deserialize() -> Self;
         pub fn private_serialize(&self) -> MockIndexedStorer;
     pub fn private_get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError>;
-    pub fn private_list<T: StorableType>(&self, path: &str, skip: u64, page_size: i64) -> Result<Vec<Entry<T>>, CryptoError>;
     pub fn private_create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError>;
     }
     }
@@ -259,6 +258,19 @@ pub mod tests {
         }
     }
 
+    #[async_trait]
+    impl StorerTrait for MockStorer {
+        async fn get<T: StorableType>(
+            &self,
+            path: &str,
+        ) -> Result<Entry<T>, CryptoError> {
+            self.private_get(path)
+        }
+        async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError> {
+            self.private_create(value)
+        }
+    }
+
     impl Serialize for MockStorer {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
@@ -295,9 +307,15 @@ pub mod tests {
         }
     }
 
-    impl From<MockIndexedStorer> for TypeStorer {
-        fn from(mis: MockIndexedStorer) -> Self {
+    impl From<MockStorer> for TypeStorer {
+        fn from(mis: MockStorer) -> Self {
             TypeStorer::Mock(mis)
+        }
+    }
+
+    impl From<MockIndexedStorer> for IndexedTypeStorer {
+        fn from(mis: MockIndexedStorer) -> Self {
+            IndexedTypeStorer::Mock(mis)
         }
     }
 }
