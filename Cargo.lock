@@ -163,11 +163,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44c32f031ea41b4291d695026c023b95d59db2d8a2c7640800ed56bc8f510f22"
 
 [[package]]
-name = "const-oid"
-version = "0.6.0"
-source = "git+https://github.com/ajpauwels/utils?rev=9f303824463e8ca93d4cacc869aea6196d97eb36#9f303824463e8ca93d4cacc869aea6196d97eb36"
-
-[[package]]
 name = "cookie-factory"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -255,22 +250,15 @@ version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31e21d2d0f22cde6e88694108429775c0219760a07779bf96503b434a03d7412"
 dependencies = [
- "const-oid 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "der"
-version = "0.4.1"
-source = "git+https://github.com/ajpauwels/utils?rev=9f303824463e8ca93d4cacc869aea6196d97eb36#9f303824463e8ca93d4cacc869aea6196d97eb36"
-dependencies = [
- "const-oid 0.6.0 (git+https://github.com/ajpauwels/utils?rev=9f303824463e8ca93d4cacc869aea6196d97eb36)",
+ "const-oid",
  "der_derive",
 ]
 
 [[package]]
 name = "der_derive"
 version = "0.4.0"
-source = "git+https://github.com/ajpauwels/utils?rev=9f303824463e8ca93d4cacc869aea6196d97eb36#9f303824463e8ca93d4cacc869aea6196d97eb36"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5360db9da81e4727cb5291894e533c83f67b490e2fe51e9ed9f6b3f6b0fa865a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1237,7 +1225,7 @@ dependencies = [
  "chrono",
  "cloud-storage",
  "cookie-factory",
- "der 0.4.1 (git+https://github.com/ajpauwels/utils?rev=9f303824463e8ca93d4cacc869aea6196d97eb36)",
+ "der",
  "futures",
  "hex",
  "mockall",
@@ -1525,9 +1513,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.9.6"
+version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9204c41a1597a8c5af23c82d1c921cb01ec0a4c59e07a9c7306062829a3903f3"
+checksum = "b69f9a4c9740d74c5baa3fd2e547f9525fa8088a8a958e0ca2409a514e33f5fa"
 dependencies = [
  "block-buffer",
  "cfg-if",
@@ -1610,7 +1598,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "987637c5ae6b3121aba9d513f869bd2bff11c4cc086c22473befd6649c0bd521"
 dependencies = [
- "der 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "der",
 ]
 
 [[package]]

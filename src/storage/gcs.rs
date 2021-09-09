@@ -1,11 +1,10 @@
-use crate::{CryptoError, Entry, StorableType, Storer, TypeStorer};
+use crate::{CryptoError, Entry, StorableType, Storer, NonIndexedTypeStorer};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::{
     error::Error,
     fmt::{self, Display, Formatter},
 };
-use mongodb::bson::Document;
 use cloud_storage::Client;
 use cloud_storage::Error::Other;
 
@@ -17,10 +16,7 @@ pub enum GoogleCloudStorerError {
     },
 
     /// Requested document was not found
-    NotFound,
-
-    /// Not Implemented
-    NotImplemented
+    NotFound
 }
 
 impl Error for GoogleCloudStorerError {
@@ -28,7 +24,6 @@ impl Error for GoogleCloudStorerError {
         match *self {
             GoogleCloudStorerError::InternalError { ref source } => Some(source.as_ref()),
             GoogleCloudStorerError::NotFound => None,
-            GoogleCloudStorerError::NotImplemented => None,
         }
     }
 }
@@ -41,9 +36,6 @@ impl Display for GoogleCloudStorerError {
             }
             GoogleCloudStorerError::NotFound => {
                 write!(f, "Requested document not found")
-            }
-            GoogleCloudStorerError::NotImplemented => {
-                write!(f, "This method is not implemented")
             }
         }
     }
@@ -58,7 +50,6 @@ impl From<GoogleCloudStorerError> for CryptoError {
             GoogleCloudStorerError::NotFound => CryptoError::NotFound {
                 source: Box::new(gcse),
             },
-            GoogleCloudStorerError::NotImplemented => CryptoError::NotImplemented {},
         }
     }
 }
@@ -69,9 +60,9 @@ pub struct GoogleCloudStorer {
     bucket_name: String,
 }
 
-impl From<GoogleCloudStorer> for TypeStorer {
+impl From<GoogleCloudStorer> for NonIndexedTypeStorer {
     fn from(gcs: GoogleCloudStorer) -> Self {
-        TypeStorer::GoogleCloud(gcs)
+        NonIndexedTypeStorer::GoogleCloud(gcs)
     }
 }
 
@@ -85,10 +76,9 @@ impl GoogleCloudStorer {
 
 #[async_trait]
 impl Storer for GoogleCloudStorer {
-    async fn get_indexed<T: StorableType>(
+    async fn get<T: StorableType>(
         &self,
         path: &str,
-        _index: &Option<Document>,
     ) -> Result<Entry<T>, CryptoError> {
         let client = Client::new();
         let bytes = client
@@ -117,16 +107,6 @@ impl Storer for GoogleCloudStorer {
             .map_err(|e| GoogleCloudStorerError::InternalError {
                 source: Box::new(e),
             })?)
-    }
-
-    async fn list_indexed<T: StorableType>(
-        &self,
-        _path: &str,
-        _skip: u64,
-        _page_size: i64,
-        _index: &Option<Document>,
-    ) -> Result<Vec<Entry<T>>, CryptoError> {
-        Err(GoogleCloudStorerError::NotImplemented {}.into())
     }
 
     async fn create<T: StorableType>(&self, entry: Entry<T>) -> Result<Entry<T>, CryptoError> {

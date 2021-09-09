@@ -82,5 +82,5 @@ pub use source::{
 pub use storage::{
     mongodb::{MongoStorer, MongoStorerError},
     redact::{RedactStorer, RedactStorerError},
-    HasIndex, Storer, TypeStorer,
+    HasIndex, Storer, TypeStorer, IndexedStorer, IndexedTypeStorer, NonIndexedTypeStorer
 };
