@@ -1,12 +1,12 @@
-use crate::{CryptoError, Entry, StorableType, Storer, NonIndexedTypeStorer};
+use crate::{CryptoError, Entry, NonIndexedTypeStorer, StorableType, Storer};
 use async_trait::async_trait;
+use cloud_storage::Client;
+use cloud_storage::Error::Other;
 use serde::{Deserialize, Serialize};
 use std::{
     error::Error,
     fmt::{self, Display, Formatter},
 };
-use cloud_storage::Client;
-use cloud_storage::Error::Other;
 
 #[derive(Debug)]
 pub enum GoogleCloudStorerError {
@@ -16,7 +16,7 @@ pub enum GoogleCloudStorerError {
     },
 
     /// Requested document was not found
-    NotFound
+    NotFound,
 }
 
 impl Error for GoogleCloudStorerError {
@@ -68,64 +68,58 @@ impl From<GoogleCloudStorer> for NonIndexedTypeStorer {
 
 impl GoogleCloudStorer {
     pub fn new(bucket_name: String) -> Self {
-        return GoogleCloudStorer {
-            bucket_name
-        }
+        return GoogleCloudStorer { bucket_name };
     }
 }
 
 #[async_trait]
 impl Storer for GoogleCloudStorer {
-    async fn get<T: StorableType>(
-        &self,
-        path: &str,
-    ) -> Result<Entry<T>, CryptoError> {
+    async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
         let client = Client::new();
         let bytes = client
             .object()
             .download(&self.bucket_name, path)
             .await
-            .map_err(|e| {
-                match e {
-                    Other(_) => {
-                        GoogleCloudStorerError::NotFound {}.into()
-                    },
-                    _ => {
-                        GoogleCloudStorerError::InternalError {
-                            source: Box::new(e),
-                        }
-                    }
-                }
+            .map_err(|e| match e {
+                Other(_) => GoogleCloudStorerError::NotFound {}.into(),
+                _ => GoogleCloudStorerError::InternalError {
+                    source: Box::new(e),
+                },
             })?;
 
-        let s = String::from_utf8(bytes)
-            .map_err(|e| GoogleCloudStorerError::InternalError {
-                source: Box::new(e),
-            })?;
+        let s = String::from_utf8(bytes).map_err(|e| GoogleCloudStorerError::InternalError {
+            source: Box::new(e),
+        })?;
 
-        Ok(serde_json::from_str(&s)
-            .map_err(|e| GoogleCloudStorerError::InternalError {
+        Ok(
+            serde_json::from_str(&s).map_err(|e| GoogleCloudStorerError::InternalError {
                 source: Box::new(e),
-            })?)
+            })?,
+        )
     }
 
     async fn create<T: StorableType>(&self, entry: Entry<T>) -> Result<Entry<T>, CryptoError> {
-        let entry_string = serde_json::to_string(&entry)
-            .map_err(|e| GoogleCloudStorerError::InternalError {
+        let entry_string =
+            serde_json::to_string(&entry).map_err(|e| GoogleCloudStorerError::InternalError {
                 source: Box::new(e),
             })?;
         let client = Client::new();
 
         match client
             .object()
-            .create(&self.bucket_name, entry_string.as_bytes().to_vec(), &entry.path.clone(), "application/json")
+            .create(
+                &self.bucket_name,
+                entry_string.as_bytes().to_vec(),
+                &entry.path.clone(),
+                "application/json",
+            )
             .await
         {
             Ok(_) => Ok(entry),
             Err(e) => Err(GoogleCloudStorerError::InternalError {
                 source: Box::new(e),
             }
-                .into()),
+            .into()),
         }
     }
 }

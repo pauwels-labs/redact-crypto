@@ -1,4 +1,4 @@
-use crate::{CryptoError, Entry, StorableType, Storer, IndexedStorer, IndexedTypeStorer};
+use crate::{CryptoError, Entry, IndexedStorer, IndexedTypeStorer, StorableType, Storer};
 use async_trait::async_trait;
 use mongodb::bson::Document;
 use reqwest::StatusCode;
@@ -96,7 +96,7 @@ impl IndexedStorer for RedactStorer {
                         RedactStorerError::InternalError {
                             source: Box::new(source),
                         }
-                            .into()
+                        .into()
                     }
                 })?
                 .json::<Entry<T>>()
@@ -105,12 +105,12 @@ impl IndexedStorer for RedactStorer {
                     RedactStorerError::InternalError {
                         source: Box::new(source),
                     }
-                        .into()
+                    .into()
                 })?),
             Err(source) => Err(RedactStorerError::InternalError {
                 source: Box::new(source),
             }
-                .into()),
+            .into()),
         }
     }
 
@@ -138,7 +138,7 @@ impl IndexedStorer for RedactStorer {
                         RedactStorerError::InternalError {
                             source: Box::new(source),
                         }
-                            .into()
+                        .into()
                     }
                 })?
                 .json::<Vec<Entry<T>>>()
@@ -147,22 +147,19 @@ impl IndexedStorer for RedactStorer {
                     RedactStorerError::InternalError {
                         source: Box::new(source),
                     }
-                        .into()
+                    .into()
                 })?),
             Err(source) => Err(RedactStorerError::InternalError {
                 source: Box::new(source),
             }
-                .into()),
+            .into()),
         }
     }
 }
 
 #[async_trait]
 impl Storer for RedactStorer {
-    async fn get<T: StorableType>(
-        &self,
-        path: &str,
-    ) -> Result<Entry<T>, CryptoError> {
+    async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
         self.get_indexed::<T>(path, &T::get_index()).await
     }
 

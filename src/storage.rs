@@ -5,9 +5,10 @@
 //! Read operations allow for retrieval of data based on type information and the data's path.
 //!
 
+pub mod gcs;
 pub mod mongodb;
 pub mod redact;
-pub mod gcs;
+pub mod selfstore;
 
 use crate::{CryptoError, Entry, StorableType};
 use ::mongodb::bson::Document;
@@ -23,7 +24,7 @@ pub trait HasIndex {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TypeStorer {
     IndexedTypeStorer(IndexedTypeStorer),
-    NonIndexedTypeStorer(NonIndexedTypeStorer)
+    NonIndexedTypeStorer(NonIndexedTypeStorer),
 }
 
 #[async_trait]
@@ -31,14 +32,14 @@ impl Storer for TypeStorer {
     async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
         match self {
             TypeStorer::NonIndexedTypeStorer(ts) => ts.get(path).await,
-            TypeStorer::IndexedTypeStorer(ts) => ts.get(path).await
+            TypeStorer::IndexedTypeStorer(ts) => ts.get(path).await,
         }
     }
 
     async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError> {
         match self {
             TypeStorer::NonIndexedTypeStorer(ts) => ts.create(value).await,
-            TypeStorer::IndexedTypeStorer(ts) => ts.create(value).await
+            TypeStorer::IndexedTypeStorer(ts) => ts.create(value).await,
         }
     }
 }
@@ -52,6 +53,7 @@ pub enum IndexedTypeStorer {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum NonIndexedTypeStorer {
+    SelfStore(selfstore::SelfStorer),
     GoogleCloud(gcs::GoogleCloudStorer),
     Mock(tests::MockStorer),
 }
@@ -100,10 +102,7 @@ impl IndexedStorer for IndexedTypeStorer {
 
 #[async_trait]
 impl Storer for IndexedTypeStorer {
-    async fn get<T: StorableType>(
-        &self,
-        path: &str,
-    ) -> Result<Entry<T>, CryptoError> {
+    async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
         match self {
             IndexedTypeStorer::Redact(rs) => rs.get(path).await,
             IndexedTypeStorer::Mongo(ms) => ms.get(path).await,
@@ -122,13 +121,11 @@ impl Storer for IndexedTypeStorer {
 
 #[async_trait]
 impl Storer for NonIndexedTypeStorer {
-    async fn get<T: StorableType>(
-        &self,
-        path: &str,
-    ) -> Result<Entry<T>, CryptoError> {
+    async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
         match self {
             NonIndexedTypeStorer::GoogleCloud(gcs) => gcs.get(path).await,
             NonIndexedTypeStorer::Mock(ms) => ms.get(path).await,
+            NonIndexedTypeStorer::SelfStore(ss) => ss.get(path).await,
         }
     }
 
@@ -136,6 +133,7 @@ impl Storer for NonIndexedTypeStorer {
         match self {
             NonIndexedTypeStorer::GoogleCloud(gcs) => gcs.create(value).await,
             NonIndexedTypeStorer::Mock(ms) => ms.create(value).await,
+            NonIndexedTypeStorer::SelfStore(ss) => ss.create(value).await,
         }
     }
 }
@@ -143,7 +141,6 @@ impl Storer for NonIndexedTypeStorer {
 /// The operations a storer of `Key` structs must be able to fulfill.
 #[async_trait]
 pub trait IndexedStorer: Send + Sync + Storer {
-
     /// Like get, but doesn't enforce IntoIndex and allows providing a custom index doc
     async fn get_indexed<T: StorableType>(
         &self,
@@ -176,25 +173,22 @@ pub trait IndexedStorer: Send + Sync + Storer {
 #[async_trait]
 pub trait Storer: Send + Sync {
     /// Fetches the instance of the `Key` with the given name.
-    async fn get<T: StorableType>(
-        &self,
-        path: &str,
-    ) -> Result<Entry<T>, CryptoError>;
+    async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError>;
 
     /// Adds the given `Key` struct to the backing store.
     async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError>;
 }
 
 pub mod tests {
-    use super::Storer as StorerTrait;
     use super::IndexedStorer as IndexedStorerTrait;
-    use crate::{CryptoError, Entry, StorableType, TypeStorer, IndexedTypeStorer};
+    use super::Storer as StorerTrait;
+    use crate::storage::NonIndexedTypeStorer;
+    use crate::{CryptoError, Entry, IndexedTypeStorer, StorableType, TypeStorer};
     use async_trait::async_trait;
     use mockall::predicate::*;
     use mockall::*;
     use mongodb::bson::Document;
     use serde::{Deserialize, Serialize};
-    use crate::storage::NonIndexedTypeStorer;
 
     mock! {
     pub IndexedStorer {
@@ -269,12 +263,9 @@ pub mod tests {
         }
     }
 
-        #[async_trait]
+    #[async_trait]
     impl StorerTrait for MockIndexedStorer {
-        async fn get<T: StorableType>(
-            &self,
-            path: &str,
-        ) -> Result<Entry<T>, CryptoError> {
+        async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
             self.private_get(path)
         }
         async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError> {
@@ -284,10 +275,7 @@ pub mod tests {
 
     #[async_trait]
     impl StorerTrait for MockStorer {
-        async fn get<T: StorableType>(
-            &self,
-            path: &str,
-        ) -> Result<Entry<T>, CryptoError> {
+        async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
             self.private_get(path)
         }
         async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError> {
@@ -315,8 +303,8 @@ pub mod tests {
 
     impl Serialize for MockIndexedStorer {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: serde::Serializer,
+        where
+            S: serde::Serializer,
         {
             self.private_serialize().serialize(serializer)
         }
@@ -324,8 +312,8 @@ pub mod tests {
 
     impl<'de> Deserialize<'de> for MockIndexedStorer {
         fn deserialize<D>(_: D) -> Result<Self, D::Error>
-            where
-                D: serde::Deserializer<'de>,
+        where
+            D: serde::Deserializer<'de>,
         {
             Ok(MockIndexedStorer::private_deserialize())
         }
