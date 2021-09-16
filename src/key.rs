@@ -608,6 +608,71 @@ impl HasByteSource for SecretAsymmetricKey {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub enum SigningKey {
+    SodiumOxideEd25519(SodiumOxideEd25519SecretAsymmetricKey),
+}
+
+impl HasBuilder for SigningKey {
+    type Builder = SigningKeyBuilder;
+
+    fn builder(&self) -> Self::Builder {
+        match self {
+            SigningKey::SodiumOxideEd25519(sosak) => {
+                SigningKeyBuilder::SodiumOxideEd25519(sosak.builder())
+            }
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[serde(tag = "t", content = "c")]
+pub enum SigningKeyBuilder {
+    SodiumOxideEd25519(SodiumOxideEd25519SecretAsymmetricKeyBuilder),
+}
+
+impl TryFrom<TypeBuilderContainer> for SigningKeyBuilder {
+    type Error = CryptoError;
+
+    fn try_from(builder: TypeBuilderContainer) -> Result<Self, Self::Error> {
+        match builder.0 {
+            TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(SecretAsymmetricKeyBuilder::SodiumOxideEd25519(sosak)))) => {
+                Ok(SigningKeyBuilder::SodiumOxideEd25519(sosak))
+            }
+            _ => Err(CryptoError::NotDowncastable),
+        }
+    }
+}
+
+impl From<SigningKeyBuilder> for TypeBuilder {
+    fn from(ekb: SigningKeyBuilder) -> TypeBuilder {
+        match ekb {
+            SigningKeyBuilder::SodiumOxideEd25519(b) => b.into()
+        }
+    }
+}
+
+impl Builder for SigningKeyBuilder {
+    type Output = SigningKey;
+
+    fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
+        match self {
+            Self::SodiumOxideEd25519(sk) => Ok(SigningKey::SodiumOxideEd25519(sk.build(bytes)?)),
+        }
+    }
+}
+
+impl Signer for SigningKey {
+    fn sign(&self, bytes: ByteSource) -> Result<ByteSource, CryptoError> {
+        match self {
+            SigningKey::SodiumOxideEd25519(k) => {
+                k.sign(bytes)
+            }
+        }
+
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 #[serde(tag = "t", content = "c")]
 pub enum SecretAsymmetricKeyBuilder {
