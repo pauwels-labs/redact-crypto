@@ -614,6 +614,8 @@ pub enum SigningKey {
     RingEd25519(RingEd25519SecretAsymmetricKey),
 }
 
+impl StorableType for SigningKey {}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum EncryptingKey {
     SodiumOxideCurve25519(SodiumOxideCurve25519SecretAsymmetricKey),
@@ -637,13 +639,27 @@ pub enum SigningKeyBuilder {
 pub enum EncryptingKeyBuilder {
     SodiumOxideCurve25519(SodiumOxideCurve25519SecretAsymmetricKeyBuilder),
     SodiumOxideSymmetricKey(SodiumOxideSymmetricKeyBuilder),
-
 }
+
 //
 // #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 // #[serde(tag = "t", content = "c")]
 // pub enum SigningAndEncryptingKeyBuilder {
 // }
+
+impl HasIndex for SigningKey {
+    type Index = Document;
+
+    fn get_index() -> Option<Self::Index> {
+        Some(bson::doc! {
+        "c": {
+            "builder": {
+                "t": "Key"
+            }
+        }
+            })
+    }
+}
 
 impl HasBuilder for SigningKey {
     type Builder = SigningKeyBuilder;
