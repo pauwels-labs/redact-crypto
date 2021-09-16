@@ -4,7 +4,7 @@ use crate::{
     SecretAsymmetricKeyBuilder, Signer, StorableType, TypeBuilder, TypeBuilderContainer,
 };
 use mongodb::bson::{self, Document};
-use once_cell::unsync::OnceCell;
+use once_cell::sync::OnceCell;
 use ring::{
     rand,
     signature::{Ed25519KeyPair as ExternalEd25519KeyPair, KeyPair},
