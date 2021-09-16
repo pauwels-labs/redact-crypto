@@ -83,7 +83,7 @@ impl From<RedactStorerError> for CryptoError {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ClientTlsConfig {
-    pkcs12_path: String,
+    pub pkcs12_path: String,
 }
 
 impl ClientTlsConfig {
