@@ -126,6 +126,7 @@ impl RedactStorer {
                     .map_err(|source| RedactStorerError::Pkcs12FileNotReadable { source })?
                     .read_to_end(&mut pkcs12_vec)
                     .map_err(|source| RedactStorerError::Pkcs12FileNotReadable { source })?;
+                println!("{:?}", &pkcs12_vec);
                 let pkcs12 = reqwest::Identity::from_pem(&pkcs12_vec)
                     .map_err(|source| RedactStorerError::HttpClientNotBuildable { source })?;
                 Ok::<_, RedactStorerError>(
