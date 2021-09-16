@@ -151,7 +151,6 @@ impl RedactStorer {
                         .identity(pkcs12)
                         .add_root_certificate(ca_cert)
                         .tls_built_in_root_certs(false)
-                        .danger_accept_invalid_certs(true)
                         .use_rustls_tls()
                         .build()
                         .map_err(|source| RedactStorerError::HttpClientNotBuildable { source })?,
