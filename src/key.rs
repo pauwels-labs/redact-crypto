@@ -673,6 +673,17 @@ impl Signer for SigningKey {
     }
 }
 
+impl HasPublicKey for SigningKey {
+    type PublicKey = PublicAsymmetricKey;
+
+    fn public_key(&self) -> Result<Self::PublicKey, CryptoError> {
+        match self {
+            SigningKey::SodiumOxideEd25519(k) =>
+                Ok(PublicAsymmetricKey::SodiumOxideEd25519(k.public_key()?))
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 #[serde(tag = "t", content = "c")]
 pub enum SecretAsymmetricKeyBuilder {
