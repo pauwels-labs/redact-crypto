@@ -28,6 +28,9 @@ pub enum RedactStorerError {
     /// PKCS12 file could not be read at the given path
     Pkcs12FileNotReadable { source: std::io::Error },
 
+    /// Server CA cert file could not be read at the given path
+    ServerCaCertFileNotReadable { source: std::io::Error },
+
     /// Bytes in PKCS12 file are not valid PKCS12 bytes
     HttpClientNotBuildable { source: reqwest::Error },
 }
@@ -39,6 +42,7 @@ impl Error for RedactStorerError {
             RedactStorerError::NotFound => None,
             RedactStorerError::Pkcs12FileNotReadable { ref source } => Some(source),
             RedactStorerError::HttpClientNotBuildable { ref source } => Some(source),
+            RedactStorerError::ServerCaCertFileNotReadable { ref source } => Some(source),
         }
     }
 }
@@ -57,6 +61,9 @@ impl Display for RedactStorerError {
             }
             RedactStorerError::HttpClientNotBuildable { .. } => {
                 write!(f, "Could not build HTTP request client")
+            }
+            RedactStorerError::ServerCaCertFileNotReadable { .. } => {
+                write!(f, "Could not read server CA certificate")
             }
         }
     }
@@ -77,6 +84,9 @@ impl From<RedactStorerError> for CryptoError {
             RedactStorerError::HttpClientNotBuildable { .. } => CryptoError::InternalError {
                 source: Box::new(rse),
             },
+            RedactStorerError::ServerCaCertFileNotReadable { .. } => CryptoError::InternalError {
+                source: Box::new(rse),
+            },
         }
     }
 }
@@ -84,6 +94,7 @@ impl From<RedactStorerError> for CryptoError {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ClientTlsConfig {
     pub pkcs12_path: String,
+    pub server_ca_path: String,
 }
 
 impl ClientTlsConfig {
@@ -126,12 +137,19 @@ impl RedactStorer {
                     .map_err(|source| RedactStorerError::Pkcs12FileNotReadable { source })?
                     .read_to_end(&mut pkcs12_vec)
                     .map_err(|source| RedactStorerError::Pkcs12FileNotReadable { source })?;
-                println!("{:?}", &pkcs12_vec);
                 let pkcs12 = reqwest::Identity::from_pem(&pkcs12_vec)
+                    .map_err(|source| RedactStorerError::HttpClientNotBuildable { source })?;
+                let mut ca_cert_vec: Vec<u8> = vec![];
+                File::open(&ctc.server_ca_path)
+                    .map_err(|source| RedactStorerError::ServerCaCertFileNotReadable { source })?
+                    .read_to_end(&mut ca_cert_vec)
+                    .map_err(|source| RedactStorerError::ServerCaCertFileNotReadable { source })?;
+                let ca_cert = reqwest::Certificate::from_pem(&ca_cert_vec)
                     .map_err(|source| RedactStorerError::HttpClientNotBuildable { source })?;
                 Ok::<_, RedactStorerError>(
                     reqwest::Client::builder()
                         .identity(pkcs12)
+                        .add_root_certificate(ca_cert)
                         .use_rustls_tls()
                         .build()
                         .map_err(|source| RedactStorerError::HttpClientNotBuildable { source })?,
