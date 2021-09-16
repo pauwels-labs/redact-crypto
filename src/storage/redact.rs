@@ -1,12 +1,19 @@
-use crate::{CryptoError, Entry, StorableType, Storer, IndexedStorer, IndexedTypeStorer};
+use crate::{CryptoError, Entry, IndexedStorer, IndexedTypeStorer, StorableType, Storer};
 use async_trait::async_trait;
 use mongodb::bson::Document;
+use once_cell::sync::Lazy;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use std::{
     error::Error,
     fmt::{self, Display, Formatter},
+    fs::File,
+    io::Read,
+    sync::{Arc, RwLock},
 };
+
+static CLIENT_TLS_CONFIG: Lazy<RwLock<Arc<Option<ClientTlsConfig>>>> =
+    Lazy::new(|| RwLock::new(Default::default()));
 
 #[derive(Debug)]
 pub enum RedactStorerError {
@@ -17,6 +24,12 @@ pub enum RedactStorerError {
 
     /// Requested document was not found
     NotFound,
+
+    /// PKCS12 file could not be read at the given path
+    Pkcs12FileNotReadable { source: std::io::Error },
+
+    /// Bytes in PKCS12 file are not valid PKCS12 bytes
+    HttpClientNotBuildable { source: reqwest::Error },
 }
 
 impl Error for RedactStorerError {
@@ -24,6 +37,8 @@ impl Error for RedactStorerError {
         match *self {
             RedactStorerError::InternalError { ref source } => Some(source.as_ref()),
             RedactStorerError::NotFound => None,
+            RedactStorerError::Pkcs12FileNotReadable { ref source } => Some(source),
+            RedactStorerError::HttpClientNotBuildable { ref source } => Some(source),
         }
     }
 }
@@ -36,6 +51,12 @@ impl Display for RedactStorerError {
             }
             RedactStorerError::NotFound => {
                 write!(f, "Requested document not found")
+            }
+            RedactStorerError::Pkcs12FileNotReadable { .. } => {
+                write!(f, "Could not open PKCS12 client TLS file")
+            }
+            RedactStorerError::HttpClientNotBuildable { .. } => {
+                write!(f, "Could not build HTTP request client")
             }
         }
     }
@@ -50,7 +71,28 @@ impl From<RedactStorerError> for CryptoError {
             RedactStorerError::NotFound => CryptoError::NotFound {
                 source: Box::new(rse),
             },
+            RedactStorerError::Pkcs12FileNotReadable { .. } => CryptoError::InternalError {
+                source: Box::new(rse),
+            },
+            RedactStorerError::HttpClientNotBuildable { .. } => CryptoError::InternalError {
+                source: Box::new(rse),
+            },
         }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct ClientTlsConfig {
+    pkcs12_path: String,
+}
+
+impl ClientTlsConfig {
+    pub fn current() -> Arc<Option<ClientTlsConfig>> {
+        CLIENT_TLS_CONFIG.read().unwrap().clone()
+    }
+
+    pub fn make_current(self) {
+        *CLIENT_TLS_CONFIG.write().unwrap() = Arc::new(Some(self))
     }
 }
 
@@ -75,6 +117,33 @@ impl From<RedactStorer> for IndexedTypeStorer {
     }
 }
 
+impl RedactStorer {
+    fn get_http_client() -> Result<reqwest::Client, RedactStorerError> {
+        match *ClientTlsConfig::current() {
+            Some(ref ctc) => {
+                let mut pkcs12_vec: Vec<u8> = vec![];
+                File::open(&ctc.pkcs12_path)
+                    .map_err(|source| RedactStorerError::Pkcs12FileNotReadable { source })?
+                    .read_to_end(&mut pkcs12_vec)
+                    .map_err(|source| RedactStorerError::Pkcs12FileNotReadable { source })?;
+                let pkcs12 = reqwest::Identity::from_pem(&pkcs12_vec)
+                    .map_err(|source| RedactStorerError::HttpClientNotBuildable { source })?;
+                Ok::<_, RedactStorerError>(
+                    reqwest::Client::builder()
+                        .identity(pkcs12)
+                        .use_rustls_tls()
+                        .build()
+                        .map_err(|source| RedactStorerError::HttpClientNotBuildable { source })?,
+                )
+            }
+            None => Ok(reqwest::Client::builder()
+                .use_rustls_tls()
+                .build()
+                .map_err(|source| RedactStorerError::HttpClientNotBuildable { source })?),
+        }
+    }
+}
+
 #[async_trait]
 impl IndexedStorer for RedactStorer {
     async fn get_indexed<T: StorableType>(
@@ -86,7 +155,9 @@ impl IndexedStorer for RedactStorer {
         if let Some(i) = index {
             req_url.push_str(format!("index={}", i).as_ref());
         }
-        match reqwest::get(&req_url).await {
+        let http_client = RedactStorer::get_http_client()?;
+
+        match http_client.get(&req_url).send().await {
             Ok(r) => Ok(r
                 .error_for_status()
                 .map_err(|source| -> CryptoError {
@@ -96,7 +167,7 @@ impl IndexedStorer for RedactStorer {
                         RedactStorerError::InternalError {
                             source: Box::new(source),
                         }
-                            .into()
+                        .into()
                     }
                 })?
                 .json::<Entry<T>>()
@@ -105,12 +176,12 @@ impl IndexedStorer for RedactStorer {
                     RedactStorerError::InternalError {
                         source: Box::new(source),
                     }
-                        .into()
+                    .into()
                 })?),
             Err(source) => Err(RedactStorerError::InternalError {
                 source: Box::new(source),
             }
-                .into()),
+            .into()),
         }
     }
 
@@ -128,7 +199,9 @@ impl IndexedStorer for RedactStorer {
         if let Some(i) = index {
             req_url.push_str(format!("&index={}", i).as_ref());
         }
-        match reqwest::get(&req_url).await {
+        let http_client = RedactStorer::get_http_client()?;
+
+        match http_client.get(&req_url).send().await {
             Ok(r) => Ok(r
                 .error_for_status()
                 .map_err(|source| -> CryptoError {
@@ -138,7 +211,7 @@ impl IndexedStorer for RedactStorer {
                         RedactStorerError::InternalError {
                             source: Box::new(source),
                         }
-                            .into()
+                        .into()
                     }
                 })?
                 .json::<Vec<Entry<T>>>()
@@ -147,31 +220,29 @@ impl IndexedStorer for RedactStorer {
                     RedactStorerError::InternalError {
                         source: Box::new(source),
                     }
-                        .into()
+                    .into()
                 })?),
             Err(source) => Err(RedactStorerError::InternalError {
                 source: Box::new(source),
             }
-                .into()),
+            .into()),
         }
     }
 }
 
 #[async_trait]
 impl Storer for RedactStorer {
-    async fn get<T: StorableType>(
-        &self,
-        path: &str,
-    ) -> Result<Entry<T>, CryptoError> {
+    async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
         self.get_indexed::<T>(path, &T::get_index()).await
     }
 
     async fn create<T: StorableType>(&self, entry: Entry<T>) -> Result<Entry<T>, CryptoError> {
-        let client = reqwest::Client::new();
         let value = serde_json::to_value(&entry).map_err(|e| RedactStorerError::InternalError {
             source: Box::new(e),
         })?;
-        client
+        let http_client = RedactStorer::get_http_client()?;
+
+        http_client
             .post(&format!("{}/", self.url))
             .json(&value)
             .send()
