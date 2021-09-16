@@ -506,6 +506,16 @@ impl HasByteSource for PublicAsymmetricKey {
     }
 }
 
+impl HasAlgorithmIdentifier for PublicAsymmetricKey {
+    fn algorithm_identifier<'a>(&self) -> AlgorithmIdentifier<'a> {
+        match self {
+            PublicAsymmetricKey::SodiumOxideCurve25519(k) => k.algorithm_identifier(),
+            PublicAsymmetricKey::SodiumOxideEd25519(k) => k.algorithm_identifier(),
+            PublicAsymmetricKey::RingEd25519(k) => k.algorithm_identifier(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 #[serde(tag = "t", content = "c")]
 pub enum PublicAsymmetricKeyBuilder {
