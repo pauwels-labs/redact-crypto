@@ -269,6 +269,7 @@ impl Storer for RedactStorer {
             .await
             .and_then(|res| res.error_for_status().map(|_| entry))
             .map_err(|e| {
+                println!("{:?}", e);
                 if let Some(status) = e.status() {
                     if status == StatusCode::NOT_FOUND {
                         RedactStorerError::NotFound.into()
