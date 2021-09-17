@@ -21,9 +21,10 @@ use crate::{
 use async_trait::async_trait;
 use futures::Future;
 use mongodb::bson::{self, Document};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use spki::AlgorithmIdentifier;
 use std::convert::TryFrom;
+use serde::ser::{SerializeStruct, SerializeMap};
 
 pub trait Signer {
     fn sign(&self, bytes: ByteSource) -> Result<ByteSource, CryptoError>;
@@ -623,6 +624,32 @@ pub enum SigningKey {
     SodiumOxideEd25519(SodiumOxideEd25519SecretAsymmetricKey),
     RingEd25519(RingEd25519SecretAsymmetricKey),
 }
+
+impl From<SigningKey> for Key {
+    fn from(signing_key: SigningKey) -> Self {
+        match signing_key {
+            SigningKey::SodiumOxideEd25519(k) =>
+                Key::Asymmetric(AsymmetricKey::Public(PublicAsymmetricKey::SodiumOxideEd25519(k.public_key().unwrap()))),
+            SigningKey::RingEd25519(k) =>
+                Key::Asymmetric(AsymmetricKey::Public(PublicAsymmetricKey::RingEd25519(k.public_key().unwrap())))
+        }
+    }
+}
+
+// impl Serialize for SigningKey {
+//     fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error> where
+//         S: Serializer {
+//         match self {
+//             SigningKey::SodiumOxideEd25519(sosak) => {
+//                 let sosak = SodiumOxideEd25519SecretAsymmetricKey { secret_key: sk };
+//
+//             },
+//             SigningKey::RingEd25519(rsak) => {
+//                 SigningKeyBuilder::RingEd25519(rsak.builder())
+//             }
+//         }
+//     }
+// }
 
 impl StorableType for SigningKey {}
 
