@@ -667,7 +667,10 @@ impl HasIndex for SigningKey {
         Some(bson::doc! {
         "c": {
             "builder": {
-                "t": "Key"
+        "t": "Key",
+        "c": {
+            "t": "Asymmetric",
+        }
             }
         }
             })
