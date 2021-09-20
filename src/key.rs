@@ -636,21 +636,6 @@ impl From<SigningKey> for Key {
     }
 }
 
-// impl Serialize for SigningKey {
-//     fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error> where
-//         S: Serializer {
-//         match self {
-//             SigningKey::SodiumOxideEd25519(sosak) => {
-//                 let sosak = SodiumOxideEd25519SecretAsymmetricKey { secret_key: sk };
-//
-//             },
-//             SigningKey::RingEd25519(rsak) => {
-//                 SigningKeyBuilder::RingEd25519(rsak.builder())
-//             }
-//         }
-//     }
-// }
-
 impl StorableType for SigningKey {}
 
 #[derive(Serialize, Deserialize, Debug)]
