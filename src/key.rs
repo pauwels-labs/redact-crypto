@@ -21,10 +21,9 @@ use crate::{
 use async_trait::async_trait;
 use futures::Future;
 use mongodb::bson::{self, Document};
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use spki::AlgorithmIdentifier;
 use std::convert::TryFrom;
-use serde::ser::{SerializeStruct, SerializeMap};
 
 pub trait Signer {
     fn sign(&self, bytes: ByteSource) -> Result<ByteSource, CryptoError>;
@@ -625,6 +624,8 @@ pub enum SigningKey {
     RingEd25519(RingEd25519SecretAsymmetricKey),
 }
 
+impl StorableType for SigningKey {}
+
 impl From<SigningKey> for Key {
     fn from(signing_key: SigningKey) -> Self {
         match signing_key {
@@ -636,7 +637,6 @@ impl From<SigningKey> for Key {
     }
 }
 
-impl StorableType for SigningKey {}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum EncryptingKey {
@@ -644,10 +644,7 @@ pub enum EncryptingKey {
     SodiumOxideSymmetricKey(SodiumOxideSymmetricKey),
 }
 
-// #[derive(Serialize, Deserialize, Debug)]
-// pub enum SigningAndEncryptingKey {
-//     SodiumOxideEd25519(SodiumOxideEd25519SecretAsymmetricKey),
-// }
+impl StorableType for EncryptingKey {}
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 #[serde(tag = "t", content = "c")]
@@ -663,13 +660,21 @@ pub enum EncryptingKeyBuilder {
     SodiumOxideSymmetricKey(SodiumOxideSymmetricKeyBuilder),
 }
 
-//
-// #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
-// #[serde(tag = "t", content = "c")]
-// pub enum SigningAndEncryptingKeyBuilder {
-// }
-
 impl HasIndex for SigningKey {
+    type Index = Document;
+
+    fn get_index() -> Option<Self::Index> {
+        Some(bson::doc! {
+        "c": {
+            "builder": {
+                "t": "Key"
+            }
+        }
+            })
+    }
+}
+
+impl HasIndex for EncryptingKey {
     type Index = Document;
 
     fn get_index() -> Option<Self::Index> {
@@ -819,6 +824,19 @@ impl HasByteSource for SigningKey {
                 k.byte_source()
             },
             SigningKey::RingEd25519(k) => {
+                k.byte_source()
+            }
+        }
+    }
+}
+
+impl HasByteSource for EncryptingKey {
+    fn byte_source(&self) -> ByteSource {
+        match self {
+            EncryptingKey::SodiumOxideSymmetricKey(k) => {
+                k.byte_source()
+            },
+            EncryptingKey::SodiumOxideCurve25519(k) => {
                 k.byte_source()
             }
         }
