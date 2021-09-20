@@ -262,6 +262,10 @@ impl Storer for RedactStorer {
         })?;
         let http_client = RedactStorer::get_http_client()?;
 
+        println!("in create:");
+        println!("{:?}", entry);
+        println!("{}", serde_json::to_string(&entry).unwrap());
+
         http_client
             .post(&format!("{}/", self.url))
             .json(&value)
