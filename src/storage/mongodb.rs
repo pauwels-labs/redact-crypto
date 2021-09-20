@@ -1,4 +1,4 @@
-use crate::{CryptoError, Entry, StorableType, Storer, IndexedTypeStorer, IndexedStorer};
+use crate::{CryptoError, Entry, IndexedStorer, IndexedTypeStorer, StorableType, Storer};
 use async_trait::async_trait;
 use futures::StreamExt;
 use mongodb::{
@@ -136,14 +136,14 @@ impl IndexedStorer for MongoStorer {
                 MongoStorerError::InternalError {
                     source: Box::new(e),
                 }
-                    .into()
+                .into()
             })
             .and_then(|doc| match doc {
                 Some(doc) => bson::from_bson(Bson::Document(doc)).map_err(|e| {
                     MongoStorerError::InternalError {
                         source: Box::new(e),
                     }
-                        .into()
+                    .into()
                 }),
                 None => Err(MongoStorerError::NotFound.into()),
             })
@@ -173,7 +173,7 @@ impl IndexedStorer for MongoStorer {
                 MongoStorerError::InternalError {
                     source: Box::new(e),
                 }
-                    .into()
+                .into()
             })?;
 
         Ok(cursor
@@ -198,10 +198,7 @@ impl IndexedStorer for MongoStorer {
 
 #[async_trait]
 impl Storer for MongoStorer {
-    async fn get<T: StorableType>(
-        &self,
-        path: &str,
-    ) -> Result<Entry<T>, CryptoError> {
+    async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
         self.get_indexed::<T>(path, &T::get_index()).await
     }
 
