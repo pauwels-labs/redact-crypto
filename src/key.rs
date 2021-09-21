@@ -656,6 +656,9 @@ impl HasIndex for SigningKey {
         "t": "Key",
         "c": {
             "t": "Asymmetric",
+        "c": {
+        "t": "Secret"
+        }
         }
             }
         }
