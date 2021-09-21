@@ -619,6 +619,25 @@ impl HasByteSource for SecretAsymmetricKey {
 }
 
 #[derive(Debug)]
+pub enum VerifyingKey {
+    SodiumOxideEd25519(SodiumOxideEd25519PublicAsymmetricKey),
+    RingEd25519(RingEd25519PublicAsymmetricKey),
+}
+
+impl Verifier for VerifyingKey {
+    fn verify(&self, msg: ByteSource, signature: ByteSource) -> Result<(), CryptoError> {
+        match self {
+            VerifyingKey::SodiumOxideEd25519(k) => {
+                k.verify(msg, signature)
+            }
+            VerifyingKey::RingEd25519(k) => {
+                k.verify(msg, signature)
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum SigningKey {
     SodiumOxideEd25519(SodiumOxideEd25519SecretAsymmetricKey),
     RingEd25519(RingEd25519SecretAsymmetricKey),
@@ -644,6 +663,12 @@ pub enum SigningKeyBuilder {
 pub enum EncryptingKeyBuilder {
     SodiumOxideCurve25519(SodiumOxideCurve25519SecretAsymmetricKeyBuilder),
     SodiumOxideSymmetricKey(SodiumOxideSymmetricKeyBuilder),
+}
+
+#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+pub enum VerifyingKeyBuilder {
+    SodiumOxideEd25519(SodiumOxideEd25519PublicAsymmetricKeyBuilder),
+    RingEd25519(RingEd25519PublicAsymmetricKeyBuilder),
 }
 
 impl HasIndex for SigningKey {
