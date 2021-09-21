@@ -626,18 +626,6 @@ pub enum SigningKey {
 
 impl StorableType for SigningKey {}
 
-impl From<SigningKey> for Key {
-    fn from(signing_key: SigningKey) -> Self {
-        match signing_key {
-            SigningKey::SodiumOxideEd25519(k) =>
-                Key::Asymmetric(AsymmetricKey::Public(PublicAsymmetricKey::SodiumOxideEd25519(k.public_key().unwrap()))),
-            SigningKey::RingEd25519(k) =>
-                Key::Asymmetric(AsymmetricKey::Public(PublicAsymmetricKey::RingEd25519(k.public_key().unwrap())))
-        }
-    }
-}
-
-
 #[derive(Serialize, Deserialize, Debug)]
 pub enum EncryptingKey {
     SodiumOxideCurve25519(SodiumOxideCurve25519SecretAsymmetricKey),
@@ -647,14 +635,12 @@ pub enum EncryptingKey {
 impl StorableType for EncryptingKey {}
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
-#[serde(tag = "t", content = "c")]
 pub enum SigningKeyBuilder {
     SodiumOxideEd25519(SodiumOxideEd25519SecretAsymmetricKeyBuilder),
     RingEd25519(RingEd25519SecretAsymmetricKeyBuilder),
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
-#[serde(tag = "t", content = "c")]
 pub enum EncryptingKeyBuilder {
     SodiumOxideCurve25519(SodiumOxideCurve25519SecretAsymmetricKeyBuilder),
     SodiumOxideSymmetricKey(SodiumOxideSymmetricKeyBuilder),
