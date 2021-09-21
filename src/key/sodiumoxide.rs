@@ -97,7 +97,7 @@ impl From<SodiumOxideSymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct SodiumOxideSymmetricKey {
     pub key: ExternalSodiumOxideSymmetricKey,
 }
@@ -289,7 +289,7 @@ impl From<SodiumOxideCurve25519SecretAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct SodiumOxideCurve25519SecretAsymmetricKey {
     pub secret_key: ExternalSodiumOxideCurve25519SecretAsymmetricKey,
 }
@@ -523,7 +523,7 @@ impl From<SodiumOxideCurve25519PublicAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct SodiumOxideCurve25519PublicAsymmetricKey {
     pub public_key: ExternalSodiumOxideCurve25519PublicAsymmetricKey,
 }
@@ -730,7 +730,7 @@ impl From<SodiumOxideEd25519SecretAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct SodiumOxideEd25519SecretAsymmetricKey {
     pub secret_key: ExternalSodiumOxideEd25519SecretAsymmetricKey,
 }
@@ -843,7 +843,7 @@ impl From<SodiumOxideEd25519PublicAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct SodiumOxideEd25519PublicAsymmetricKey {
     pub public_key: ExternalSodiumOxideEd25519PublicAsymmetricKey,
 }

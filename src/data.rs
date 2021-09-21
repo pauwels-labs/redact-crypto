@@ -65,7 +65,7 @@ pub struct BinaryData {
     pub binary_type: BinaryType,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Data {
     Bool(bool),
     U64(u64),

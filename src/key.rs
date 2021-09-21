@@ -166,7 +166,7 @@ pub trait HasAlgorithmIdentifier {
     fn algorithm_identifier<'a>(&self) -> AlgorithmIdentifier<'a>;
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub enum Key {
     Symmetric(SymmetricKey),
     Asymmetric(AsymmetricKey),
@@ -243,7 +243,7 @@ impl Builder for KeyBuilder {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub enum SymmetricKey {
     SodiumOxide(SodiumOxideSymmetricKey),
 }
@@ -369,7 +369,7 @@ impl Builder for SymmetricKeyBuilder {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub enum AsymmetricKey {
     Public(PublicAsymmetricKey),
     Secret(SecretAsymmetricKey),
@@ -449,7 +449,7 @@ impl Builder for AsymmetricKeyBuilder {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub enum PublicAsymmetricKey {
     SodiumOxideCurve25519(SodiumOxideCurve25519PublicAsymmetricKey),
     SodiumOxideEd25519(SodiumOxideEd25519PublicAsymmetricKey),
@@ -561,7 +561,7 @@ impl Builder for PublicAsymmetricKeyBuilder {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub enum SecretAsymmetricKey {
     SodiumOxideCurve25519(SodiumOxideCurve25519SecretAsymmetricKey),
     SodiumOxideEd25519(SodiumOxideEd25519SecretAsymmetricKey),
@@ -618,7 +618,7 @@ impl HasByteSource for SecretAsymmetricKey {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub enum SigningKey {
     SodiumOxideEd25519(SodiumOxideEd25519SecretAsymmetricKey),
     RingEd25519(RingEd25519SecretAsymmetricKey),
@@ -626,7 +626,7 @@ pub enum SigningKey {
 
 impl StorableType for SigningKey {}
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub enum EncryptingKey {
     SodiumOxideCurve25519(SodiumOxideCurve25519SecretAsymmetricKey),
     SodiumOxideSymmetricKey(SodiumOxideSymmetricKey),

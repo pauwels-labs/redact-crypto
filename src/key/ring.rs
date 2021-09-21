@@ -48,9 +48,8 @@ impl From<RingEd25519SecretAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct RingEd25519SecretAsymmetricKey {
-    #[serde(skip)]
     secret_key: OnceCell<ExternalEd25519KeyPair>,
     pkcs8_doc: ByteSource,
 }
@@ -169,7 +168,7 @@ impl From<RingEd25519PublicAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct RingEd25519PublicAsymmetricKey {
     pub public_key: Vec<u8>,
 }
