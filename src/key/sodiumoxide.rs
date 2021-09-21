@@ -1,12 +1,4 @@
-use crate::{
-    nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce},
-    Algorithm, AsymmetricKeyBuilder, Builder, ByteAlgorithm, ByteSource, CryptoError, Entry,
-    HasBuilder, HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder,
-    PublicAsymmetricSealer, PublicAsymmetricUnsealer, SecretAsymmetricKeyBuilder,
-    SecretAsymmetricSealer, SecretAsymmetricUnsealer, Signer, StorableType, SymmetricKeyBuilder,
-    SymmetricSealer, SymmetricUnsealer, ToPublicAsymmetricByteAlgorithm,
-    ToSecretAsymmetricByteAlgorithm, ToSymmetricByteAlgorithm, TypeBuilder, TypeBuilderContainer,
-};
+use crate::{nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce}, Algorithm, AsymmetricKeyBuilder, Builder, ByteAlgorithm, ByteSource, CryptoError, Entry, HasBuilder, HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder, PublicAsymmetricSealer, PublicAsymmetricUnsealer, SecretAsymmetricKeyBuilder, SecretAsymmetricSealer, SecretAsymmetricUnsealer, Signer, StorableType, SymmetricKeyBuilder, SymmetricSealer, SymmetricUnsealer, ToPublicAsymmetricByteAlgorithm, ToSecretAsymmetricByteAlgorithm, ToSymmetricByteAlgorithm, TypeBuilder, TypeBuilderContainer, Verifier};
 use async_trait::async_trait;
 use futures::Future;
 use mongodb::bson::{self, Document};
@@ -32,12 +24,14 @@ use sodiumoxide::crypto::{
     sign::ed25519::{
         PublicKey as ExternalSodiumOxideEd25519PublicAsymmetricKey,
         SecretKey as ExternalSodiumOxideEd25519SecretAsymmetricKey,
+        Signature
     },
 };
 use spki::AlgorithmIdentifier;
 use std::{boxed::Box, convert::TryFrom};
 
 use super::HasAlgorithmIdentifier;
+use sodiumoxide::crypto::sign::Verifier as SodiumOxideVerifier;
 
 // SYMMETRIC KEY \\
 #[derive(Serialize, Deserialize, Debug)]
@@ -854,6 +848,15 @@ pub struct SodiumOxideEd25519PublicAsymmetricKey {
     pub public_key: ExternalSodiumOxideEd25519PublicAsymmetricKey,
 }
 
+impl Verifier for SodiumOxideEd25519PublicAsymmetricKey {
+    fn verify(&self, msg: ByteSource, signature: ByteSource) -> Result<(), CryptoError> {
+        let mut a: [u8; 64] = [0; 64];
+        a.copy_from_slice(&signature.get().unwrap()[0..64]);
+        self.public_key.verify(msg.get().unwrap(), &Signature::new(a))
+            .map_err(|_e| CryptoError::BadSignature)
+    }
+}
+
 impl StorableType for SodiumOxideEd25519PublicAsymmetricKey {}
 
 impl HasIndex for SodiumOxideEd25519PublicAsymmetricKey {
@@ -940,21 +943,11 @@ mod tests {
         SodiumOxideCurve25519SecretAsymmetricKey, SodiumOxideCurve25519SecretAsymmetricKeyBuilder,
         SodiumOxideSymmetricKey, SodiumOxideSymmetricKeyBuilder,
     };
-    use crate::{
-        nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce},
-        storage::tests::MockStorer, storage::tests::MockIndexedStorer,
-        Algorithm, AsymmetricKeyBuilder, BoolDataBuilder, Builder, ByteSource, Data, DataBuilder,
-        HasBuilder, HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder,
-        PublicAsymmetricSealer, PublicAsymmetricUnsealer, SecretAsymmetricKeyBuilder,
-        SecretAsymmetricSealer, SecretAsymmetricUnsealer, SymmetricKeyBuilder, SymmetricSealer,
-        SymmetricUnsealer, ToEntry, ToSymmetricByteAlgorithm, TypeBuilder, TypeBuilderContainer,
-    };
+    use crate::{nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce}, storage::tests::MockStorer, storage::tests::MockIndexedStorer, Algorithm, AsymmetricKeyBuilder, BoolDataBuilder, Builder, ByteSource, Data, DataBuilder, HasBuilder, HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder, PublicAsymmetricSealer, PublicAsymmetricUnsealer, SecretAsymmetricKeyBuilder, SecretAsymmetricSealer, SecretAsymmetricUnsealer, SymmetricKeyBuilder, SymmetricSealer, SymmetricUnsealer, ToEntry, ToSymmetricByteAlgorithm, TypeBuilder, TypeBuilderContainer, VectorByteSource, Verifier};
     use mongodb::bson;
-    use sodiumoxide::crypto::{
-        box_,
-        secretbox::{self, xsalsa20poly1305::Nonce as ExternalSodiumOxideSymmetricNonce},
-    };
+    use sodiumoxide::crypto::{box_, secretbox::{self, xsalsa20poly1305::Nonce as ExternalSodiumOxideSymmetricNonce}, sign};
     use std::convert::TryInto;
+    use crate::key::sodiumoxide::{SodiumOxideEd25519PublicAsymmetricKey, SodiumOxideEd25519PublicAsymmetricKeyBuilder};
 
     //////////////////////////////////////////////
     /// PUBLIC ASYMMETRIC KEY HELPER FUNCTIONS ///
@@ -2224,6 +2217,78 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(data.byte_source().get().unwrap(), plaintext.get().unwrap(),);
+    }
+
+    #[test]
+    fn test_sodiumoxideed25519publicasymmetrickey_verify() {
+        let sopakb = SodiumOxideEd25519PublicAsymmetricKeyBuilder {};
+        let public_key_base64 = "ovk3UE3A2xCRUErmWiOFFBbflsAxb67gG+i3UUQpJ/w=";
+        let public_key: SodiumOxideEd25519PublicAsymmetricKey = sopakb
+            .build(
+                Some(base64::decode(public_key_base64).unwrap().as_ref())
+            ).unwrap();
+        let message = ByteSource::Vector(
+            VectorByteSource::new(
+                Some("abc".as_ref())
+            )
+        );
+        let signature = ByteSource::Vector(
+            VectorByteSource::new(
+                Some(base64::decode("XZOGd+nbEkrP5cdAjed0DdjLCrhMTW3/PU2UztdTK241N2yQyG/GVPxC+jHm96+QDFMssxHU1mMm2+e4e3m7Cw==")
+                    .unwrap()
+                    .as_ref())
+            )
+        );
+
+        public_key.verify(message, signature).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_sodiumoxideed25519publicasymmetrickey_verify_with_different_message() {
+        let sopakb = SodiumOxideEd25519PublicAsymmetricKeyBuilder {};
+        let public_key_base64 = "ovk3UE3A2xCRUErmWiOFFBbflsAxb67gG+i3UUQpJ/w=";
+        let public_key: SodiumOxideEd25519PublicAsymmetricKey = sopakb
+            .build(
+                Some(base64::decode(public_key_base64).unwrap().as_ref())
+            ).unwrap();
+        let message = ByteSource::Vector(
+            VectorByteSource::new(
+                Some("abcde".as_ref()) // not the message signed with the hardcoded signature
+            )
+        );
+        let signature = ByteSource::Vector(
+            VectorByteSource::new(
+                Some(base64::decode("XZOGd+nbEkrP5cdAjed0DdjLCrhMTW3/PU2UztdTK241N2yQyG/GVPxC+jHm96+QDFMssxHU1mMm2+e4e3m7Cw==")
+                    .unwrap()
+                    .as_ref())
+            )
+        );
+
+        public_key.verify(message, signature).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_sodiumoxideed25519publicasymmetrickey_verify_with_invalid_signature() {
+        let sopakb = SodiumOxideEd25519PublicAsymmetricKeyBuilder {};
+        // generate the keypair so it does not match hardcoded signature
+        let (pk, _) = sign::gen_keypair();
+        let public_key: SodiumOxideEd25519PublicAsymmetricKey = sopakb.build(Some(pk.as_ref())).unwrap();
+
+        let message = ByteSource::Vector(
+            VectorByteSource::new(
+                Some("abc".as_ref())
+            )
+        );
+        let signature = ByteSource::Vector(
+            VectorByteSource::new(
+                Some(base64::decode("XZOGd+nbEkrP5cdAjed0DdjLCrhMTW3/PU2UztdTK241N2yQyG/GVPxC+jHm96+QDFMssxHU1mMm2+e4e3m7Cw==")
+                    .unwrap()
+                    .as_ref())
+            )
+        );
+        public_key.verify(message, signature).unwrap();
     }
 
     /// PUBLIC ASYMMETRIC KEY - BUILDER ///

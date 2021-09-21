@@ -796,14 +796,23 @@ impl Builder for EncryptingKeyBuilder {
 impl Signer for SigningKey {
     fn sign(&self, bytes: ByteSource) -> Result<ByteSource, CryptoError> {
         match self {
-            SigningKey::SodiumOxideEd25519(k) => {
-                k.sign(bytes)
-            },
-            SigningKey::RingEd25519(k) => {
-                k.sign(bytes)
-            }
+            SigningKey::SodiumOxideEd25519(k) => k.sign(bytes),
+            SigningKey::RingEd25519(k) => k.sign(bytes)
         }
 
+    }
+}
+
+impl Verifier for SigningKey {
+    fn verify(&self, msg: ByteSource, signature: ByteSource) -> Result<(), CryptoError> {
+        match self {
+            SigningKey::SodiumOxideEd25519(k) => {
+                k.public_key()?.verify(msg, signature)
+            }
+            SigningKey::RingEd25519(k) => {
+                k.public_key()?.verify(msg, signature)
+            }
+        }
     }
 }
 
