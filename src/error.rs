@@ -39,7 +39,7 @@ pub enum CryptoError {
     WrongNonceType,
 
     /// A signature was not verifiable
-    BadSignature
+    BadSignature,
 }
 
 impl Error for CryptoError {

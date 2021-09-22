@@ -177,13 +177,14 @@ impl Verifier for RingEd25519PublicAsymmetricKey {
     fn verify(&self, msg: ByteSource, signature: ByteSource) -> Result<(), CryptoError> {
         let peer_public_key =
             signature::UnparsedPublicKey::new(&signature::ED25519, self.public_key.clone());
-        let verification_result = peer_public_key
-            .verify(msg.get().unwrap(), signature.get().unwrap());
-
-        match verification_result {
-            Ok(_) => Ok(()),
-            Err(_e) => Err(CryptoError::BadSignature)
-        }
+        peer_public_key
+            .verify(
+                msg.get()
+                    .map_err(|e| CryptoError::InternalError {
+                        source: Box::new(e),
+                    })?,
+                signature.get().map_err(|_e| CryptoError::BadSignature)?
+            ).map_err(|_e| CryptoError::BadSignature)
     }
 }
 
@@ -265,7 +266,7 @@ impl HasAlgorithmIdentifier for RingEd25519SecretAsymmetricKey {
 #[cfg(test)]
 mod tests {
     use crate::key::ring::{RingEd25519PublicAsymmetricKeyBuilder, RingEd25519PublicAsymmetricKey};
-    use crate::{Builder, ByteSource, VectorByteSource, Verifier};
+    use crate::{Builder, ByteSource, VectorByteSource, Verifier, CryptoError};
 
     #[test]
     fn test_ringed25519publicasymmetrickey_verify() {
@@ -292,7 +293,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_ringed25519publicasymmetrickey_verify_with_different_message() {
         let public_key_base64 = "gSU9HQSz3Z030COosboySzkMfrBXpOmoXH3wdvReuGA=";
         let rpak = RingEd25519PublicAsymmetricKeyBuilder {};
@@ -313,11 +313,10 @@ mod tests {
                     .as_ref())
             )
         );
-        public_key.verify(message, signature).unwrap();
+        assert!(matches!(public_key.verify(message, signature), Err(CryptoError::BadSignature)));
     }
 
     #[test]
-    #[should_panic]
     fn test_sodiumoxideed25519publicasymmetrickey_verify_with_invalid_signature() {
         let (public_key, _) = RingEd25519PublicAsymmetricKey::new().unwrap();
 
@@ -333,6 +332,6 @@ mod tests {
                     .as_ref())
             )
         );
-        public_key.verify(message, signature).unwrap();
+        assert!(matches!(public_key.verify(message, signature), Err(CryptoError::BadSignature)));
     }
 }
