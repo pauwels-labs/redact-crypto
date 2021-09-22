@@ -108,14 +108,17 @@ impl<'a> Message<'a> for SubjectAlternativeNames<'a> {
         let tag_number = 2u8.try_into()?;
         let mut sans_bytes = vec![];
         self.sans.iter().try_for_each(|san| {
+            println!("first line of iteration");
             let cs_bytes = ContextSpecific {
                 tag_number,
                 value: san.as_bytes().try_into()?,
             }
             .to_vec()?;
+            println!("{:?}", cs_bytes);
             sans_bytes.extend_from_slice(cs_bytes.as_slice());
             Ok::<_, der::Error>(())
         })?;
+        println!("done with iteration");
         field_encoder(&[&Any::try_from(sans_bytes.as_slice())?])
     }
 }
