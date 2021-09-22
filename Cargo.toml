@@ -39,7 +39,9 @@ spki = "0.4.0"
 x509 = "0.2.0"
 cookie-factory = "0.3.2"
 strum = { version = "0.21", features = ["derive"] }
+chrono = "0.4.19"
+rand = "0.8.3"
+sha-1 = "0.9.8"
 
 [dev-dependencies]
 tokio = { version = "1.7.1", features = ["macros", "rt-multi-thread"] }
-chrono = "0.4.19"

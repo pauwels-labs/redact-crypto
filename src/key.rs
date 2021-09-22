@@ -687,10 +687,8 @@ impl HasBuilder for SigningKey {
         match self {
             SigningKey::SodiumOxideEd25519(sosak) => {
                 SigningKeyBuilder::SodiumOxideEd25519(sosak.builder())
-            },
-            SigningKey::RingEd25519(rsak) => {
-                SigningKeyBuilder::RingEd25519(rsak.builder())
             }
+            SigningKey::RingEd25519(rsak) => SigningKeyBuilder::RingEd25519(rsak.builder()),
         }
     }
 }
@@ -702,7 +700,7 @@ impl HasBuilder for EncryptingKey {
         match self {
             EncryptingKey::SodiumOxideCurve25519(sosak) => {
                 EncryptingKeyBuilder::SodiumOxideCurve25519(sosak.builder())
-            },
+            }
             EncryptingKey::SodiumOxideSymmetricKey(ssk) => {
                 EncryptingKeyBuilder::SodiumOxideSymmetricKey(ssk.builder())
             }
@@ -715,12 +713,12 @@ impl TryFrom<TypeBuilderContainer> for SigningKeyBuilder {
 
     fn try_from(builder: TypeBuilderContainer) -> Result<Self, Self::Error> {
         match builder.0 {
-            TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(SecretAsymmetricKeyBuilder::SodiumOxideEd25519(sosak)))) => {
-                Ok(SigningKeyBuilder::SodiumOxideEd25519(sosak))
-            },
-            TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(SecretAsymmetricKeyBuilder::RingEd25519(rsak)))) => {
-                Ok(SigningKeyBuilder::RingEd25519(rsak))
-            }
+            TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(
+                SecretAsymmetricKeyBuilder::SodiumOxideEd25519(sosak),
+            ))) => Ok(SigningKeyBuilder::SodiumOxideEd25519(sosak)),
+            TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(
+                SecretAsymmetricKeyBuilder::RingEd25519(rsak),
+            ))) => Ok(SigningKeyBuilder::RingEd25519(rsak)),
             _ => Err(CryptoError::NotDowncastable),
         }
     }
@@ -731,9 +729,9 @@ impl TryFrom<TypeBuilderContainer> for EncryptingKeyBuilder {
 
     fn try_from(builder: TypeBuilderContainer) -> Result<Self, Self::Error> {
         match builder.0 {
-            TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(SecretAsymmetricKeyBuilder::SodiumOxideCurve25519(sosak)))) => {
-                Ok(EncryptingKeyBuilder::SodiumOxideCurve25519(sosak))
-            },
+            TypeBuilder::Key(KeyBuilder::Asymmetric(AsymmetricKeyBuilder::Secret(
+                SecretAsymmetricKeyBuilder::SodiumOxideCurve25519(sosak),
+            ))) => Ok(EncryptingKeyBuilder::SodiumOxideCurve25519(sosak)),
             TypeBuilder::Key(KeyBuilder::Symmetric(SymmetricKeyBuilder::SodiumOxide(ssk))) => {
                 Ok(EncryptingKeyBuilder::SodiumOxideSymmetricKey(ssk))
             }
@@ -776,8 +774,12 @@ impl Builder for EncryptingKeyBuilder {
 
     fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
         match self {
-            Self::SodiumOxideCurve25519(sk) => Ok(EncryptingKey::SodiumOxideCurve25519(sk.build(bytes)?)),
-            Self::SodiumOxideSymmetricKey(sk) => Ok(EncryptingKey::SodiumOxideSymmetricKey(sk.build(bytes)?)),
+            Self::SodiumOxideCurve25519(sk) => {
+                Ok(EncryptingKey::SodiumOxideCurve25519(sk.build(bytes)?))
+            }
+            Self::SodiumOxideSymmetricKey(sk) => {
+                Ok(EncryptingKey::SodiumOxideSymmetricKey(sk.build(bytes)?))
+            }
         }
     }
 }
@@ -785,26 +787,17 @@ impl Builder for EncryptingKeyBuilder {
 impl Signer for SigningKey {
     fn sign(&self, bytes: ByteSource) -> Result<ByteSource, CryptoError> {
         match self {
-            SigningKey::SodiumOxideEd25519(k) => {
-                k.sign(bytes)
-            },
-            SigningKey::RingEd25519(k) => {
-                k.sign(bytes)
-            }
+            SigningKey::SodiumOxideEd25519(k) => k.sign(bytes),
+            SigningKey::RingEd25519(k) => k.sign(bytes),
         }
-
     }
 }
 
 impl HasAlgorithmIdentifier for SigningKey {
     fn algorithm_identifier<'a>(&self) -> AlgorithmIdentifier<'a> {
         match self {
-            SigningKey::SodiumOxideEd25519(k) => {
-                k.algorithm_identifier()
-            },
-            SigningKey::RingEd25519(k) => {
-                k.algorithm_identifier()
-            }
+            SigningKey::SodiumOxideEd25519(k) => k.algorithm_identifier(),
+            SigningKey::RingEd25519(k) => k.algorithm_identifier(),
         }
     }
 }
@@ -812,12 +805,8 @@ impl HasAlgorithmIdentifier for SigningKey {
 impl HasByteSource for SigningKey {
     fn byte_source(&self) -> ByteSource {
         match self {
-            SigningKey::SodiumOxideEd25519(k) => {
-                k.byte_source()
-            },
-            SigningKey::RingEd25519(k) => {
-                k.byte_source()
-            }
+            SigningKey::SodiumOxideEd25519(k) => k.byte_source(),
+            SigningKey::RingEd25519(k) => k.byte_source(),
         }
     }
 }
@@ -825,12 +814,8 @@ impl HasByteSource for SigningKey {
 impl HasByteSource for EncryptingKey {
     fn byte_source(&self) -> ByteSource {
         match self {
-            EncryptingKey::SodiumOxideSymmetricKey(k) => {
-                k.byte_source()
-            },
-            EncryptingKey::SodiumOxideCurve25519(k) => {
-                k.byte_source()
-            }
+            EncryptingKey::SodiumOxideSymmetricKey(k) => k.byte_source(),
+            EncryptingKey::SodiumOxideCurve25519(k) => k.byte_source(),
         }
     }
 }
@@ -840,10 +825,10 @@ impl HasPublicKey for SigningKey {
 
     fn public_key(&self) -> Result<Self::PublicKey, CryptoError> {
         match self {
-            SigningKey::SodiumOxideEd25519(k) =>
-                Ok(PublicAsymmetricKey::SodiumOxideEd25519(k.public_key()?)),
-            SigningKey::RingEd25519(k) =>
-                Ok(PublicAsymmetricKey::RingEd25519(k.public_key()?))
+            SigningKey::SodiumOxideEd25519(k) => {
+                Ok(PublicAsymmetricKey::SodiumOxideEd25519(k.public_key()?))
+            }
+            SigningKey::RingEd25519(k) => Ok(PublicAsymmetricKey::RingEd25519(k.public_key()?)),
         }
     }
 }

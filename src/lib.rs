@@ -48,6 +48,7 @@
 //! - storage/redact.rs: storage implementation for a redact-store server
 
 mod algorithm;
+pub mod cert;
 mod data;
 mod entry;
 mod error;
@@ -59,8 +60,8 @@ pub mod x509;
 
 pub use algorithm::{Algorithm, ByteAlgorithm};
 pub use data::{
-    BoolDataBuilder, Data, DataBuilder, F64DataBuilder, I64DataBuilder, StringDataBuilder,
-    U64DataBuilder, BinaryDataBuilder, BinaryData, BinaryType
+    BinaryData, BinaryDataBuilder, BinaryType, BoolDataBuilder, Data, DataBuilder, F64DataBuilder,
+    I64DataBuilder, StringDataBuilder, U64DataBuilder,
 };
 pub use entry::{
     Builder, Entry, EntryPath, HasBuilder, State, StorableType, ToEntry, Type, TypeBuilder,
@@ -82,5 +83,5 @@ pub use source::{
 pub use storage::{
     mongodb::{MongoStorer, MongoStorerError},
     redact::{RedactStorer, RedactStorerError},
-    HasIndex, Storer, TypeStorer, IndexedStorer, IndexedTypeStorer, NonIndexedTypeStorer
+    HasIndex, IndexedStorer, IndexedTypeStorer, NonIndexedTypeStorer, Storer, TypeStorer,
 };

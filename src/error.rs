@@ -36,7 +36,7 @@ pub enum CryptoError {
     NotDeserializableToBaseDataType,
 
     /// Wrong nonce was provided during seal/unseal operation
-    WrongNonceType
+    WrongNonceType,
 }
 
 impl Error for CryptoError {
@@ -49,7 +49,7 @@ impl Error for CryptoError {
             CryptoError::InvalidSeedLength { .. } => None,
             CryptoError::NotDowncastable => None,
             CryptoError::NotDeserializableToBaseDataType => None,
-            CryptoError::WrongNonceType => None
+            CryptoError::WrongNonceType => None,
         }
     }
 }

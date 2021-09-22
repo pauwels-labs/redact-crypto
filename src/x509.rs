@@ -1,6 +1,13 @@
 use cookie_factory::{GenResult, WriteContext};
+use der::{
+    asn1::{Any, ContextSpecific, Ia5String},
+    Encodable, Message, TagNumber,
+};
 use spki::{AlgorithmIdentifier, SubjectPublicKeyInfo};
-use std::io::Write;
+use std::{
+    convert::{TryFrom, TryInto},
+    io::Write,
+};
 use x509::{
     der::Oid as OidTrait, AlgorithmIdentifier as AlgorithmIdentifierTrait,
     SubjectPublicKeyInfo as SubjectPublicKeyInfoTrait,
@@ -44,5 +51,71 @@ impl<'a> SubjectPublicKeyInfoTrait for SubjectPublicKeyInfoWrapper<'a> {
 
     fn public_key(&self) -> Self::SubjectPublicKey {
         self.0.subject_public_key
+    }
+}
+
+pub struct DistinguishedName<'a> {
+    pub o: &'a str,
+    pub ou: &'a str,
+    pub cn: &'a str,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SubjectAlternativeNames<'a> {
+    pub sans: Vec<Ia5String<'a>>,
+}
+
+impl<'a> TryFrom<&'a [&'a str]> for SubjectAlternativeNames<'a> {
+    type Error = der::Error;
+
+    fn try_from(sans: &'a [&'a str]) -> Result<Self, Self::Error> {
+        let mut valid_strings = vec![];
+        sans.iter().try_for_each(|san| {
+            valid_strings.push(Ia5String::new(*san)?);
+            Ok::<_, der::Error>(())
+        })?;
+        Ok(Self {
+            sans: valid_strings,
+        })
+    }
+}
+
+impl<'a> TryFrom<Any<'a>> for SubjectAlternativeNames<'a> {
+    type Error = der::Error;
+
+    fn try_from(any: Any<'a>) -> der::Result<SubjectAlternativeNames<'a>> {
+        any.sequence(|decoder| {
+            let mut sans = vec![];
+            while !decoder.is_finished() {
+                let tag_number: TagNumber = 2u8.try_into()?;
+                let name = decoder.context_specific(tag_number)?;
+                if let Some(value) = name {
+                    let name_str = value.ia5_string()?;
+                    sans.push(name_str);
+                }
+            }
+
+            Ok(Self { sans })
+        })
+    }
+}
+
+impl<'a> Message<'a> for SubjectAlternativeNames<'a> {
+    fn fields<F, T>(&self, field_encoder: F) -> der::Result<T>
+    where
+        F: FnOnce(&[&dyn Encodable]) -> der::Result<T>,
+    {
+        let tag_number = 2u8.try_into()?;
+        let mut sans_bytes = vec![];
+        self.sans.iter().try_for_each(|san| {
+            let cs_bytes = ContextSpecific {
+                tag_number,
+                value: san.as_bytes().try_into()?,
+            }
+            .to_vec()?;
+            sans_bytes.extend_from_slice(cs_bytes.as_slice());
+            Ok::<_, der::Error>(())
+        })?;
+        field_encoder(&[&Any::try_from(sans_bytes.as_slice())?])
     }
 }
