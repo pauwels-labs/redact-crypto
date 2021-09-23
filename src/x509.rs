@@ -1,7 +1,7 @@
 use cookie_factory::{GenResult, WriteContext};
 use der::{
     asn1::{Any, ContextSpecific, Ia5String},
-    Encodable, Message, TagNumber,
+    Encodable, Message, Tag,
 };
 use spki::{AlgorithmIdentifier, SubjectPublicKeyInfo};
 use std::{
@@ -62,7 +62,7 @@ pub struct DistinguishedName<'a> {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SubjectAlternativeNames<'a> {
-    pub sans: Vec<Ia5String<'a>>,
+    pub sans: Vec<GeneralName<'a>>,
 }
 
 impl<'a> TryFrom<&'a [&'a str]> for SubjectAlternativeNames<'a> {
@@ -71,7 +71,7 @@ impl<'a> TryFrom<&'a [&'a str]> for SubjectAlternativeNames<'a> {
     fn try_from(sans: &'a [&'a str]) -> Result<Self, Self::Error> {
         let mut valid_strings = vec![];
         sans.iter().try_for_each(|san| {
-            valid_strings.push(Ia5String::new(*san)?);
+            valid_strings.push(GeneralName::DnsName(Ia5String::new(*san)?));
             Ok::<_, der::Error>(())
         })?;
         Ok(Self {
@@ -87,12 +87,8 @@ impl<'a> TryFrom<Any<'a>> for SubjectAlternativeNames<'a> {
         any.sequence(|decoder| {
             let mut sans = vec![];
             while !decoder.is_finished() {
-                let tag_number: TagNumber = 2u8.try_into()?;
-                let name = decoder.context_specific(tag_number)?;
-                if let Some(value) = name {
-                    let name_str = value.ia5_string()?;
-                    sans.push(name_str);
-                }
+                let san: GeneralName = decoder.decode()?;
+                sans.push(san);
             }
 
             Ok(Self { sans })
@@ -105,20 +101,58 @@ impl<'a> Message<'a> for SubjectAlternativeNames<'a> {
     where
         F: FnOnce(&[&dyn Encodable]) -> der::Result<T>,
     {
-        let tag_number = 2u8.try_into()?;
-        let mut sans_bytes = vec![];
-        self.sans.iter().try_for_each(|san| {
-            println!("first line of iteration");
-            let cs_bytes = ContextSpecific {
-                tag_number,
-                value: san.as_bytes().try_into()?,
+        let mut references: Vec<&dyn Encodable> = vec![];
+        for reference in self.sans.iter() {
+            references.push(reference);
+        }
+        field_encoder(references.as_slice())
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum GeneralName<'a> {
+    Rfc822Name(der::asn1::Ia5String<'a>),
+    DnsName(der::asn1::Ia5String<'a>),
+}
+
+impl<'a> Encodable for GeneralName<'a> {
+    fn encoded_len(&self) -> der::Result<der::Length> {
+        let (tag_number, value) = match self {
+            GeneralName::Rfc822Name(v) => (0x01.try_into()?, v.as_bytes()),
+            GeneralName::DnsName(v) => (0x02.try_into()?, v.as_bytes()),
+        };
+        let len = ContextSpecific::new(tag_number, false, value)?.encoded_len();
+        len
+    }
+
+    fn encode(&self, encoder: &mut der::Encoder<'_>) -> der::Result<()> {
+        let (tag_number, value) = match self {
+            GeneralName::Rfc822Name(v) => (0x01.try_into()?, v.as_bytes()),
+            GeneralName::DnsName(v) => (0x02.try_into()?, v.as_bytes()),
+        };
+        ContextSpecific::new(tag_number, false, value)?.encode(encoder)
+    }
+}
+
+impl<'a> TryFrom<Any<'a>> for GeneralName<'a> {
+    type Error = der::Error;
+
+    fn try_from(any: Any<'a>) -> Result<Self, Self::Error> {
+        match any.tag() {
+            Tag::ContextSpecific { number, .. } => match number.value() {
+                0x01 => Ok(GeneralName::Rfc822Name(Ia5String::new(any.as_bytes())?)),
+                0x02 => Ok(GeneralName::DnsName(Ia5String::new(any.as_bytes())?)),
+                _ => Err(der::ErrorKind::UnexpectedTag {
+                    expected: None,
+                    actual: any.tag(),
+                }
+                .into()),
+            },
+            actual => Err(der::ErrorKind::UnexpectedTag {
+                expected: None,
+                actual,
             }
-            .to_vec()?;
-            println!("{:?}", cs_bytes);
-            sans_bytes.extend_from_slice(cs_bytes.as_slice());
-            Ok::<_, der::Error>(())
-        })?;
-        println!("done with iteration");
-        field_encoder(&[&Any::try_from(sans_bytes.as_slice())?])
+            .into()),
+        }
     }
 }

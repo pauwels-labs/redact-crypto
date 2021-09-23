@@ -163,6 +163,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44c32f031ea41b4291d695026c023b95d59db2d8a2c7640800ed56bc8f510f22"
 
 [[package]]
+name = "const-oid"
+version = "0.6.1"
+source = "git+https://github.com/rustcrypto/formats.git?rev=fddda3dadc50e2ddbc1f1763dda1b3449ad22b40#fddda3dadc50e2ddbc1f1763dda1b3449ad22b40"
+
+[[package]]
 name = "cookie-factory"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -250,15 +255,22 @@ version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31e21d2d0f22cde6e88694108429775c0219760a07779bf96503b434a03d7412"
 dependencies = [
- "const-oid",
+ "const-oid 0.6.0",
+]
+
+[[package]]
+name = "der"
+version = "0.4.3"
+source = "git+https://github.com/rustcrypto/formats.git?rev=fddda3dadc50e2ddbc1f1763dda1b3449ad22b40#fddda3dadc50e2ddbc1f1763dda1b3449ad22b40"
+dependencies = [
+ "const-oid 0.6.1",
  "der_derive",
 ]
 
 [[package]]
 name = "der_derive"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5360db9da81e4727cb5291894e533c83f67b490e2fe51e9ed9f6b3f6b0fa865a"
+version = "0.4.1"
+source = "git+https://github.com/rustcrypto/formats.git?rev=fddda3dadc50e2ddbc1f1763dda1b3449ad22b40#fddda3dadc50e2ddbc1f1763dda1b3449ad22b40"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1225,7 +1237,7 @@ dependencies = [
  "chrono",
  "cloud-storage",
  "cookie-factory",
- "der",
+ "der 0.4.3",
  "futures",
  "hex",
  "mockall",
@@ -1600,7 +1612,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "987637c5ae6b3121aba9d513f869bd2bff11c4cc086c22473befd6649c0bd521"
 dependencies = [
- "der",
+ "der 0.4.1",
 ]
 
 [[package]]
