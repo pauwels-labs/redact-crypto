@@ -1,13 +1,9 @@
-use crate::{
-    AsymmetricKeyBuilder, Builder, ByteSource, CryptoError, HasAlgorithmIdentifier, HasBuilder,
-    HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder,
-    SecretAsymmetricKeyBuilder, Signer, StorableType, TypeBuilder, TypeBuilderContainer,
-};
+use crate::{AsymmetricKeyBuilder, Builder, ByteSource, CryptoError, HasAlgorithmIdentifier, HasBuilder, HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder, SecretAsymmetricKeyBuilder, Signer, StorableType, TypeBuilder, TypeBuilderContainer, Verifier};
 use mongodb::bson::{self, Document};
 use once_cell::sync::OnceCell;
 use ring::{
     rand,
-    signature::{Ed25519KeyPair as ExternalEd25519KeyPair, KeyPair},
+    signature::{self, Ed25519KeyPair as ExternalEd25519KeyPair, KeyPair,},
 };
 use serde::{Deserialize, Serialize};
 use spki::AlgorithmIdentifier;
@@ -52,9 +48,8 @@ impl From<RingEd25519SecretAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct RingEd25519SecretAsymmetricKey {
-    #[serde(skip)]
     secret_key: OnceCell<ExternalEd25519KeyPair>,
     pkcs8_doc: ByteSource,
 }
@@ -173,9 +168,24 @@ impl From<RingEd25519PublicAsymmetricKeyBuilder> for TypeBuilder {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct RingEd25519PublicAsymmetricKey {
     pub public_key: Vec<u8>,
+}
+
+impl Verifier for RingEd25519PublicAsymmetricKey {
+    fn verify(&self, msg: ByteSource, signature: ByteSource) -> Result<(), CryptoError> {
+        let peer_public_key =
+            signature::UnparsedPublicKey::new(&signature::ED25519, self.public_key.clone());
+        peer_public_key
+            .verify(
+                msg.get()
+                    .map_err(|e| CryptoError::InternalError {
+                        source: Box::new(e),
+                    })?,
+                signature.get().map_err(|_e| CryptoError::BadSignature)?
+            ).map_err(|_e| CryptoError::BadSignature)
+    }
 }
 
 impl StorableType for RingEd25519PublicAsymmetricKey {}
@@ -250,5 +260,78 @@ impl HasAlgorithmIdentifier for RingEd25519SecretAsymmetricKey {
             oid: spki::ObjectIdentifier::new("1.3.101.112"),
             parameters: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::key::ring::{RingEd25519PublicAsymmetricKeyBuilder, RingEd25519PublicAsymmetricKey};
+    use crate::{Builder, ByteSource, VectorByteSource, Verifier, CryptoError};
+
+    #[test]
+    fn test_ringed25519publicasymmetrickey_verify() {
+        let public_key_base64 = "gSU9HQSz3Z030COosboySzkMfrBXpOmoXH3wdvReuGA=";
+        let rpak = RingEd25519PublicAsymmetricKeyBuilder {};
+        let public_key: RingEd25519PublicAsymmetricKey = rpak
+            .build(
+                Some(base64::decode(public_key_base64).unwrap().as_ref())
+            ).unwrap();
+
+        let message = ByteSource::Vector(
+            VectorByteSource::new(
+                Some("abc".as_ref())
+            )
+        );
+        let signature = ByteSource::Vector(
+            VectorByteSource::new(
+                Some(base64::decode("JixVA5XA4+fH5PE9Czk1yApf8f3oRCcwpB5pzMdVOBgvbWzPNv4h+nulKVvCkANYWX1iNticuX5eNwpx8HpdBw==")
+                    .unwrap()
+                    .as_ref())
+            )
+        );
+        public_key.verify(message, signature).unwrap();
+    }
+
+    #[test]
+    fn test_ringed25519publicasymmetrickey_verify_with_different_message() {
+        let public_key_base64 = "gSU9HQSz3Z030COosboySzkMfrBXpOmoXH3wdvReuGA=";
+        let rpak = RingEd25519PublicAsymmetricKeyBuilder {};
+        let public_key: RingEd25519PublicAsymmetricKey = rpak
+            .build(
+                Some(base64::decode(public_key_base64).unwrap().as_ref())
+            ).unwrap();
+
+        let message = ByteSource::Vector(
+            VectorByteSource::new(
+                Some("1233".as_ref()) // different message than signature
+            )
+        );
+        let signature = ByteSource::Vector(
+            VectorByteSource::new(
+                Some(base64::decode("JixVA5XA4+fH5PE9Czk1yApf8f3oRCcwpB5pzMdVOBgvbWzPNv4h+nulKVvCkANYWX1iNticuX5eNwpx8HpdBw==")
+                    .unwrap()
+                    .as_ref())
+            )
+        );
+        assert!(matches!(public_key.verify(message, signature), Err(CryptoError::BadSignature)));
+    }
+
+    #[test]
+    fn test_sodiumoxideed25519publicasymmetrickey_verify_with_invalid_signature() {
+        let (public_key, _) = RingEd25519PublicAsymmetricKey::new().unwrap();
+
+        let message = ByteSource::Vector(
+            VectorByteSource::new(
+                Some("abc".as_ref()) // different message than signature
+            )
+        );
+        let signature = ByteSource::Vector(
+            VectorByteSource::new(
+                Some(base64::decode("JixVA5XA4+fH5PE9Czk1yApf8f3oRCcwpB5pzMdVOBgvbWzPNv4h+nulKVvCkANYWX1iNticuX5eNwpx8HpdBw==")
+                    .unwrap()
+                    .as_ref())
+            )
+        );
+        assert!(matches!(public_key.verify(message, signature), Err(CryptoError::BadSignature)));
     }
 }
