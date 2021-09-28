@@ -118,7 +118,7 @@ impl<T: StorableType> Entry<T> {
                 let entry = storer.get::<T>(path).await?;
                 Ok(entry.dereference().await?)
             }
-            _ => Ok(self)
+            _ => Ok(self),
         }
     }
 
