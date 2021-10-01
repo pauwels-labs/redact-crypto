@@ -1,6 +1,6 @@
 use crate::{
     x509::{
-        AlgorithmIdentifierWrapper, DistinguishedName, Oid, SubjectAlternativeNames,
+        AlgorithmIdentifierWrapper, DistinguishedName, Oid, GeneralNames,
         SubjectPublicKeyInfoWrapper,
     },
     CryptoError, HasAlgorithmIdentifier, HasByteSource, HasPublicKey, Signer, SourceError,
@@ -223,7 +223,7 @@ pub fn setup_cert<
     // SANs
     let mut sans_value = vec![];
     if let Some(sans) = subject_alternative_names {
-        let sans: SubjectAlternativeNames = sans
+        let sans: GeneralNames = sans
             .try_into()
             .map_err(|e| X509Error::DerSerializationError { source: e })?;
         let sans_oid: Oid = Oid(vec![2, 5, 29, 17]);

@@ -1,7 +1,7 @@
 use cookie_factory::{GenResult, WriteContext};
 use der::{
-    asn1::{Any, ContextSpecific, Ia5String},
-    Encodable, Message, Tag,
+    asn1::{Any, Ia5String},
+    Decodable, DecodeValue, Decoder, Encodable, Length, Message, Tag,
 };
 use spki::{AlgorithmIdentifier, SubjectPublicKeyInfo};
 use std::{
@@ -61,11 +61,11 @@ pub struct DistinguishedName<'a> {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SubjectAlternativeNames<'a> {
+pub struct GeneralNames<'a> {
     pub sans: Vec<GeneralName<'a>>,
 }
 
-impl<'a> TryFrom<&'a [&'a str]> for SubjectAlternativeNames<'a> {
+impl<'a> TryFrom<&'a [&'a str]> for GeneralNames<'a> {
     type Error = der::Error;
 
     fn try_from(sans: &'a [&'a str]) -> Result<Self, Self::Error> {
@@ -80,10 +80,21 @@ impl<'a> TryFrom<&'a [&'a str]> for SubjectAlternativeNames<'a> {
     }
 }
 
-impl<'a> TryFrom<Any<'a>> for SubjectAlternativeNames<'a> {
+impl<'a> DecodeValue<'a> for GeneralNames<'a> {
+    fn decode_value(decoder: &mut Decoder<'a>, _: Length) -> der::Result<Self> {
+        let mut sans = vec![];
+        while !decoder.is_finished() {
+            let san: GeneralName = decoder.decode()?;
+            sans.push(san);
+        }
+        Ok(Self { sans })
+    }
+}
+
+impl<'a> TryFrom<Any<'a>> for GeneralNames<'a> {
     type Error = der::Error;
 
-    fn try_from(any: Any<'a>) -> der::Result<SubjectAlternativeNames<'a>> {
+    fn try_from(any: Any<'a>) -> der::Result<GeneralNames<'a>> {
         any.sequence(|decoder| {
             let mut sans = vec![];
             while !decoder.is_finished() {
@@ -96,7 +107,7 @@ impl<'a> TryFrom<Any<'a>> for SubjectAlternativeNames<'a> {
     }
 }
 
-impl<'a> Message<'a> for SubjectAlternativeNames<'a> {
+impl<'a> Message<'a> for GeneralNames<'a> {
     fn fields<F, T>(&self, field_encoder: F) -> der::Result<T>
     where
         F: FnOnce(&[&dyn Encodable]) -> der::Result<T>,
@@ -111,26 +122,32 @@ impl<'a> Message<'a> for SubjectAlternativeNames<'a> {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GeneralName<'a> {
-    Rfc822Name(der::asn1::Ia5String<'a>),
-    DnsName(der::asn1::Ia5String<'a>),
+    Rfc822Name(Ia5String<'a>),
+    DnsName(Ia5String<'a>),
+}
+
+impl<'a> Decodable<'a> for GeneralName<'a> {
+    fn decode(decoder: &mut Decoder<'a>) -> der::Result<Self> {
+        decoder.any()?.try_into()
+    }
 }
 
 impl<'a> Encodable for GeneralName<'a> {
-    fn encoded_len(&self) -> der::Result<der::Length> {
-        let (tag_number, value) = match self {
-            GeneralName::Rfc822Name(v) => (0x01.try_into()?, v.as_bytes()),
-            GeneralName::DnsName(v) => (0x02.try_into()?, v.as_bytes()),
-        };
-        let len = ContextSpecific::new(tag_number, false, value)?.encoded_len();
-        len
+    fn encoded_len(&self) -> der::Result<Length> {
+        match self {
+            GeneralName::Rfc822Name(v) => {
+                TryInto::<Length>::try_into(v.as_bytes().len())?.for_tlv()
+            }
+            GeneralName::DnsName(v) => TryInto::<Length>::try_into(v.as_bytes().len())?.for_tlv(),
+        }
     }
 
     fn encode(&self, encoder: &mut der::Encoder<'_>) -> der::Result<()> {
         let (tag_number, value) = match self {
-            GeneralName::Rfc822Name(v) => (0x01.try_into()?, v.as_bytes()),
-            GeneralName::DnsName(v) => (0x02.try_into()?, v.as_bytes()),
+            GeneralName::Rfc822Name(v) => (0x01.try_into()?, v),
+            GeneralName::DnsName(v) => (0x02.try_into()?, v),
         };
-        ContextSpecific::new(tag_number, false, value)?.encode(encoder)
+        encoder.context_specific_implicit(tag_number, *value)
     }
 }
 
@@ -140,8 +157,8 @@ impl<'a> TryFrom<Any<'a>> for GeneralName<'a> {
     fn try_from(any: Any<'a>) -> Result<Self, Self::Error> {
         match any.tag() {
             Tag::ContextSpecific { number, .. } => match number.value() {
-                0x01 => Ok(GeneralName::Rfc822Name(Ia5String::new(any.as_bytes())?)),
-                0x02 => Ok(GeneralName::DnsName(Ia5String::new(any.as_bytes())?)),
+                0x01 => Ok(GeneralName::Rfc822Name(Ia5String::new(any.value())?)),
+                0x02 => Ok(GeneralName::DnsName(Ia5String::new(any.value())?)),
                 _ => Err(der::ErrorKind::UnexpectedTag {
                     expected: None,
                     actual: any.tag(),

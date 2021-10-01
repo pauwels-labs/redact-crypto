@@ -165,7 +165,7 @@ checksum = "44c32f031ea41b4291d695026c023b95d59db2d8a2c7640800ed56bc8f510f22"
 [[package]]
 name = "const-oid"
 version = "0.6.1"
-source = "git+https://github.com/rustcrypto/formats.git?rev=fddda3dadc50e2ddbc1f1763dda1b3449ad22b40#fddda3dadc50e2ddbc1f1763dda1b3449ad22b40"
+source = "git+https://github.com/rustcrypto/formats.git?rev=566abc5ef466a6b85d37ec8a779500f906dff8ce#566abc5ef466a6b85d37ec8a779500f906dff8ce"
 
 [[package]]
 name = "cookie-factory"
@@ -260,8 +260,8 @@ dependencies = [
 
 [[package]]
 name = "der"
-version = "0.4.3"
-source = "git+https://github.com/rustcrypto/formats.git?rev=fddda3dadc50e2ddbc1f1763dda1b3449ad22b40#fddda3dadc50e2ddbc1f1763dda1b3449ad22b40"
+version = "0.5.0-pre"
+source = "git+https://github.com/rustcrypto/formats.git?rev=566abc5ef466a6b85d37ec8a779500f906dff8ce#566abc5ef466a6b85d37ec8a779500f906dff8ce"
 dependencies = [
  "const-oid 0.6.1",
  "der_derive",
@@ -269,8 +269,8 @@ dependencies = [
 
 [[package]]
 name = "der_derive"
-version = "0.4.1"
-source = "git+https://github.com/rustcrypto/formats.git?rev=fddda3dadc50e2ddbc1f1763dda1b3449ad22b40#fddda3dadc50e2ddbc1f1763dda1b3449ad22b40"
+version = "0.5.0-pre"
+source = "git+https://github.com/rustcrypto/formats.git?rev=566abc5ef466a6b85d37ec8a779500f906dff8ce#566abc5ef466a6b85d37ec8a779500f906dff8ce"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1252,7 +1252,7 @@ dependencies = [
  "chrono",
  "cloud-storage",
  "cookie-factory",
- "der 0.4.3",
+ "der 0.5.0-pre",
  "futures",
  "hex",
  "mockall",
