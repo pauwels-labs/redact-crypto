@@ -1,4 +1,13 @@
-use crate::{nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce}, Algorithm, AsymmetricKeyBuilder, Builder, ByteAlgorithm, ByteSource, CryptoError, Entry, HasBuilder, HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder, PublicAsymmetricSealer, PublicAsymmetricUnsealer, SecretAsymmetricKeyBuilder, SecretAsymmetricSealer, SecretAsymmetricUnsealer, Signer, StorableType, SymmetricKeyBuilder, SymmetricSealer, SymmetricUnsealer, ToPublicAsymmetricByteAlgorithm, ToSecretAsymmetricByteAlgorithm, ToSymmetricByteAlgorithm, TypeBuilder, TypeBuilderContainer, Verifier};
+use crate::{
+    nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce},
+    Algorithm, AsymmetricKeyBuilder, Builder, ByteAlgorithm, ByteSource, CryptoError, Entry,
+    HasBuilder, HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder,
+    PublicAsymmetricSealer, PublicAsymmetricUnsealer, SecretAsymmetricKeyBuilder,
+    SecretAsymmetricSealer, SecretAsymmetricUnsealer, Signer, StorableType, SymmetricKeyBuilder,
+    SymmetricSealer, SymmetricUnsealer, ToPublicAsymmetricByteAlgorithm,
+    ToSecretAsymmetricByteAlgorithm, ToSymmetricByteAlgorithm, TypeBuilder, TypeBuilderContainer,
+    Verifier,
+};
 use async_trait::async_trait;
 use futures::Future;
 use mongodb::bson::{self, Document};
@@ -9,8 +18,8 @@ use sodiumoxide::crypto::{
         curve25519xsalsa20poly1305::{
             PublicKey as ExternalSodiumOxideCurve25519PublicAsymmetricKey,
             SecretKey as ExternalSodiumOxideCurve25519SecretAsymmetricKey,
-            PUBLICKEYBYTES as EXTERNALSODIUMOXIDEPUBLICASYMMETRICKEYBYTES,
-            SECRETKEYBYTES as EXTERNALSODIUMOXIDESECRETASYMMETRICKEYBYTES,
+            PUBLICKEYBYTES as EXTERNALSODIUMOXIDECURVE25519PUBLICASYMMETRICKEYBYTES,
+            SECRETKEYBYTES as EXTERNALSODIUMOXIDECURVE25519SECRETASYMMETRICKEYBYTES,
         },
     },
     secretbox::{
@@ -20,12 +29,14 @@ use sodiumoxide::crypto::{
             KEYBYTES as EXTERNALSODIUMOXIDESYMMETRICKEYBYTES,
         },
     },
-    sign,
     sign::ed25519::{
-        PublicKey as ExternalSodiumOxideEd25519PublicAsymmetricKey,
-        SecretKey as ExternalSodiumOxideEd25519SecretAsymmetricKey,
-        Signature
+        self, PublicKey as ExternalSodiumOxideEd25519PublicAsymmetricKey,
+        SecretKey as ExternalSodiumOxideEd25519SecretAsymmetricKey, Signature,
+        PUBLICKEYBYTES as EXTERNALSODIUMOXIDEED25519PUBLICASYMMETRICKEYBYTES,
+        SECRETKEYBYTES as EXTERNALSODIUMOXIDEED25519SECRETASYMMETRICKEYBYTES,
+        SEEDBYTES as EXTERNALSODIUMOXIDEED25519SEEDBYTES,
     },
+    sign::{self, Seed},
 };
 use spki::AlgorithmIdentifier;
 use std::{boxed::Box, convert::TryFrom};
@@ -433,7 +444,7 @@ impl Default for SodiumOxideCurve25519SecretAsymmetricKey {
 }
 
 impl SodiumOxideCurve25519SecretAsymmetricKey {
-    pub const KEYBYTES: usize = EXTERNALSODIUMOXIDESECRETASYMMETRICKEYBYTES;
+    pub const KEYBYTES: usize = EXTERNALSODIUMOXIDECURVE25519SECRETASYMMETRICKEYBYTES;
 
     pub fn new() -> Self {
         let (_, key) = box_::gen_keypair();
@@ -656,7 +667,7 @@ impl HasAlgorithmIdentifier for SodiumOxideCurve25519PublicAsymmetricKey {
 }
 
 impl SodiumOxideCurve25519PublicAsymmetricKey {
-    pub const KEYBYTES: usize = EXTERNALSODIUMOXIDEPUBLICASYMMETRICKEYBYTES;
+    pub const KEYBYTES: usize = EXTERNALSODIUMOXIDECURVE25519PUBLICASYMMETRICKEYBYTES;
 
     pub fn new() -> (Self, SodiumOxideCurve25519SecretAsymmetricKey) {
         let (public_key, secret_key) = box_::gen_keypair();
@@ -708,13 +719,27 @@ impl Builder for SodiumOxideEd25519SecretAsymmetricKeyBuilder {
 
     fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
         match bytes {
-            Some(bytes) => Ok(SodiumOxideEd25519SecretAsymmetricKey {
-                secret_key: ExternalSodiumOxideEd25519SecretAsymmetricKey::from_slice(&bytes)
-                    .ok_or(CryptoError::InvalidKeyLength {
-                        expected: SodiumOxideEd25519SecretAsymmetricKey::KEYBYTES,
-                        actual: bytes.len(),
-                    })?,
-            }),
+            Some(bytes) => {
+                let len = bytes.len();
+                if len == EXTERNALSODIUMOXIDEED25519SEEDBYTES {
+                    let seed = Seed::from_slice(bytes).ok_or(CryptoError::InvalidSeedLength {
+                        expected: EXTERNALSODIUMOXIDEED25519SEEDBYTES,
+                        actual: len,
+                    })?;
+                    let (_, secret_key) = ed25519::keypair_from_seed(&seed);
+                    Ok(SodiumOxideEd25519SecretAsymmetricKey { secret_key })
+                } else {
+                    Ok(SodiumOxideEd25519SecretAsymmetricKey {
+                        secret_key: ExternalSodiumOxideEd25519SecretAsymmetricKey::from_slice(
+                            bytes,
+                        )
+                        .ok_or(CryptoError::InvalidKeyLength {
+                            expected: SodiumOxideEd25519SecretAsymmetricKey::KEYBYTES,
+                            actual: bytes.len(),
+                        })?,
+                    })
+                }
+            }
             None => {
                 let sk = SodiumOxideEd25519SecretAsymmetricKey::new();
                 Ok(sk)
@@ -785,7 +810,7 @@ impl HasByteSource for SodiumOxideEd25519SecretAsymmetricKey {
 }
 
 impl SodiumOxideEd25519SecretAsymmetricKey {
-    pub const KEYBYTES: usize = EXTERNALSODIUMOXIDEPUBLICASYMMETRICKEYBYTES;
+    pub const KEYBYTES: usize = EXTERNALSODIUMOXIDEED25519SECRETASYMMETRICKEYBYTES;
 
     pub fn new() -> Self {
         let (_, secret_key) = sign::gen_keypair();
@@ -851,17 +876,19 @@ pub struct SodiumOxideEd25519PublicAsymmetricKey {
 
 impl Verifier for SodiumOxideEd25519PublicAsymmetricKey {
     fn verify(&self, msg: ByteSource, signature: ByteSource) -> Result<(), CryptoError> {
-        let signature_arr: [u8; 64] = signature.get()
+        let signature_arr: [u8; 64] = signature
+            .get()
             .map_err(|_e| CryptoError::BadSignature)?
             .try_into()
             .map_err(|_e| CryptoError::BadSignature)?;
-        self.public_key.verify(
-            msg.get()
-                .map_err(|e| CryptoError::InternalError {
+        self.public_key
+            .verify(
+                msg.get().map_err(|e| CryptoError::InternalError {
                     source: Box::new(e),
                 })?,
-            &Signature::new(signature_arr)
-        ).map_err(|_e| CryptoError::BadSignature)
+                &Signature::new(signature_arr),
+            )
+            .map_err(|_e| CryptoError::BadSignature)
     }
 }
 
@@ -914,7 +941,7 @@ impl HasAlgorithmIdentifier for SodiumOxideEd25519PublicAsymmetricKey {
 }
 
 impl SodiumOxideEd25519PublicAsymmetricKey {
-    pub const KEYBYTES: usize = EXTERNALSODIUMOXIDEPUBLICASYMMETRICKEYBYTES;
+    pub const KEYBYTES: usize = EXTERNALSODIUMOXIDEED25519PUBLICASYMMETRICKEYBYTES;
 
     pub fn new() -> (Self, SodiumOxideEd25519SecretAsymmetricKey) {
         let (public_key, secret_key) = sign::gen_keypair();
@@ -951,11 +978,27 @@ mod tests {
         SodiumOxideCurve25519SecretAsymmetricKey, SodiumOxideCurve25519SecretAsymmetricKeyBuilder,
         SodiumOxideSymmetricKey, SodiumOxideSymmetricKeyBuilder,
     };
-    use crate::{nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce}, storage::tests::MockStorer, storage::tests::MockIndexedStorer, Algorithm, AsymmetricKeyBuilder, BoolDataBuilder, Builder, ByteSource, Data, DataBuilder, HasBuilder, HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder, PublicAsymmetricSealer, PublicAsymmetricUnsealer, SecretAsymmetricKeyBuilder, SecretAsymmetricSealer, SecretAsymmetricUnsealer, SymmetricKeyBuilder, SymmetricSealer, SymmetricUnsealer, ToEntry, ToSymmetricByteAlgorithm, TypeBuilder, TypeBuilderContainer, VectorByteSource, Verifier, CryptoError};
+    use crate::key::sodiumoxide::{
+        SodiumOxideEd25519PublicAsymmetricKey, SodiumOxideEd25519PublicAsymmetricKeyBuilder,
+    };
+    use crate::{
+        nonce::sodiumoxide::{SodiumOxideAsymmetricNonce, SodiumOxideSymmetricNonce},
+        storage::tests::MockIndexedStorer,
+        storage::tests::MockStorer,
+        Algorithm, AsymmetricKeyBuilder, BoolDataBuilder, Builder, ByteSource, CryptoError, Data,
+        DataBuilder, HasBuilder, HasByteSource, HasIndex, HasPublicKey, KeyBuilder,
+        PublicAsymmetricKeyBuilder, PublicAsymmetricSealer, PublicAsymmetricUnsealer,
+        SecretAsymmetricKeyBuilder, SecretAsymmetricSealer, SecretAsymmetricUnsealer,
+        SymmetricKeyBuilder, SymmetricSealer, SymmetricUnsealer, ToEntry, ToSymmetricByteAlgorithm,
+        TypeBuilder, TypeBuilderContainer, VectorByteSource, Verifier,
+    };
     use mongodb::bson;
-    use sodiumoxide::crypto::{box_, secretbox::{self, xsalsa20poly1305::Nonce as ExternalSodiumOxideSymmetricNonce}, sign};
+    use sodiumoxide::crypto::{
+        box_,
+        secretbox::{self, xsalsa20poly1305::Nonce as ExternalSodiumOxideSymmetricNonce},
+        sign,
+    };
     use std::convert::TryInto;
-    use crate::key::sodiumoxide::{SodiumOxideEd25519PublicAsymmetricKey, SodiumOxideEd25519PublicAsymmetricKeyBuilder};
 
     //////////////////////////////////////////////
     /// PUBLIC ASYMMETRIC KEY HELPER FUNCTIONS ///
@@ -1220,9 +1263,7 @@ mod tests {
         let mut storer = MockStorer::new();
         storer
             .expect_private_get::<SodiumOxideSymmetricKey>()
-            .withf(|path| {
-                path == ".encryptionkey."
-            })
+            .withf(|path| path == ".encryptionkey.")
             .return_once(move |_| Ok(unsealed_key));
         let ref_key = get_sosk()
             .to_ref_entry(".encryptionkey.".to_owned(), storer)
@@ -1271,9 +1312,7 @@ mod tests {
         let mut storer = MockStorer::new();
         storer
             .expect_private_get::<SodiumOxideSymmetricKey>()
-            .withf(|path| {
-                path == ".keyencryptionkey."
-            })
+            .withf(|path| path == ".keyencryptionkey.")
             .return_once(move |_| Ok(unsealed_key_encryption_key));
         let data = Data::String("hello, world!".to_owned());
         let key = get_sosk();
@@ -1328,9 +1367,7 @@ mod tests {
         let mut storer = MockStorer::new();
         storer
             .expect_private_get::<SodiumOxideSymmetricKey>()
-            .withf(|path| {
-                path == ".encryptionkey."
-            })
+            .withf(|path| path == ".encryptionkey.")
             .return_once(move |_| Ok(unsealed_key));
         let ref_key = get_sosk()
             .to_ref_entry(".encryptionkey.".to_owned(), storer)
@@ -1385,9 +1422,7 @@ mod tests {
         let mut storer = MockStorer::new();
         storer
             .expect_private_get::<SodiumOxideSymmetricKey>()
-            .withf(|path| {
-                path == ".keyencryptionkey."
-            })
+            .withf(|path| path == ".keyencryptionkey.")
             .return_once(move |_| Ok(unsealed_key_encryption_key));
         let data = Data::String("hello, world!".to_owned());
         let key = get_sosk();
@@ -1565,9 +1600,7 @@ mod tests {
         let mut storer = MockIndexedStorer::new();
         storer
             .expect_private_get::<SodiumOxideCurve25519SecretAsymmetricKey>()
-            .withf(|path| {
-                path == ".alicesecretkey."
-            })
+            .withf(|path| path == ".alicesecretkey.")
             .return_once(move |_| Ok(unsealed_alice_key));
         let ref_alice_key = get_sosak()
             .to_ref_entry(".alicesecretkey.".to_owned(), storer)
@@ -1631,9 +1664,7 @@ mod tests {
         let mut storer = MockStorer::new();
         storer
             .expect_private_get::<SodiumOxideSymmetricKey>()
-            .withf(|path| {
-                path == ".alicedecryptionkey."
-            })
+            .withf(|path| path == ".alicedecryptionkey.")
             .return_once(move |_| Ok(unsealed_alice_decryption_key));
         let ref_alice_decryption_key = get_sosk()
             .to_ref_entry(".alicedecryptionkey.".to_owned(), storer)
@@ -1714,9 +1745,7 @@ mod tests {
         let mut storer = MockStorer::new();
         storer
             .expect_private_get::<SodiumOxideCurve25519SecretAsymmetricKey>()
-            .withf(|path| {
-                path == ".alicesecretkey."
-            })
+            .withf(|path| path == ".alicesecretkey.")
             .return_once(move |_| Ok(unsealed_alice_key));
         let ref_alice_key = get_sosak()
             .to_ref_entry(".alicesecretkey.".to_owned(), storer)
@@ -1783,9 +1812,7 @@ mod tests {
         let mut storer = MockStorer::new();
         storer
             .expect_private_get::<SodiumOxideSymmetricKey>()
-            .withf(|path| {
-                path == ".alicedecryptionkey."
-            })
+            .withf(|path| path == ".alicedecryptionkey.")
             .return_once(move |_| Ok(unsealed_alice_decryption_key));
         let ref_alice_decryption_key = get_sosk()
             .to_ref_entry(".alicedecryptionkey.".to_owned(), storer)
@@ -1975,9 +2002,7 @@ mod tests {
         let mut storer = MockStorer::new();
         storer
             .expect_private_get::<SodiumOxideCurve25519PublicAsymmetricKey>()
-            .withf(|path| {
-                path == ".alicepublickey."
-            })
+            .withf(|path| path == ".alicepublickey.")
             .return_once(move |_| Ok(unsealed_alice_public_key));
         let (alice_public_key, _) = get_sopak();
         let ref_alice_public_key = alice_public_key
@@ -2041,9 +2066,7 @@ mod tests {
         let mut storer = MockStorer::new();
         storer
             .expect_private_get::<SodiumOxideSymmetricKey>()
-            .withf(|path| {
-                path == ".alicedecryptionkey."
-            })
+            .withf(|path| path == ".alicedecryptionkey.")
             .return_once(move |_| Ok(unsealed_alice_decryption_key));
         let ref_alice_decryption_key = get_sosk()
             .to_ref_entry(".alicedecryptionkey.".to_owned(), storer)
@@ -2121,9 +2144,7 @@ mod tests {
         let mut storer = MockStorer::new();
         storer
             .expect_private_get::<SodiumOxideCurve25519PublicAsymmetricKey>()
-            .withf(|path| {
-                path == ".alicepublickey."
-            })
+            .withf(|path| path == ".alicepublickey.")
             .return_once(move |_| Ok(unsealed_alice_public_key));
         let (alice_public_key, _) = get_sopak();
         let ref_alice_public_key = alice_public_key
@@ -2190,9 +2211,7 @@ mod tests {
         let mut storer = MockStorer::new();
         storer
             .expect_private_get::<SodiumOxideSymmetricKey>()
-            .withf(|path| {
-                path == ".alicedecryptionkey."
-            })
+            .withf(|path| path == ".alicedecryptionkey.")
             .return_once(move |_| Ok(unsealed_alice_decryption_key));
         let ref_alice_decryption_key = get_sosk()
             .to_ref_entry(".alicedecryptionkey.".to_owned(), storer)
@@ -2232,14 +2251,9 @@ mod tests {
         let sopakb = SodiumOxideEd25519PublicAsymmetricKeyBuilder {};
         let public_key_base64 = "ovk3UE3A2xCRUErmWiOFFBbflsAxb67gG+i3UUQpJ/w=";
         let public_key: SodiumOxideEd25519PublicAsymmetricKey = sopakb
-            .build(
-                Some(base64::decode(public_key_base64).unwrap().as_ref())
-            ).unwrap();
-        let message = ByteSource::Vector(
-            VectorByteSource::new(
-                Some("abc".as_ref())
-            )
-        );
+            .build(Some(base64::decode(public_key_base64).unwrap().as_ref()))
+            .unwrap();
+        let message = ByteSource::Vector(VectorByteSource::new(Some("abc".as_ref())));
         let signature = ByteSource::Vector(
             VectorByteSource::new(
                 Some(base64::decode("XZOGd+nbEkrP5cdAjed0DdjLCrhMTW3/PU2UztdTK241N2yQyG/GVPxC+jHm96+QDFMssxHU1mMm2+e4e3m7Cw==")
@@ -2251,20 +2265,16 @@ mod tests {
         public_key.verify(message, signature).unwrap();
     }
 
-
     #[test]
     fn test_sodiumoxideed25519publicasymmetrickey_verify_with_different_message() {
         let sopakb = SodiumOxideEd25519PublicAsymmetricKeyBuilder {};
         let public_key_base64 = "ovk3UE3A2xCRUErmWiOFFBbflsAxb67gG+i3UUQpJ/w=";
         let public_key: SodiumOxideEd25519PublicAsymmetricKey = sopakb
-            .build(
-                Some(base64::decode(public_key_base64).unwrap().as_ref())
-            ).unwrap();
-        let message = ByteSource::Vector(
-            VectorByteSource::new(
-                Some("abcde".as_ref()) // not the message signed with the hardcoded signature
-            )
-        );
+            .build(Some(base64::decode(public_key_base64).unwrap().as_ref()))
+            .unwrap();
+        let message = ByteSource::Vector(VectorByteSource::new(
+            Some("abcde".as_ref()), // not the message signed with the hardcoded signature
+        ));
         let signature = ByteSource::Vector(
             VectorByteSource::new(
                 Some(base64::decode("XZOGd+nbEkrP5cdAjed0DdjLCrhMTW3/PU2UztdTK241N2yQyG/GVPxC+jHm96+QDFMssxHU1mMm2+e4e3m7Cw==")
@@ -2282,13 +2292,10 @@ mod tests {
         let sopakb = SodiumOxideEd25519PublicAsymmetricKeyBuilder {};
         // generate the keypair so it does not match hardcoded signature
         let (pk, _) = sign::gen_keypair();
-        let public_key: SodiumOxideEd25519PublicAsymmetricKey = sopakb.build(Some(pk.as_ref())).unwrap();
+        let public_key: SodiumOxideEd25519PublicAsymmetricKey =
+            sopakb.build(Some(pk.as_ref())).unwrap();
 
-        let message = ByteSource::Vector(
-            VectorByteSource::new(
-                Some("abc".as_ref())
-            )
-        );
+        let message = ByteSource::Vector(VectorByteSource::new(Some("abc".as_ref())));
         let signature = ByteSource::Vector(
             VectorByteSource::new(
                 Some(base64::decode("XZOGd+nbEkrP5cdAjed0DdjLCrhMTW3/PU2UztdTK241N2yQyG/GVPxC+jHm96+QDFMssxHU1mMm2+e4e3m7Cw==")
@@ -2296,7 +2303,10 @@ mod tests {
                     .as_ref())
             )
         );
-        assert!(matches!(public_key.verify(message, signature), Err(CryptoError::BadSignature)));
+        assert!(matches!(
+            public_key.verify(message, signature),
+            Err(CryptoError::BadSignature)
+        ));
     }
 
     #[test]
@@ -2304,21 +2314,17 @@ mod tests {
         let sopakb = SodiumOxideEd25519PublicAsymmetricKeyBuilder {};
         // generate the keypair so it does not match hardcoded signature
         let (pk, _) = sign::gen_keypair();
-        let public_key: SodiumOxideEd25519PublicAsymmetricKey = sopakb.build(Some(pk.as_ref())).unwrap();
+        let public_key: SodiumOxideEd25519PublicAsymmetricKey =
+            sopakb.build(Some(pk.as_ref())).unwrap();
 
-        let message = ByteSource::Vector(
-            VectorByteSource::new(
-                Some("abc".as_ref())
-            )
-        );
-        let signature = ByteSource::Vector(
-            VectorByteSource::new(
-                Some(base64::decode("YWFzZA==")
-                    .unwrap()
-                    .as_ref())
-            )
-        );
-        assert!(matches!(public_key.verify(message, signature), Err(CryptoError::BadSignature)));
+        let message = ByteSource::Vector(VectorByteSource::new(Some("abc".as_ref())));
+        let signature = ByteSource::Vector(VectorByteSource::new(Some(
+            base64::decode("YWFzZA==").unwrap().as_ref(),
+        )));
+        assert!(matches!(
+            public_key.verify(message, signature),
+            Err(CryptoError::BadSignature)
+        ));
     }
 
     /// PUBLIC ASYMMETRIC KEY - BUILDER ///

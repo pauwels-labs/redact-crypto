@@ -1,9 +1,13 @@
-use crate::{AsymmetricKeyBuilder, Builder, ByteSource, CryptoError, HasAlgorithmIdentifier, HasBuilder, HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder, SecretAsymmetricKeyBuilder, Signer, StorableType, TypeBuilder, TypeBuilderContainer, Verifier};
+use crate::{
+    AsymmetricKeyBuilder, Builder, ByteSource, CryptoError, HasAlgorithmIdentifier, HasBuilder,
+    HasByteSource, HasIndex, HasPublicKey, KeyBuilder, PublicAsymmetricKeyBuilder,
+    SecretAsymmetricKeyBuilder, Signer, StorableType, TypeBuilder, TypeBuilderContainer, Verifier,
+};
 use mongodb::bson::{self, Document};
 use once_cell::sync::OnceCell;
 use ring::{
     rand,
-    signature::{self, Ed25519KeyPair as ExternalEd25519KeyPair, KeyPair,},
+    signature::{self, Ed25519KeyPair as ExternalEd25519KeyPair, KeyPair},
 };
 use serde::{Deserialize, Serialize};
 use spki::AlgorithmIdentifier;
@@ -179,12 +183,12 @@ impl Verifier for RingEd25519PublicAsymmetricKey {
             signature::UnparsedPublicKey::new(&signature::ED25519, self.public_key.clone());
         peer_public_key
             .verify(
-                msg.get()
-                    .map_err(|e| CryptoError::InternalError {
-                        source: Box::new(e),
-                    })?,
-                signature.get().map_err(|_e| CryptoError::BadSignature)?
-            ).map_err(|_e| CryptoError::BadSignature)
+                msg.get().map_err(|e| CryptoError::InternalError {
+                    source: Box::new(e),
+                })?,
+                signature.get().map_err(|_e| CryptoError::BadSignature)?,
+            )
+            .map_err(|_e| CryptoError::BadSignature)
     }
 }
 
@@ -265,23 +269,18 @@ impl HasAlgorithmIdentifier for RingEd25519SecretAsymmetricKey {
 
 #[cfg(test)]
 mod tests {
-    use crate::key::ring::{RingEd25519PublicAsymmetricKeyBuilder, RingEd25519PublicAsymmetricKey};
-    use crate::{Builder, ByteSource, VectorByteSource, Verifier, CryptoError};
+    use crate::key::ring::{RingEd25519PublicAsymmetricKey, RingEd25519PublicAsymmetricKeyBuilder};
+    use crate::{Builder, ByteSource, CryptoError, VectorByteSource, Verifier};
 
     #[test]
     fn test_ringed25519publicasymmetrickey_verify() {
         let public_key_base64 = "gSU9HQSz3Z030COosboySzkMfrBXpOmoXH3wdvReuGA=";
         let rpak = RingEd25519PublicAsymmetricKeyBuilder {};
         let public_key: RingEd25519PublicAsymmetricKey = rpak
-            .build(
-                Some(base64::decode(public_key_base64).unwrap().as_ref())
-            ).unwrap();
+            .build(Some(base64::decode(public_key_base64).unwrap().as_ref()))
+            .unwrap();
 
-        let message = ByteSource::Vector(
-            VectorByteSource::new(
-                Some("abc".as_ref())
-            )
-        );
+        let message = ByteSource::Vector(VectorByteSource::new(Some("abc".as_ref())));
         let signature = ByteSource::Vector(
             VectorByteSource::new(
                 Some(base64::decode("JixVA5XA4+fH5PE9Czk1yApf8f3oRCcwpB5pzMdVOBgvbWzPNv4h+nulKVvCkANYWX1iNticuX5eNwpx8HpdBw==")
@@ -297,15 +296,12 @@ mod tests {
         let public_key_base64 = "gSU9HQSz3Z030COosboySzkMfrBXpOmoXH3wdvReuGA=";
         let rpak = RingEd25519PublicAsymmetricKeyBuilder {};
         let public_key: RingEd25519PublicAsymmetricKey = rpak
-            .build(
-                Some(base64::decode(public_key_base64).unwrap().as_ref())
-            ).unwrap();
+            .build(Some(base64::decode(public_key_base64).unwrap().as_ref()))
+            .unwrap();
 
-        let message = ByteSource::Vector(
-            VectorByteSource::new(
-                Some("1233".as_ref()) // different message than signature
-            )
-        );
+        let message = ByteSource::Vector(VectorByteSource::new(
+            Some("1233".as_ref()), // different message than signature
+        ));
         let signature = ByteSource::Vector(
             VectorByteSource::new(
                 Some(base64::decode("JixVA5XA4+fH5PE9Czk1yApf8f3oRCcwpB5pzMdVOBgvbWzPNv4h+nulKVvCkANYWX1iNticuX5eNwpx8HpdBw==")
@@ -313,18 +309,19 @@ mod tests {
                     .as_ref())
             )
         );
-        assert!(matches!(public_key.verify(message, signature), Err(CryptoError::BadSignature)));
+        assert!(matches!(
+            public_key.verify(message, signature),
+            Err(CryptoError::BadSignature)
+        ));
     }
 
     #[test]
     fn test_sodiumoxideed25519publicasymmetrickey_verify_with_invalid_signature() {
         let (public_key, _) = RingEd25519PublicAsymmetricKey::new().unwrap();
 
-        let message = ByteSource::Vector(
-            VectorByteSource::new(
-                Some("abc".as_ref()) // different message than signature
-            )
-        );
+        let message = ByteSource::Vector(VectorByteSource::new(
+            Some("abc".as_ref()), // different message than signature
+        ));
         let signature = ByteSource::Vector(
             VectorByteSource::new(
                 Some(base64::decode("JixVA5XA4+fH5PE9Czk1yApf8f3oRCcwpB5pzMdVOBgvbWzPNv4h+nulKVvCkANYWX1iNticuX5eNwpx8HpdBw==")
@@ -332,6 +329,9 @@ mod tests {
                     .as_ref())
             )
         );
-        assert!(matches!(public_key.verify(message, signature), Err(CryptoError::BadSignature)));
+        assert!(matches!(
+            public_key.verify(message, signature),
+            Err(CryptoError::BadSignature)
+        ));
     }
 }

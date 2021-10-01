@@ -53,7 +53,7 @@ impl Error for CryptoError {
             CryptoError::NotDowncastable => None,
             CryptoError::NotDeserializableToBaseDataType => None,
             CryptoError::WrongNonceType => None,
-            CryptoError::BadSignature => None
+            CryptoError::BadSignature => None,
         }
     }
 }
