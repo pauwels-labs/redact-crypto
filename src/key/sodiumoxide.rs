@@ -18,8 +18,8 @@ use sodiumoxide::crypto::{
         curve25519xsalsa20poly1305::{
             PublicKey as ExternalSodiumOxideCurve25519PublicAsymmetricKey,
             SecretKey as ExternalSodiumOxideCurve25519SecretAsymmetricKey,
-            PUBLICKEYBYTES as EXTERNALSODIUMOXIDEPUBLICASYMMETRICKEYBYTES,
-            SECRETKEYBYTES as EXTERNALSODIUMOXIDESECRETASYMMETRICKEYBYTES,
+            PUBLICKEYBYTES as EXTERNALSODIUMOXIDECURVE25519PUBLICASYMMETRICKEYBYTES,
+            SECRETKEYBYTES as EXTERNALSODIUMOXIDECURVE25519SECRETASYMMETRICKEYBYTES,
         },
     },
     secretbox::{
@@ -29,11 +29,14 @@ use sodiumoxide::crypto::{
             KEYBYTES as EXTERNALSODIUMOXIDESYMMETRICKEYBYTES,
         },
     },
-    sign,
     sign::ed25519::{
-        PublicKey as ExternalSodiumOxideEd25519PublicAsymmetricKey,
+        self, PublicKey as ExternalSodiumOxideEd25519PublicAsymmetricKey,
         SecretKey as ExternalSodiumOxideEd25519SecretAsymmetricKey, Signature,
+        PUBLICKEYBYTES as EXTERNALSODIUMOXIDEED25519PUBLICASYMMETRICKEYBYTES,
+        SECRETKEYBYTES as EXTERNALSODIUMOXIDEED25519SECRETASYMMETRICKEYBYTES,
+        SEEDBYTES as EXTERNALSODIUMOXIDEED25519SEEDBYTES,
     },
+    sign::{self, Seed},
 };
 use spki::AlgorithmIdentifier;
 use std::{boxed::Box, convert::TryFrom};
@@ -441,7 +444,7 @@ impl Default for SodiumOxideCurve25519SecretAsymmetricKey {
 }
 
 impl SodiumOxideCurve25519SecretAsymmetricKey {
-    pub const KEYBYTES: usize = EXTERNALSODIUMOXIDESECRETASYMMETRICKEYBYTES;
+    pub const KEYBYTES: usize = EXTERNALSODIUMOXIDECURVE25519SECRETASYMMETRICKEYBYTES;
 
     pub fn new() -> Self {
         let (_, key) = box_::gen_keypair();
@@ -664,7 +667,7 @@ impl HasAlgorithmIdentifier for SodiumOxideCurve25519PublicAsymmetricKey {
 }
 
 impl SodiumOxideCurve25519PublicAsymmetricKey {
-    pub const KEYBYTES: usize = EXTERNALSODIUMOXIDEPUBLICASYMMETRICKEYBYTES;
+    pub const KEYBYTES: usize = EXTERNALSODIUMOXIDECURVE25519PUBLICASYMMETRICKEYBYTES;
 
     pub fn new() -> (Self, SodiumOxideCurve25519SecretAsymmetricKey) {
         let (public_key, secret_key) = box_::gen_keypair();
@@ -716,13 +719,27 @@ impl Builder for SodiumOxideEd25519SecretAsymmetricKeyBuilder {
 
     fn build(&self, bytes: Option<&[u8]>) -> Result<Self::Output, CryptoError> {
         match bytes {
-            Some(bytes) => Ok(SodiumOxideEd25519SecretAsymmetricKey {
-                secret_key: ExternalSodiumOxideEd25519SecretAsymmetricKey::from_slice(&bytes)
-                    .ok_or(CryptoError::InvalidKeyLength {
-                        expected: SodiumOxideEd25519SecretAsymmetricKey::KEYBYTES,
-                        actual: bytes.len(),
-                    })?,
-            }),
+            Some(bytes) => {
+                let len = bytes.len();
+                if len == EXTERNALSODIUMOXIDEED25519SEEDBYTES {
+                    let seed = Seed::from_slice(bytes).ok_or(CryptoError::InvalidSeedLength {
+                        expected: EXTERNALSODIUMOXIDEED25519SEEDBYTES,
+                        actual: len,
+                    })?;
+                    let (_, secret_key) = ed25519::keypair_from_seed(&seed);
+                    Ok(SodiumOxideEd25519SecretAsymmetricKey { secret_key })
+                } else {
+                    Ok(SodiumOxideEd25519SecretAsymmetricKey {
+                        secret_key: ExternalSodiumOxideEd25519SecretAsymmetricKey::from_slice(
+                            bytes,
+                        )
+                        .ok_or(CryptoError::InvalidKeyLength {
+                            expected: SodiumOxideEd25519SecretAsymmetricKey::KEYBYTES,
+                            actual: bytes.len(),
+                        })?,
+                    })
+                }
+            }
             None => {
                 let sk = SodiumOxideEd25519SecretAsymmetricKey::new();
                 Ok(sk)
@@ -793,7 +810,7 @@ impl HasByteSource for SodiumOxideEd25519SecretAsymmetricKey {
 }
 
 impl SodiumOxideEd25519SecretAsymmetricKey {
-    pub const KEYBYTES: usize = EXTERNALSODIUMOXIDEPUBLICASYMMETRICKEYBYTES;
+    pub const KEYBYTES: usize = EXTERNALSODIUMOXIDEED25519SECRETASYMMETRICKEYBYTES;
 
     pub fn new() -> Self {
         let (_, secret_key) = sign::gen_keypair();
@@ -924,7 +941,7 @@ impl HasAlgorithmIdentifier for SodiumOxideEd25519PublicAsymmetricKey {
 }
 
 impl SodiumOxideEd25519PublicAsymmetricKey {
-    pub const KEYBYTES: usize = EXTERNALSODIUMOXIDEPUBLICASYMMETRICKEYBYTES;
+    pub const KEYBYTES: usize = EXTERNALSODIUMOXIDEED25519PUBLICASYMMETRICKEYBYTES;
 
     pub fn new() -> (Self, SodiumOxideEd25519SecretAsymmetricKey) {
         let (public_key, secret_key) = sign::gen_keypair();
