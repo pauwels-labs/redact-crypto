@@ -37,6 +37,9 @@ pub enum CryptoError {
 
     /// Wrong nonce was provided during seal/unseal operation
     WrongNonceType,
+
+    /// A signature was not verifiable
+    BadSignature,
 }
 
 impl Error for CryptoError {
@@ -50,6 +53,7 @@ impl Error for CryptoError {
             CryptoError::NotDowncastable => None,
             CryptoError::NotDeserializableToBaseDataType => None,
             CryptoError::WrongNonceType => None,
+            CryptoError::BadSignature => None,
         }
     }
 }
@@ -97,6 +101,9 @@ impl Display for CryptoError {
             }
             CryptoError::WrongNonceType => {
                 write!(f, "Invalid type of nonce was provided for the operation")
+            }
+            CryptoError::BadSignature => {
+                write!(f, "Signature verification failed")
             }
         }
     }

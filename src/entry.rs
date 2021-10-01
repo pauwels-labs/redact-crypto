@@ -7,7 +7,7 @@ use async_recursion::async_recursion;
 use async_trait::async_trait;
 use mongodb::bson::Document;
 use once_cell::sync::OnceCell;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 
 pub type EntryPath = String;
@@ -23,9 +23,7 @@ pub struct Entry<T> {
 }
 
 pub trait StorableType:
-    DeserializeOwned
-    + Serialize
-    + HasByteSource
+    HasByteSource
     + HasBuilder
     + HasIndex<Index = Document>
     + Unpin
@@ -252,7 +250,7 @@ pub trait Builder:
 }
 
 #[async_trait]
-pub trait ToEntry: StorableType {
+pub trait ToEntry: StorableType + Sized {
     fn to_ref_entry<S: Storer + Into<TypeStorer>>(
         self,
         path: EntryPath,
@@ -302,7 +300,7 @@ impl<T: StorableType> ToEntry for T {}
 #[derive(Serialize, Deserialize, Copy, Clone)]
 pub struct TypeBuilderContainer(pub TypeBuilder);
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub enum Type {
     Key(Key),
     Data(Data),
