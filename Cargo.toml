@@ -19,11 +19,11 @@ exclude = [
 
 [dependencies]
 async-trait = "0.1.51"
-serde = { version = "1.0.125", features = ["derive"] }
+serde = { version = "1.0.130", features = ["derive"] }
 sodiumoxide = "0.2.7"
-futures = "0.3.16"
+futures = "0.3.17"
 mongodb = "2.0.0"
-reqwest = { version = "0.11.4", features = ["json", "rustls-tls"] }
+reqwest = { version = "0.11.5", features = ["json", "rustls-tls"] }
 serde_json = "1.0.64"
 hex = "0.4.3"
 uuid = { version = "0.8.2", features = ["v4", "serde"] }
@@ -32,15 +32,15 @@ once_cell = "1.8.0"
 ring = { version = "0.16.20", features = ["std"] }
 async-recursion = "0.3.2"
 mockall = "0.10.2"
-cloud-storage = "0.10.2"
+cloud-storage = "0.10.3"
 der = { git = "https://github.com/rustcrypto/formats.git", rev = "566abc5ef466a6b85d37ec8a779500f906dff8ce", features = ["oid", "alloc", "std", "derive"] }
 serde_bytes = "0.11.5"
-spki = "0.4.0"
+spki = "0.4.1"
 x509 = "0.2.0"
 cookie-factory = "0.3.2"
 strum = { version = "0.21", features = ["derive"] }
 chrono = "0.4.19"
-rand = "0.8.3"
+rand = "0.8.4"
 sha-1 = "0.9.8"
 
 [dev-dependencies]
