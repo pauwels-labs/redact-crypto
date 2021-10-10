@@ -254,8 +254,16 @@ impl FsByteSource {
             .into_os_string()
             .into_string()
             .unwrap_or_else(|_| "<Invalid UTF8>".to_owned());
-
+        let path_parent = path_ref.parent();
         let bytes = base64::encode(value);
+
+        // If the path contains parent directories, try to create the chain of
+        // directories first before making the file
+        if let Some(path) = path_parent {
+            std::fs::create_dir_all(path).map_err(|source| SourceError::FsIoError { source })?;
+        }
+
+        // Write the given bytes to the file at the given path
         std::fs::write(path_ref, bytes)
             .map(|_| self.reload())
             .map_err(|source| match source.kind() {
