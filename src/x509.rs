@@ -1,7 +1,7 @@
 use cookie_factory::{GenResult, WriteContext};
 use der::{
     asn1::{Any, Ia5String},
-    Decodable, DecodeValue, Decoder, Encodable, Length, Message, Tag,
+    Decodable, DecodeValue, Decoder, Encodable, Length, Message, Tag, TagMode,
 };
 use spki::{AlgorithmIdentifier, SubjectPublicKeyInfo};
 use std::{
@@ -147,7 +147,7 @@ impl<'a> Encodable for GeneralName<'a> {
             GeneralName::Rfc822Name(v) => (0x01.try_into()?, v),
             GeneralName::DnsName(v) => (0x02.try_into()?, v),
         };
-        encoder.context_specific_implicit(tag_number, *value)
+        encoder.context_specific(tag_number, TagMode::Implicit, *value)
     }
 }
 
