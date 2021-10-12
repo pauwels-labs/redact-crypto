@@ -183,7 +183,7 @@ pub trait IndexedStorer: Send + Sync + Storer {
 
 /// The operations a storer of `Key` structs must be able to fulfill.
 #[async_trait]
-pub trait Storer: Send + Sync + Into<TypeStorer> {
+pub trait Storer: Send + Sync + Into<TypeStorer> + Clone {
     /// Fetches the instance of the `Key` with the given name.
     async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError>;
 
