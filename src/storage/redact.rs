@@ -96,7 +96,7 @@ impl From<RedactStorerError> for CryptoError {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ClientTlsConfig {
     pub pkcs12_path: String,
-    pub server_ca_path: String,
+    pub server_ca_path: Option<String>,
 }
 
 impl ClientTlsConfig {
@@ -147,22 +147,43 @@ impl RedactStorer {
                     .map_err(|source| RedactStorerError::Pkcs12FileNotReadable { source })?;
                 let pkcs12 = reqwest::Identity::from_pem(&pkcs12_vec)
                     .map_err(|source| RedactStorerError::HttpClientNotBuildable { source })?;
-                let mut ca_cert_vec: Vec<u8> = vec![];
-                File::open(&ctc.server_ca_path)
-                    .map_err(|source| RedactStorerError::ServerCaCertFileNotReadable { source })?
-                    .read_to_end(&mut ca_cert_vec)
-                    .map_err(|source| RedactStorerError::ServerCaCertFileNotReadable { source })?;
-                let ca_cert = reqwest::Certificate::from_pem(&ca_cert_vec)
-                    .map_err(|source| RedactStorerError::HttpClientNotBuildable { source })?;
-                Ok::<_, RedactStorerError>(
-                    reqwest::Client::builder()
-                        .identity(pkcs12)
-                        .add_root_certificate(ca_cert)
-                        .tls_built_in_root_certs(false)
-                        .use_rustls_tls()
-                        .build()
-                        .map_err(|source| RedactStorerError::HttpClientNotBuildable { source })?,
-                )
+                match &ctc.server_ca_path {
+                    Some(path) => {
+                        let mut ca_cert_vec: Vec<u8> = vec![];
+                        File::open(path)
+                            .map_err(|source| RedactStorerError::ServerCaCertFileNotReadable {
+                                source,
+                            })?
+                            .read_to_end(&mut ca_cert_vec)
+                            .map_err(|source| RedactStorerError::ServerCaCertFileNotReadable {
+                                source,
+                            })?;
+                        let ca_cert =
+                            reqwest::Certificate::from_pem(&ca_cert_vec).map_err(|source| {
+                                RedactStorerError::HttpClientNotBuildable { source }
+                            })?;
+                        Ok::<_, RedactStorerError>(
+                            reqwest::Client::builder()
+                                .identity(pkcs12)
+                                .add_root_certificate(ca_cert)
+                                .tls_built_in_root_certs(false)
+                                .use_rustls_tls()
+                                .build()
+                                .map_err(|source| RedactStorerError::HttpClientNotBuildable {
+                                    source,
+                                })?,
+                        )
+                    }
+                    None => Ok::<_, RedactStorerError>(
+                        reqwest::Client::builder()
+                            .identity(pkcs12)
+                            .use_rustls_tls()
+                            .build()
+                            .map_err(|source| RedactStorerError::HttpClientNotBuildable {
+                                source,
+                            })?,
+                    ),
+                }
             }
             None => Ok(reqwest::Client::builder()
                 .use_rustls_tls()
