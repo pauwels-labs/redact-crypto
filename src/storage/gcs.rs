@@ -1,4 +1,4 @@
-use crate::{CryptoError, Entry, NonIndexedTypeStorer, StorableType, Storer};
+use crate::{CryptoError, Entry, NonIndexedTypeStorer, StorableType, Storer, TypeStorer};
 use async_trait::async_trait;
 use cloud_storage::Client;
 use cloud_storage::Error::Other;
@@ -66,9 +66,15 @@ impl From<GoogleCloudStorer> for NonIndexedTypeStorer {
     }
 }
 
+impl From<GoogleCloudStorer> for TypeStorer {
+    fn from(gcs: GoogleCloudStorer) -> Self {
+        TypeStorer::NonIndexed(NonIndexedTypeStorer::GoogleCloud(gcs))
+    }
+}
+
 impl GoogleCloudStorer {
     pub fn new(bucket_name: String) -> Self {
-        return GoogleCloudStorer { bucket_name };
+        GoogleCloudStorer { bucket_name }
     }
 }
 
@@ -81,7 +87,7 @@ impl Storer for GoogleCloudStorer {
             .download(&self.bucket_name, path)
             .await
             .map_err(|e| match e {
-                Other(_) => GoogleCloudStorerError::NotFound {}.into(),
+                Other(_) => GoogleCloudStorerError::NotFound {},
                 _ => GoogleCloudStorerError::InternalError {
                     source: Box::new(e),
                 },

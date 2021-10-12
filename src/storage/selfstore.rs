@@ -54,6 +54,12 @@ impl From<SelfStorer> for NonIndexedTypeStorer {
     }
 }
 
+impl From<SelfStorer> for TypeStorer {
+    fn from(ss: SelfStorer) -> Self {
+        TypeStorer::NonIndexed(NonIndexedTypeStorer::SelfStore(ss))
+    }
+}
+
 impl SelfStorer {
     pub fn current() -> Arc<SelfStorer> {
         SELF_STORER.read().unwrap().clone()

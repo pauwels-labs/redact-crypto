@@ -1,4 +1,6 @@
-use crate::{CryptoError, Entry, IndexedStorer, IndexedTypeStorer, StorableType, Storer};
+use crate::{
+    CryptoError, Entry, IndexedStorer, IndexedTypeStorer, StorableType, Storer, TypeStorer,
+};
 use async_trait::async_trait;
 use futures::StreamExt;
 use mongodb::{
@@ -72,6 +74,12 @@ pub struct MongoStorer {
 impl From<MongoStorer> for IndexedTypeStorer {
     fn from(ms: MongoStorer) -> Self {
         IndexedTypeStorer::Mongo(ms)
+    }
+}
+
+impl From<MongoStorer> for TypeStorer {
+    fn from(ms: MongoStorer) -> Self {
+        TypeStorer::Indexed(IndexedTypeStorer::Mongo(ms))
     }
 }
 

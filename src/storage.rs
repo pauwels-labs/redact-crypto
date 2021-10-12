@@ -23,23 +23,23 @@ pub trait HasIndex {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TypeStorer {
-    IndexedTypeStorer(IndexedTypeStorer),
-    NonIndexedTypeStorer(NonIndexedTypeStorer),
+    Indexed(IndexedTypeStorer),
+    NonIndexed(NonIndexedTypeStorer),
 }
 
 #[async_trait]
 impl Storer for TypeStorer {
     async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
         match self {
-            TypeStorer::NonIndexedTypeStorer(ts) => ts.get(path).await,
-            TypeStorer::IndexedTypeStorer(ts) => ts.get(path).await,
+            TypeStorer::NonIndexed(ts) => ts.get(path).await,
+            TypeStorer::Indexed(ts) => ts.get(path).await,
         }
     }
 
     async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError> {
         match self {
-            TypeStorer::NonIndexedTypeStorer(ts) => ts.create(value).await,
-            TypeStorer::IndexedTypeStorer(ts) => ts.create(value).await,
+            TypeStorer::NonIndexed(ts) => ts.create(value).await,
+            TypeStorer::Indexed(ts) => ts.create(value).await,
         }
     }
 }
@@ -56,6 +56,18 @@ pub enum NonIndexedTypeStorer {
     SelfStore(selfstore::SelfStorer),
     GoogleCloud(gcs::GoogleCloudStorer),
     Mock(tests::MockStorer),
+}
+
+impl From<IndexedTypeStorer> for TypeStorer {
+    fn from(its: IndexedTypeStorer) -> Self {
+        TypeStorer::Indexed(its)
+    }
+}
+
+impl From<NonIndexedTypeStorer> for TypeStorer {
+    fn from(nits: NonIndexedTypeStorer) -> Self {
+        TypeStorer::NonIndexed(nits)
+    }
 }
 
 #[async_trait]
@@ -171,7 +183,7 @@ pub trait IndexedStorer: Send + Sync + Storer {
 
 /// The operations a storer of `Key` structs must be able to fulfill.
 #[async_trait]
-pub trait Storer: Send + Sync {
+pub trait Storer: Send + Sync + Into<TypeStorer> {
     /// Fetches the instance of the `Key` with the given name.
     async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError>;
 
@@ -321,13 +333,13 @@ pub mod tests {
 
     impl From<MockIndexedStorer> for TypeStorer {
         fn from(mis: MockIndexedStorer) -> Self {
-            TypeStorer::IndexedTypeStorer(IndexedTypeStorer::Mock(mis))
+            TypeStorer::Indexed(IndexedTypeStorer::Mock(mis))
         }
     }
 
     impl From<MockStorer> for TypeStorer {
         fn from(mis: MockStorer) -> Self {
-            TypeStorer::NonIndexedTypeStorer(NonIndexedTypeStorer::Mock(mis))
+            TypeStorer::NonIndexed(NonIndexedTypeStorer::Mock(mis))
         }
     }
 }

@@ -1,4 +1,6 @@
-use crate::{CryptoError, Entry, IndexedStorer, IndexedTypeStorer, StorableType, Storer};
+use crate::{
+    CryptoError, Entry, IndexedStorer, IndexedTypeStorer, StorableType, Storer, TypeStorer,
+};
 use async_trait::async_trait;
 use mongodb::bson::Document;
 use once_cell::sync::Lazy;
@@ -125,6 +127,12 @@ impl RedactStorer {
 impl From<RedactStorer> for IndexedTypeStorer {
     fn from(rs: RedactStorer) -> Self {
         IndexedTypeStorer::Redact(rs)
+    }
+}
+
+impl From<RedactStorer> for TypeStorer {
+    fn from(rs: RedactStorer) -> Self {
+        TypeStorer::Indexed(IndexedTypeStorer::Redact(rs))
     }
 }
 
