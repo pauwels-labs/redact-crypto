@@ -39,8 +39,8 @@ impl Error for MongoStorerError {
 impl Display for MongoStorerError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
-            MongoStorerError::InternalError { .. } => {
-                write!(f, "Internal error occurred")
+            MongoStorerError::InternalError { ref source } => {
+                write!(f, "{}", source)
             }
             MongoStorerError::NotFound => {
                 write!(f, "Requested document not found")
