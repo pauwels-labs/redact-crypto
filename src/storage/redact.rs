@@ -164,10 +164,6 @@ impl RedactStorer {
                             })?;
                         Ok::<_, RedactStorerError>(
                             reqwest::Client::builder()
-                                .identity(pkcs12)
-                                .add_root_certificate(ca_cert)
-                                .tls_built_in_root_certs(false)
-                                .use_rustls_tls()
                                 .build()
                                 .map_err(|source| RedactStorerError::HttpClientNotBuildable {
                                     source,
