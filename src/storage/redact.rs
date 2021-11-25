@@ -138,6 +138,11 @@ impl From<RedactStorer> for TypeStorer {
 
 impl RedactStorer {
     fn get_http_client() -> Result<reqwest::Client, RedactStorerError> {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(
+            reqwest::header::CONNECTION,
+            reqwest::header::HeaderValue::from_static("close"),
+        );
         match *ClientTlsConfig::current() {
             Some(ref ctc) => {
                 let mut pkcs12_vec: Vec<u8> = vec![];
@@ -147,6 +152,7 @@ impl RedactStorer {
                     .map_err(|source| RedactStorerError::Pkcs12FileNotReadable { source })?;
                 let pkcs12 = reqwest::Identity::from_pem(&pkcs12_vec)
                     .map_err(|source| RedactStorerError::HttpClientNotBuildable { source })?;
+
                 match &ctc.server_ca_path {
                     Some(path) => {
                         let mut ca_cert_vec: Vec<u8> = vec![];
@@ -168,6 +174,7 @@ impl RedactStorer {
                                 .add_root_certificate(ca_cert)
                                 .tls_built_in_root_certs(false)
                                 .use_rustls_tls()
+                                .default_headers(headers)
                                 .build()
                                 .map_err(|source| RedactStorerError::HttpClientNotBuildable {
                                     source,
@@ -178,6 +185,7 @@ impl RedactStorer {
                         reqwest::Client::builder()
                             .identity(pkcs12)
                             .use_rustls_tls()
+                            .default_headers(headers)
                             .build()
                             .map_err(|source| RedactStorerError::HttpClientNotBuildable {
                                 source,
@@ -187,6 +195,7 @@ impl RedactStorer {
             }
             None => Ok(reqwest::Client::builder()
                 .use_rustls_tls()
+                .default_headers(headers)
                 .build()
                 .map_err(|source| RedactStorerError::HttpClientNotBuildable { source })?),
         }
