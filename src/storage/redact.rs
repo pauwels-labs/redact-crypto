@@ -168,6 +168,7 @@ impl RedactStorer {
                                 .add_root_certificate(ca_cert)
                                 .tls_built_in_root_certs(false)
                                 .use_rustls_tls()
+                                .pool_max_idle_per_host(10)
                                 .build()
                                 .map_err(|source| RedactStorerError::HttpClientNotBuildable {
                                     source,
@@ -178,6 +179,7 @@ impl RedactStorer {
                         reqwest::Client::builder()
                             .identity(pkcs12)
                             .use_rustls_tls()
+                            .pool_max_idle_per_host(10)
                             .build()
                             .map_err(|source| RedactStorerError::HttpClientNotBuildable {
                                 source,
