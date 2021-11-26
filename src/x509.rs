@@ -1,7 +1,7 @@
 use cookie_factory::{GenResult, WriteContext};
 use der::{
     asn1::{Any, Ia5String},
-    Decodable, DecodeValue, Decoder, Encodable, Length, Message, Tag, TagMode,
+    Decodable, DecodeValue, Decoder, Encodable, Length, Sequence, Tag, TagMode, Tagged,
 };
 use spki::{AlgorithmIdentifier, SubjectPublicKeyInfo};
 use std::{
@@ -32,7 +32,7 @@ impl<'a> AlgorithmIdentifierTrait for AlgorithmIdentifierWrapper<'a> {
     fn parameters<W: std::io::Write>(&self, mut w: WriteContext<W>) -> GenResult<W> {
         match self.0.parameters {
             Some(p) => {
-                w.write_all(p.as_bytes())?;
+                w.write_all(p.value())?;
                 Ok(w)
             }
             None => Ok(w),
@@ -107,7 +107,7 @@ impl<'a> TryFrom<Any<'a>> for GeneralNames<'a> {
     }
 }
 
-impl<'a> Message<'a> for GeneralNames<'a> {
+impl<'a> Sequence<'a> for GeneralNames<'a> {
     fn fields<F, T>(&self, field_encoder: F) -> der::Result<T>
     where
         F: FnOnce(&[&dyn Encodable]) -> der::Result<T>,
@@ -147,7 +147,7 @@ impl<'a> Encodable for GeneralName<'a> {
             GeneralName::Rfc822Name(v) => (0x01.try_into()?, v),
             GeneralName::DnsName(v) => (0x02.try_into()?, v),
         };
-        encoder.context_specific(tag_number, TagMode::Implicit, *value)
+        encoder.context_specific(tag_number, TagMode::Implicit, value)
     }
 }
 
@@ -159,13 +159,13 @@ impl<'a> TryFrom<Any<'a>> for GeneralName<'a> {
             Tag::ContextSpecific { number, .. } => match number.value() {
                 0x01 => Ok(GeneralName::Rfc822Name(Ia5String::new(any.value())?)),
                 0x02 => Ok(GeneralName::DnsName(Ia5String::new(any.value())?)),
-                _ => Err(der::ErrorKind::UnexpectedTag {
+                _ => Err(der::ErrorKind::TagUnexpected {
                     expected: None,
                     actual: any.tag(),
                 }
                 .into()),
             },
-            actual => Err(der::ErrorKind::UnexpectedTag {
+            actual => Err(der::ErrorKind::TagUnexpected {
                 expected: None,
                 actual,
             }

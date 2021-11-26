@@ -33,9 +33,9 @@ ring = { version = "0.16.20", features = ["std"] }
 async-recursion = "0.3.2"
 mockall = "0.10.2"
 cloud-storage = "0.10.2"
-der = { git = "https://github.com/rustcrypto/formats.git", rev = "a06d563ce3b5637f1f53c216ed1d1a8d11c94fff", features = ["oid", "alloc", "std", "derive"] }
+der = { version = "0.5.1", features = ["alloc"] }
 serde_bytes = "0.11.5"
-spki = "0.4.0"
+spki = "0.5.2"
 x509 = "0.2.0"
 cookie-factory = "0.3.2"
 strum = { version = "0.21", features = ["derive"] }

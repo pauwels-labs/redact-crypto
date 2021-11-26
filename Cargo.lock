@@ -158,14 +158,9 @@ dependencies = [
 
 [[package]]
 name = "const-oid"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44c32f031ea41b4291d695026c023b95d59db2d8a2c7640800ed56bc8f510f22"
-
-[[package]]
-name = "const-oid"
-version = "0.6.1"
-source = "git+https://github.com/rustcrypto/formats.git?rev=a06d563ce3b5637f1f53c216ed1d1a8d11c94fff#a06d563ce3b5637f1f53c216ed1d1a8d11c94fff"
+checksum = "d355758f44afa81c21e66e1301d47cbffbbcde4b405cbe46b8b19f213abf9f60"
 
 [[package]]
 name = "cookie-factory"
@@ -251,31 +246,11 @@ checksum = "3ee2393c4a91429dffb4bedf19f4d6abf27d8a732c8ce4980305d782e5426d57"
 
 [[package]]
 name = "der"
-version = "0.4.1"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31e21d2d0f22cde6e88694108429775c0219760a07779bf96503b434a03d7412"
+checksum = "6919815d73839e7ad218de758883aae3a257ba6759ce7a9992501efbb53d705c"
 dependencies = [
- "const-oid 0.6.0",
-]
-
-[[package]]
-name = "der"
-version = "0.5.0-pre"
-source = "git+https://github.com/rustcrypto/formats.git?rev=a06d563ce3b5637f1f53c216ed1d1a8d11c94fff#a06d563ce3b5637f1f53c216ed1d1a8d11c94fff"
-dependencies = [
- "const-oid 0.6.1",
- "der_derive",
-]
-
-[[package]]
-name = "der_derive"
-version = "0.5.0-pre"
-source = "git+https://github.com/rustcrypto/formats.git?rev=a06d563ce3b5637f1f53c216ed1d1a8d11c94fff#a06d563ce3b5637f1f53c216ed1d1a8d11c94fff"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
- "synstructure",
+ "const-oid",
 ]
 
 [[package]]
@@ -1252,7 +1227,7 @@ dependencies = [
  "chrono",
  "cloud-storage",
  "cookie-factory",
- "der 0.5.0-pre",
+ "der",
  "futures",
  "hex",
  "mockall",
@@ -1627,11 +1602,11 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "spki"
-version = "0.4.0"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "987637c5ae6b3121aba9d513f869bd2bff11c4cc086c22473befd6649c0bd521"
+checksum = "c8a277a21925310de1d31bb6b021da3550b00e9127096ef84ee38f44609925c4"
 dependencies = [
- "der 0.4.1",
+ "der",
 ]
 
 [[package]]
@@ -1685,18 +1660,6 @@ checksum = "c6f107db402c2c2055242dbf4d2af0e69197202e9faacbef9571bbe47f5a1b84"
 dependencies = [
  "proc-macro2",
  "quote",
- "unicode-xid",
-]
-
-[[package]]
-name = "synstructure"
-version = "0.12.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "474aaa926faa1603c40b7885a9eaea29b444d1cb2850cb7c0e37bb1a4182f4fa"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
  "unicode-xid",
 ]
 

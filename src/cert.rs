@@ -1,6 +1,6 @@
 use crate::{
     x509::{
-        AlgorithmIdentifierWrapper, DistinguishedName, Oid, GeneralNames,
+        AlgorithmIdentifierWrapper, DistinguishedName, GeneralNames, Oid,
         SubjectPublicKeyInfoWrapper,
     },
     CryptoError, HasAlgorithmIdentifier, HasByteSource, HasPublicKey, Signer, SourceError,
