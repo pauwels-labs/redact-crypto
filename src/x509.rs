@@ -1,6 +1,8 @@
 use cookie_factory::{GenResult, WriteContext};
-use der::{asn1::{Any, Ia5String}, Decodable, DecodeValue, Decoder, Encodable, Length, Tag, TagMode, Sequence, Tagged};
-
+use der::{
+    asn1::{Any, Ia5String},
+    Decodable, DecodeValue, Decoder, Encodable, Length, Sequence, Tag, TagMode, Tagged,
+};
 use spki::{AlgorithmIdentifier, SubjectPublicKeyInfo};
 use std::{
     convert::{TryFrom, TryInto},
