@@ -6,7 +6,6 @@ use crate::{
     CryptoError, HasAlgorithmIdentifier, HasByteSource, HasPublicKey, Signer, SourceError,
 };
 use chrono::prelude::*;
-use der::Encodable;
 use rand::{thread_rng, Rng};
 use sha1::{Digest, Sha1};
 use std::{
@@ -15,6 +14,7 @@ use std::{
     fmt::{self, Display, Formatter},
 };
 use x509::Extension;
+use der::Encodable;
 
 #[derive(Debug)]
 pub enum X509Error {
