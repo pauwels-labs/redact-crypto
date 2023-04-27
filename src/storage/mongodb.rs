@@ -228,10 +228,13 @@ impl Storer for MongoStorer {
             .await
         {
             Ok(_) => Ok(entry),
-            Err(e) => Err(MongoStorerError::InternalError {
-                source: Box::new(e),
+            Err(e) => {
+                println!("{}", e);
+                Err(MongoStorerError::InternalError {
+                    source: Box::new(e),
+                }
+                .into())
             }
-            .into()),
         }
     }
 }
