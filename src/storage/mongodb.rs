@@ -105,11 +105,15 @@ impl MongoStorer {
                     mongodb::options::ResolverConfig::cloudflare(),
                 )
                 .await
-                .map_err(|e| MongoStorerError::InternalError {
-                    source: Box::new(e),
+                .map_err(|e| {
+                    println!("get_client: {}", e);
+                    MongoStorerError::InternalError {
+                        source: Box::new(e),
+                    }
                 })?;
                 self.client.get_or_try_init(|| {
                     Client::with_options(db_client_options).map_err(|e| {
+                        println!("get_or_try_init: {}", e);
                         MongoStorerError::InternalError {
                             source: Box::new(e),
                         }
@@ -215,8 +219,11 @@ impl Storer for MongoStorer {
         let filter_options = mongodb::options::ReplaceOptions::builder()
             .upsert(true)
             .build();
-        let doc = bson::to_document(&entry).map_err(|e| MongoStorerError::InternalError {
-            source: Box::new(e),
+        let doc = bson::to_document(&entry).map_err(|e| {
+            println!("to_document: {}", e);
+            MongoStorerError::InternalError {
+                source: Box::new(e),
+            }
         })?;
 
         match self
@@ -229,7 +236,7 @@ impl Storer for MongoStorer {
         {
             Ok(_) => Ok(entry),
             Err(e) => {
-                println!("{}", e);
+                println!("final return: {}", e);
                 Err(MongoStorerError::InternalError {
                     source: Box::new(e),
                 }
