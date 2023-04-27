@@ -100,12 +100,7 @@ impl MongoStorer {
         match self.client.get() {
             Some(c) => Ok(c),
             None => {
-                let db_client_options = ClientOptions::parse_with_resolver_config(
-                    &self.url,
-                    mongodb::options::ResolverConfig::cloudflare(),
-                )
-                .await
-                .map_err(|e| {
+                let db_client_options = ClientOptions::parse(&self.url).await.map_err(|e| {
                     println!("get_client: {}", e);
                     MongoStorerError::InternalError {
                         source: Box::new(e),
