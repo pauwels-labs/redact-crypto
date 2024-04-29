@@ -111,12 +111,12 @@ impl HasIndex for Data {
 
     fn get_index() -> Option<Self::Index> {
         Some(bson::doc! {
-        "c": {
-                    "builder": {
-            "t": "Data",
+            "c": {
+                "builder": {
+                    "t": "Data",
+                }
             }
-        }
-            })
+        })
     }
 }
 
@@ -590,12 +590,12 @@ mod tests {
         assert_eq!(
             index,
             bson::doc! {
-            "c": {
-                        "builder": {
-                "t": "Data",
-                        }
-            }
+                "c": {
+                    "builder": {
+                        "t": "Data",
+                    }
                 }
+            }
         );
     }
 

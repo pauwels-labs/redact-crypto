@@ -80,6 +80,17 @@ impl GoogleCloudStorer {
 
 #[async_trait]
 impl Storer for GoogleCloudStorer {
+    async fn delete<T: StorableType>(&self, path: &str) -> Result<(), CryptoError> {
+        let client = Client::new();
+        match client.object().delete(&self.bucket_name, path).await {
+            Ok(_) => Ok(()),
+            Err(e) => Err(GoogleCloudStorerError::InternalError {
+                source: Box::new(e),
+            }
+            .into()),
+        }
+    }
+
     async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
         let client = Client::new();
         let bytes = client

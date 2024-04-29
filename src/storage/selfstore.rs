@@ -72,6 +72,13 @@ impl SelfStorer {
 
 #[async_trait]
 impl Storer for SelfStorer {
+    async fn delete<T: StorableType>(&self, path: &str) -> Result<(), CryptoError> {
+        match SelfStorer::current().internal_storer {
+            Some(ref storer) => storer.delete::<T>(path).await,
+            None => Err(SelfStorerError::NoSelfStorerProvided.into()),
+        }
+    }
+
     async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
         match SelfStorer::current().internal_storer {
             Some(ref storer) => storer.get(path).await,

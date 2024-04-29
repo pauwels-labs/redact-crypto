@@ -29,6 +29,13 @@ pub enum TypeStorer {
 
 #[async_trait]
 impl Storer for TypeStorer {
+    async fn delete<T: StorableType>(&self, path: &str) -> Result<(), CryptoError> {
+        match self {
+            TypeStorer::NonIndexed(ts) => ts.delete::<T>(path).await,
+            TypeStorer::Indexed(ts) => ts.delete::<T>(path).await,
+        }
+    }
+
     async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
         match self {
             TypeStorer::NonIndexed(ts) => ts.get(path).await,
@@ -114,6 +121,14 @@ impl IndexedStorer for IndexedTypeStorer {
 
 #[async_trait]
 impl Storer for IndexedTypeStorer {
+    async fn delete<T: StorableType>(&self, path: &str) -> Result<(), CryptoError> {
+        match self {
+            IndexedTypeStorer::Redact(rs) => rs.delete::<T>(path).await,
+            IndexedTypeStorer::Mongo(ms) => ms.delete::<T>(path).await,
+            IndexedTypeStorer::Mock(ms) => ms.delete::<T>(path).await,
+        }
+    }
+
     async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
         match self {
             IndexedTypeStorer::Redact(rs) => rs.get(path).await,
@@ -133,6 +148,14 @@ impl Storer for IndexedTypeStorer {
 
 #[async_trait]
 impl Storer for NonIndexedTypeStorer {
+    async fn delete<T: StorableType>(&self, path: &str) -> Result<(), CryptoError> {
+        match self {
+            NonIndexedTypeStorer::GoogleCloud(gcs) => gcs.delete::<T>(path).await,
+            NonIndexedTypeStorer::Mock(ms) => ms.delete::<T>(path).await,
+            NonIndexedTypeStorer::SelfStore(ss) => ss.delete::<T>(path).await,
+        }
+    }
+
     async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
         match self {
             NonIndexedTypeStorer::GoogleCloud(gcs) => gcs.get(path).await,
@@ -189,6 +212,9 @@ pub trait Storer: Send + Sync + Into<TypeStorer> + Clone {
 
     /// Adds the given `Key` struct to the backing store.
     async fn create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError>;
+
+    /// Adds the given `Key` struct to the backing store.
+    async fn delete<T: StorableType>(&self, path: &str) -> Result<(), CryptoError>;
 }
 
 pub mod tests {
@@ -208,6 +234,7 @@ pub mod tests {
         pub fn private_serialize(&self) -> MockIndexedStorer;
     pub fn private_get_indexed<T: StorableType>(&self, path: &str, index: &Option<Document>) -> Result<Entry<T>, CryptoError>;
     pub fn private_list_indexed<T: StorableType>(&self, path: &str, skip: u64, page_size: i64, index: &Option<Document>) -> Result<Vec<Entry<T>>, CryptoError>;
+    pub fn private_delete<T: StorableType>(&self, path: &str) -> Result<(), CryptoError>;
     pub fn private_get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError>;
     pub fn private_list<T: StorableType>(&self, path: &str, skip: u64, page_size: i64) -> Result<Vec<Entry<T>>, CryptoError>;
     pub fn private_create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError>;
@@ -218,6 +245,7 @@ pub mod tests {
     pub Storer {
         pub fn private_deserialize() -> Self;
         pub fn private_serialize(&self) -> MockIndexedStorer;
+    pub fn private_delete<T: StorableType>(&self, path: &str) -> Result<(), CryptoError>;
     pub fn private_get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError>;
     pub fn private_create<T: StorableType>(&self, value: Entry<T>) -> Result<Entry<T>, CryptoError>;
     }
@@ -277,6 +305,9 @@ pub mod tests {
 
     #[async_trait]
     impl StorerTrait for MockIndexedStorer {
+        async fn delete<T: StorableType>(&self, path: &str) -> Result<(), CryptoError> {
+            self.private_delete::<T>(path)
+        }
         async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
             self.private_get(path)
         }
@@ -287,6 +318,9 @@ pub mod tests {
 
     #[async_trait]
     impl StorerTrait for MockStorer {
+        async fn delete<T: StorableType>(&self, path: &str) -> Result<(), CryptoError> {
+            self.private_delete::<T>(path)
+        }
         async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
             self.private_get(path)
         }

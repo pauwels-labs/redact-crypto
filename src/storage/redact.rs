@@ -290,6 +290,30 @@ impl IndexedStorer for RedactStorer {
 
 #[async_trait]
 impl Storer for RedactStorer {
+    async fn delete<T: StorableType>(&self, path: &str) -> Result<(), CryptoError> {
+        let req_url = format!("{}/{}?", &self.url, path);
+        let http_client = RedactStorer::get_http_client()?;
+        match http_client.delete(&req_url).send().await {
+            Ok(r) => r
+                .error_for_status()
+                .map(|_| ())
+                .map_err(|source| -> CryptoError {
+                    if source.status() == Some(reqwest::StatusCode::NOT_FOUND) {
+                        RedactStorerError::NotFound.into()
+                    } else {
+                        RedactStorerError::InternalError {
+                            source: Box::new(source),
+                        }
+                        .into()
+                    }
+                }),
+            Err(source) => Err(RedactStorerError::InternalError {
+                source: Box::new(source),
+            }
+            .into()),
+        }
+    }
+
     async fn get<T: StorableType>(&self, path: &str) -> Result<Entry<T>, CryptoError> {
         self.get_indexed::<T>(path, &T::get_index()).await
     }
