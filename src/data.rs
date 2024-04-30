@@ -18,6 +18,7 @@ pub enum BinaryType {
     ImageWEBP,
     VideoMP4,
     VideoMPEG,
+    Unknown,
 }
 
 impl TryFrom<&str> for BinaryType {
@@ -34,7 +35,7 @@ impl TryFrom<&str> for BinaryType {
             "image/webp" => Ok(BinaryType::ImageWEBP),
             "video/mp4" => Ok(BinaryType::VideoMP4),
             "video/mpeg" => Ok(BinaryType::VideoMPEG),
-            _ => Err(CryptoError::NotDeserializableToBaseDataType),
+            _ => Ok(BinaryType::Unknown),
         }
     }
 }
@@ -54,6 +55,7 @@ impl Display for BinaryType {
                 BinaryType::ImageWEBP => "image/webp",
                 BinaryType::VideoMP4 => "video/mp4",
                 BinaryType::VideoMPEG => "video/mpeg",
+                BinaryType::Unknown => "unknown",
             }
         )
     }

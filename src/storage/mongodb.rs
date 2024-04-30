@@ -204,7 +204,11 @@ impl IndexedStorer for MongoStorer {
 #[async_trait]
 impl Storer for MongoStorer {
     async fn delete<T: StorableType>(&self, path: &str) -> Result<(), CryptoError> {
-        let filter = bson::doc! { "path": path };
+        let index = &T::get_index();
+        let mut filter = bson::doc! { "path": path };
+        if let Some(i) = index {
+            filter.insert("value", i);
+        }
         let delete_options = mongodb::options::DeleteOptions::builder().build();
         match self
             .get_client()

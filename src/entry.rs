@@ -23,13 +23,7 @@ pub struct Entry<T> {
 }
 
 pub trait StorableType:
-    HasByteSource
-    + HasBuilder
-    + HasIndex<Index = Document>
-    + Unpin
-    + Send
-    + std::fmt::Debug
-    + 'static
+    HasByteSource + HasBuilder + HasIndex<Index = Document> + Unpin + Send + std::fmt::Debug + 'static
 {
 }
 
