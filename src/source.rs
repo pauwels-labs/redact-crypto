@@ -130,10 +130,10 @@ pub enum ByteSource {
 
 impl ByteSource {
     /// Sets the bytes of the source to the given value
-    pub fn set(&mut self, key: &[u8]) -> Result<(), SourceError> {
+    pub fn set(&mut self, value: &[u8]) -> Result<(), SourceError> {
         match self {
-            ByteSource::Fs(fsbks) => fsbks.set(key),
-            ByteSource::Vector(vbks) => vbks.set(key),
+            ByteSource::Fs(fsbks) => fsbks.set(value),
+            ByteSource::Vector(vbks) => vbks.set(value),
         }
     }
 
@@ -141,12 +141,12 @@ impl ByteSource {
     /// timestamps as the last modified timestamp
     pub fn set_last_modified(
         &mut self,
-        key: &[u8],
+        value: &[u8],
         last_modified: DateTime<Utc>,
     ) -> Result<(), SourceError> {
         match self {
-            ByteSource::Fs(fsbks) => fsbks.set_last_modified(key, last_modified),
-            ByteSource::Vector(vbks) => vbks.set_last_modified(key, last_modified),
+            ByteSource::Fs(fsbks) => fsbks.set_last_modified(value, last_modified),
+            ByteSource::Vector(vbks) => vbks.set_last_modified(value, last_modified),
         }
     }
 
@@ -283,7 +283,7 @@ impl FsByteSource {
         let bytes =
             base64::decode(read_bytes).map_err(|e| SourceError::Base64Decode { source: e })?;
 
-        // Get last updated time
+        // Get last modified time
         let metadata = std::fs::metadata(path_ref).map_err(|e| match e.kind() {
             ErrorKind::NotFound => SourceError::NotFound {
                 kind: NotFoundKind::File(path_str.clone()),
@@ -295,7 +295,7 @@ impl FsByteSource {
             .ok_or(SourceError::FileMetadataIsInvalid)?;
 
         // Build and return the vector of bytes
-        Ok(VectorByteSource::new_with_last_updated(Some(&bytes), dtime))
+        Ok(VectorByteSource::new(Some(&bytes), dtime))
     }
 
     /// Empties the cache, triggering a reload of the file on the next
@@ -344,7 +344,7 @@ impl FsByteSource {
                 _ => SourceError::FsIoError { source },
             })?;
 
-        // Set the last updated metadata to the redact-generated one
+        // Set the last modified metadata to the redact-generated one
         let system_time = SystemTime::from(last_modified);
         let file_time = FileTime::from_system_time(system_time);
         let path_ref: &StdPathBuf = (&self.path).into();
@@ -377,6 +377,12 @@ impl FsByteSource {
     }
 }
 
+impl From<FsByteSource> for ByteSource {
+    fn from(f: FsByteSource) -> Self {
+        Self::Fs(f)
+    }
+}
+
 /// A source that is an array of bytes in memory
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VectorByteSource {
@@ -385,7 +391,7 @@ pub struct VectorByteSource {
         deserialize_with = "byte_vector_deserialize"
     )]
     value: Option<Vec<u8>>,
-    last_updated: DateTime<Utc>,
+    last_modified: DateTime<Utc>,
 }
 
 /// Custom serialization function base64-encodes the bytes before storage
@@ -416,20 +422,20 @@ where
 
 impl VectorByteSource {
     /// Creates a new `VectorBytesSource` from the given byte array
-    pub fn new(value: Option<&[u8]>) -> Self {
-        Self::new_with_last_updated(value, Utc::now())
+    pub fn new_now(value: Option<&[u8]>) -> Self {
+        Self::new(value, Utc::now())
     }
 
     /// Creates a new `VectorBytesSource` from the given byte array
-    pub fn new_with_last_updated(value: Option<&[u8]>, last_updated: DateTime<Utc>) -> Self {
+    pub fn new(value: Option<&[u8]>, last_modified: DateTime<Utc>) -> Self {
         match value {
             Some(value) => VectorByteSource {
                 value: Some(value.to_vec()),
-                last_updated,
+                last_modified,
             },
             None => VectorByteSource {
                 value: None,
-                last_updated,
+                last_modified,
             },
         }
     }
@@ -447,7 +453,7 @@ impl VectorByteSource {
         last_modified: DateTime<Utc>,
     ) -> Result<(), SourceError> {
         self.value = Some(value.to_owned());
-        self.last_updated = last_modified;
+        self.last_modified = last_modified;
         Ok(())
     }
 
@@ -463,18 +469,24 @@ impl VectorByteSource {
 
     /// Gets the timestamp for when this ByteSource was last modified
     pub fn get_last_modified(&self) -> Result<DateTime<Utc>, SourceError> {
-        Ok(self.last_updated)
+        Ok(self.last_modified)
     }
 }
 
 impl From<&[u8]> for VectorByteSource {
     fn from(value: &[u8]) -> Self {
-        Self::new(Some(value))
+        Self::new_now(Some(value))
     }
 }
 
 impl From<&str> for VectorByteSource {
     fn from(value: &str) -> Self {
-        Self::new(Some(value.as_ref()))
+        Self::new_now(Some(value.as_ref()))
+    }
+}
+
+impl From<VectorByteSource> for ByteSource {
+    fn from(v: VectorByteSource) -> Self {
+        Self::Vector(v)
     }
 }

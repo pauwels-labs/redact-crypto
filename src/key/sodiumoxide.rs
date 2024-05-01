@@ -6,7 +6,7 @@ use crate::{
     SecretAsymmetricSealer, SecretAsymmetricUnsealer, Signer, StorableType, SymmetricKeyBuilder,
     SymmetricSealer, SymmetricUnsealer, ToPublicAsymmetricByteAlgorithm,
     ToSecretAsymmetricByteAlgorithm, ToSymmetricByteAlgorithm, TypeBuilder, TypeBuilderContainer,
-    Verifier,
+    VectorByteSource, Verifier,
 };
 use async_trait::async_trait;
 use futures::Future;
@@ -162,9 +162,11 @@ impl SymmetricSealer for SodiumOxideSymmetricKey {
             Some(n) => n,
             None => &new_nonce,
         };
-        let plaintext = plaintext.get()?;
-        let ciphertext = secretbox::seal(plaintext, &nonce.nonce, &self.key);
-        Ok((ciphertext.as_slice().into(), nonce.to_owned()))
+        let plaintext_bytes = plaintext.get()?;
+        let ciphertext = secretbox::seal(plaintext_bytes, &nonce.nonce, &self.key);
+        let cipher_byte_source =
+            VectorByteSource::new(Some(&ciphertext), plaintext.get_last_modified()?).into();
+        Ok((cipher_byte_source, nonce.to_owned()))
     }
 }
 
@@ -179,7 +181,10 @@ impl SymmetricUnsealer for SodiumOxideSymmetricKey {
     ) -> Result<Self::UnsealedOutput, CryptoError> {
         let plaintext = secretbox::open(ciphertext.get()?, &nonce.nonce, &self.key)
             .map_err(|_| CryptoError::CiphertextFailedVerification)?;
-        Ok(plaintext.as_slice().into())
+        let plaintext_byte_source =
+            VectorByteSource::new(Some(plaintext.as_slice()), ciphertext.get_last_modified()?)
+                .into();
+        Ok(plaintext_byte_source)
     }
 }
 
@@ -360,7 +365,7 @@ impl SecretAsymmetricSealer for SodiumOxideCurve25519SecretAsymmetricKey {
             Some(n) => n,
             None => &new_nonce,
         };
-        let plaintext = plaintext.get()?;
+        let plaintext_bytes = plaintext.get()?;
         let self_public_key = SodiumOxideCurve25519PublicAsymmetricKey {
             public_key: self.secret_key.public_key(),
         };
@@ -369,8 +374,10 @@ impl SecretAsymmetricSealer for SodiumOxideCurve25519SecretAsymmetricKey {
             None => &self_public_key,
         };
         let precomputed_key = box_::precompute(&public_key.public_key, &self.secret_key);
-        let ciphertext = box_::seal_precomputed(plaintext, &nonce.nonce, &precomputed_key);
-        Ok((ciphertext.as_slice().into(), nonce.to_owned()))
+        let ciphertext = box_::seal_precomputed(plaintext_bytes, &nonce.nonce, &precomputed_key);
+        let cipher_byte_source =
+            VectorByteSource::new(Some(&ciphertext), plaintext.get_last_modified()?).into();
+        Ok((cipher_byte_source, nonce.to_owned()))
     }
 }
 
@@ -385,7 +392,7 @@ impl SecretAsymmetricUnsealer for SodiumOxideCurve25519SecretAsymmetricKey {
         public_key: Option<&Self::PublicKey>,
         nonce: &Self::Nonce,
     ) -> Result<Self::UnsealedOutput, CryptoError> {
-        let ciphertext = ciphertext.get()?;
+        let ciphertext_bytes = ciphertext.get()?;
         let self_public_key = SodiumOxideCurve25519PublicAsymmetricKey {
             public_key: self.secret_key.public_key(),
         };
@@ -394,9 +401,11 @@ impl SecretAsymmetricUnsealer for SodiumOxideCurve25519SecretAsymmetricKey {
             None => &self_public_key,
         };
         let precomputed_key = box_::precompute(&public_key.public_key, &self.secret_key);
-        let plaintext = box_::open_precomputed(ciphertext, &nonce.nonce, &precomputed_key)
+        let plaintext = box_::open_precomputed(ciphertext_bytes, &nonce.nonce, &precomputed_key)
             .map_err(|_| CryptoError::CiphertextFailedVerification)?;
-        Ok(plaintext.as_slice().into())
+        let plaintext_byte_source =
+            VectorByteSource::new(Some(&plaintext), ciphertext.get_last_modified()?).into();
+        Ok(plaintext_byte_source)
     }
 }
 
@@ -594,10 +603,12 @@ impl PublicAsymmetricSealer for SodiumOxideCurve25519PublicAsymmetricKey {
             Some(n) => n,
             None => &new_nonce,
         };
-        let plaintext = plaintext.get()?;
+        let plaintext_bytes = plaintext.get()?;
         let precomputed_key = box_::precompute(&self.public_key, &secret_key.secret_key);
-        let ciphertext = box_::seal_precomputed(plaintext, &nonce.nonce, &precomputed_key);
-        Ok((ciphertext.as_slice().into(), nonce.to_owned()))
+        let ciphertext = box_::seal_precomputed(plaintext_bytes, &nonce.nonce, &precomputed_key);
+        let cipher_byte_source =
+            VectorByteSource::new(Some(&ciphertext), plaintext.get_last_modified()?).into();
+        Ok((cipher_byte_source, nonce.to_owned()))
     }
 }
 
@@ -612,11 +623,13 @@ impl PublicAsymmetricUnsealer for SodiumOxideCurve25519PublicAsymmetricKey {
         secret_key: &Self::SecretKey,
         nonce: &Self::Nonce,
     ) -> Result<Self::UnsealedOutput, CryptoError> {
-        let ciphertext = ciphertext.get()?;
+        let ciphertext_bytes = ciphertext.get()?;
         let precomputed_key = box_::precompute(&self.public_key, &secret_key.secret_key);
-        let plaintext = box_::open_precomputed(ciphertext, &nonce.nonce, &precomputed_key)
+        let plaintext = box_::open_precomputed(ciphertext_bytes, &nonce.nonce, &precomputed_key)
             .map_err(|_| CryptoError::CiphertextFailedVerification)?;
-        Ok(plaintext.as_slice().into())
+        let plaintext_byte_source =
+            VectorByteSource::new(Some(&plaintext), ciphertext.get_last_modified()?).into();
+        Ok(plaintext_byte_source)
     }
 }
 
@@ -765,10 +778,8 @@ impl StorableType for SodiumOxideEd25519SecretAsymmetricKey {}
 
 impl Signer for SodiumOxideEd25519SecretAsymmetricKey {
     fn sign(&self, bytes: ByteSource) -> Result<ByteSource, CryptoError> {
-        Ok(sign::sign_detached(bytes.get()?, &self.secret_key)
-            .to_bytes()
-            .as_ref()
-            .into())
+        let signature_bytes = sign::sign_detached(bytes.get()?, &self.secret_key).to_bytes();
+        Ok(VectorByteSource::new(Some(&signature_bytes), bytes.get_last_modified()?).into())
     }
 }
 
@@ -2253,14 +2264,12 @@ mod tests {
         let public_key: SodiumOxideEd25519PublicAsymmetricKey = sopakb
             .build(Some(base64::decode(public_key_base64).unwrap().as_ref()))
             .unwrap();
-        let message = ByteSource::Vector(VectorByteSource::new(Some("abc".as_ref())));
-        let signature = ByteSource::Vector(
-            VectorByteSource::new(
+        let message = VectorByteSource::new(Some("abc".as_ref())).into();
+        let signature = VectorByteSource::new(
                 Some(base64::decode("XZOGd+nbEkrP5cdAjed0DdjLCrhMTW3/PU2UztdTK241N2yQyG/GVPxC+jHm96+QDFMssxHU1mMm2+e4e3m7Cw==")
                     .unwrap()
                     .as_ref())
-            )
-        );
+            ).into();
 
         public_key.verify(message, signature).unwrap();
     }
@@ -2272,16 +2281,15 @@ mod tests {
         let public_key: SodiumOxideEd25519PublicAsymmetricKey = sopakb
             .build(Some(base64::decode(public_key_base64).unwrap().as_ref()))
             .unwrap();
-        let message = ByteSource::Vector(VectorByteSource::new(
+        let message = VectorByteSource::new(
             Some("abcde".as_ref()), // not the message signed with the hardcoded signature
-        ));
-        let signature = ByteSource::Vector(
-            VectorByteSource::new(
+        )
+        .into();
+        let signature = VectorByteSource::new(
                 Some(base64::decode("XZOGd+nbEkrP5cdAjed0DdjLCrhMTW3/PU2UztdTK241N2yQyG/GVPxC+jHm96+QDFMssxHU1mMm2+e4e3m7Cw==")
                     .unwrap()
                     .as_ref())
-            )
-        );
+            ).into();
 
         let result = public_key.verify(message, signature);
         assert!(matches!(result, Err(CryptoError::BadSignature)));
@@ -2295,14 +2303,13 @@ mod tests {
         let public_key: SodiumOxideEd25519PublicAsymmetricKey =
             sopakb.build(Some(pk.as_ref())).unwrap();
 
-        let message = ByteSource::Vector(VectorByteSource::new(Some("abc".as_ref())));
-        let signature = ByteSource::Vector(
-            VectorByteSource::new(
+        let message = VectorByteSource::new(Some("abc".as_ref())).into();
+        let signature = VectorByteSource::new(
                 Some(base64::decode("XZOGd+nbEkrP5cdAjed0DdjLCrhMTW3/PU2UztdTK241N2yQyG/GVPxC+jHm96+QDFMssxHU1mMm2+e4e3m7Cw==")
                     .unwrap()
                     .as_ref())
-            )
-        );
+        ).into();
+
         assert!(matches!(
             public_key.verify(message, signature),
             Err(CryptoError::BadSignature)
@@ -2317,10 +2324,9 @@ mod tests {
         let public_key: SodiumOxideEd25519PublicAsymmetricKey =
             sopakb.build(Some(pk.as_ref())).unwrap();
 
-        let message = ByteSource::Vector(VectorByteSource::new(Some("abc".as_ref())));
-        let signature = ByteSource::Vector(VectorByteSource::new(Some(
-            base64::decode("YWFzZA==").unwrap().as_ref(),
-        )));
+        let message = VectorByteSource::new(Some("abc".as_ref())).into();
+        let signature =
+            VectorByteSource::new(Some(base64::decode("YWFzZA==").unwrap().as_ref())).into();
         assert!(matches!(
             public_key.verify(message, signature),
             Err(CryptoError::BadSignature)

@@ -5,6 +5,7 @@ use crate::{
 };
 use async_recursion::async_recursion;
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use mongodb::bson::Document;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -177,6 +178,23 @@ impl<T: StorableType> Entry<T> {
                 }
             },
             Some(value) => Ok((value, self.path, self.value)),
+        }
+    }
+
+    //#[async_recursion]
+    pub async fn get_last_modified(&self) -> Result<DateTime<Utc>, CryptoError> {
+        match self.value {
+            State::Referenced {
+                ref path,
+                ref storer,
+            } => {
+                let entry = storer.get::<T>(path).await?;
+                entry.get_last_modified().await
+            }
+            State::Sealed { ref ciphertext, .. } => {
+                ciphertext.get_last_modified().map_err(|e| e.into())
+            }
+            State::Unsealed { ref bytes, .. } => bytes.get_last_modified().map_err(|e| e.into()),
         }
     }
 
