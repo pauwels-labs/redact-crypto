@@ -189,16 +189,14 @@ impl<T: StorableType> Entry<T> {
                 ref storer,
             } => {
                 let entry = storer.get::<T>(path).await?;
-                Ok(entry.get_last_modified().await?.clone())
+                Ok(entry.get_last_modified().await?)
             }
-            State::Sealed { ref ciphertext, .. } => Ok(ciphertext
+            State::Sealed { ref ciphertext, .. } => Ok(*ciphertext
                 .get_last_modified()
-                .map_err::<CryptoError, _>(|e| e.into())?
-                .clone()),
-            State::Unsealed { ref bytes, .. } => Ok(bytes
+                .map_err::<CryptoError, _>(|e| e.into())?),
+            State::Unsealed { ref bytes, .. } => Ok(*bytes
                 .get_last_modified()
-                .map_err::<CryptoError, _>(|e| e.into())?
-                .clone()),
+                .map_err::<CryptoError, _>(|e| e.into())?),
         }
     }
 
