@@ -159,7 +159,7 @@ impl ByteSource {
     }
 
     /// Gets the timestamp for when this ByteSource was last modified
-    pub fn get_last_modified(&self) -> Result<DateTime<Utc>, SourceError> {
+    pub fn get_last_modified(&self) -> Result<&DateTime<Utc>, SourceError> {
         match self {
             ByteSource::Fs(fsbks) => fsbks.get_last_modified(),
             ByteSource::Vector(vbks) => vbks.get_last_modified(),
@@ -365,7 +365,7 @@ impl FsByteSource {
     }
 
     /// Gets the timestamp for when this ByteSource was last modified
-    pub fn get_last_modified(&self) -> Result<DateTime<Utc>, SourceError> {
+    pub fn get_last_modified(&self) -> Result<&DateTime<Utc>, SourceError> {
         self.cached
             .get_or_try_init(|| Self::read_from_path(&self.path))?
             .get_last_modified()
@@ -468,8 +468,8 @@ impl VectorByteSource {
     }
 
     /// Gets the timestamp for when this ByteSource was last modified
-    pub fn get_last_modified(&self) -> Result<DateTime<Utc>, SourceError> {
-        Ok(self.last_modified)
+    pub fn get_last_modified(&self) -> Result<&DateTime<Utc>, SourceError> {
+        Ok(&self.last_modified)
     }
 }
 

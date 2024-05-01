@@ -165,7 +165,7 @@ impl SymmetricSealer for SodiumOxideSymmetricKey {
         let plaintext_bytes = plaintext.get()?;
         let ciphertext = secretbox::seal(plaintext_bytes, &nonce.nonce, &self.key);
         let cipher_byte_source =
-            VectorByteSource::new(Some(&ciphertext), plaintext.get_last_modified()?).into();
+            VectorByteSource::new(Some(&ciphertext), *plaintext.get_last_modified()?).into();
         Ok((cipher_byte_source, nonce.to_owned()))
     }
 }
@@ -182,7 +182,7 @@ impl SymmetricUnsealer for SodiumOxideSymmetricKey {
         let plaintext = secretbox::open(ciphertext.get()?, &nonce.nonce, &self.key)
             .map_err(|_| CryptoError::CiphertextFailedVerification)?;
         let plaintext_byte_source =
-            VectorByteSource::new(Some(plaintext.as_slice()), ciphertext.get_last_modified()?)
+            VectorByteSource::new(Some(plaintext.as_slice()), *ciphertext.get_last_modified()?)
                 .into();
         Ok(plaintext_byte_source)
     }
@@ -376,7 +376,7 @@ impl SecretAsymmetricSealer for SodiumOxideCurve25519SecretAsymmetricKey {
         let precomputed_key = box_::precompute(&public_key.public_key, &self.secret_key);
         let ciphertext = box_::seal_precomputed(plaintext_bytes, &nonce.nonce, &precomputed_key);
         let cipher_byte_source =
-            VectorByteSource::new(Some(&ciphertext), plaintext.get_last_modified()?).into();
+            VectorByteSource::new(Some(&ciphertext), *plaintext.get_last_modified()?).into();
         Ok((cipher_byte_source, nonce.to_owned()))
     }
 }
@@ -404,7 +404,7 @@ impl SecretAsymmetricUnsealer for SodiumOxideCurve25519SecretAsymmetricKey {
         let plaintext = box_::open_precomputed(ciphertext_bytes, &nonce.nonce, &precomputed_key)
             .map_err(|_| CryptoError::CiphertextFailedVerification)?;
         let plaintext_byte_source =
-            VectorByteSource::new(Some(&plaintext), ciphertext.get_last_modified()?).into();
+            VectorByteSource::new(Some(&plaintext), *ciphertext.get_last_modified()?).into();
         Ok(plaintext_byte_source)
     }
 }
@@ -607,7 +607,7 @@ impl PublicAsymmetricSealer for SodiumOxideCurve25519PublicAsymmetricKey {
         let precomputed_key = box_::precompute(&self.public_key, &secret_key.secret_key);
         let ciphertext = box_::seal_precomputed(plaintext_bytes, &nonce.nonce, &precomputed_key);
         let cipher_byte_source =
-            VectorByteSource::new(Some(&ciphertext), plaintext.get_last_modified()?).into();
+            VectorByteSource::new(Some(&ciphertext), *plaintext.get_last_modified()?).into();
         Ok((cipher_byte_source, nonce.to_owned()))
     }
 }
@@ -628,7 +628,7 @@ impl PublicAsymmetricUnsealer for SodiumOxideCurve25519PublicAsymmetricKey {
         let plaintext = box_::open_precomputed(ciphertext_bytes, &nonce.nonce, &precomputed_key)
             .map_err(|_| CryptoError::CiphertextFailedVerification)?;
         let plaintext_byte_source =
-            VectorByteSource::new(Some(&plaintext), ciphertext.get_last_modified()?).into();
+            VectorByteSource::new(Some(&plaintext), *ciphertext.get_last_modified()?).into();
         Ok(plaintext_byte_source)
     }
 }
@@ -779,7 +779,7 @@ impl StorableType for SodiumOxideEd25519SecretAsymmetricKey {}
 impl Signer for SodiumOxideEd25519SecretAsymmetricKey {
     fn sign(&self, bytes: ByteSource) -> Result<ByteSource, CryptoError> {
         let signature_bytes = sign::sign_detached(bytes.get()?, &self.secret_key).to_bytes();
-        Ok(VectorByteSource::new(Some(&signature_bytes), bytes.get_last_modified()?).into())
+        Ok(VectorByteSource::new(Some(&signature_bytes), *bytes.get_last_modified()?).into())
     }
 }
 
