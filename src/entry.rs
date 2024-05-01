@@ -181,7 +181,6 @@ impl<T: StorableType> Entry<T> {
         }
     }
 
-    //#[async_recursion]
     pub async fn get_last_modified(&self) -> Result<DateTime<Utc>, CryptoError> {
         match self.value {
             State::Referenced {
@@ -189,7 +188,9 @@ impl<T: StorableType> Entry<T> {
                 ref storer,
             } => {
                 let entry = storer.get::<T>(path).await?;
-                Ok(entry.get_last_modified().await?)
+                let dt = entry.get_last_modified().await?;
+                let _ = entry.take_resolve().await?;
+                Ok(dt)
             }
             State::Sealed { ref ciphertext, .. } => Ok(*ciphertext
                 .get_last_modified()
